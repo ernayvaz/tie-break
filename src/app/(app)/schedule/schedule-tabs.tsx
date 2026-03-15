@@ -1,0 +1,697 @@
+"use client";
+
+import { useState, useMemo } from "react";
+import { useRouter } from "next/navigation";
+import { toDisplay } from "@/lib/prediction-values";
+import type { PredictionValue } from "@prisma/client";
+import type { PredictionDisplay } from "@/lib/prediction-values";
+import { Button, Modal } from "@/components/ui";
+import { PredictionPickDisplay } from "@/components/prediction-pick-display";
+import {
+  submitPredictionAction,
+  finalizePredictionAction,
+  unfinalizePredictionAction,
+  resetUpcomingPredictionsAction,
+  resetPastPredictionsAction,
+} from "./actions";
+
+const UCL_ID = "CL";
+
+export type ScheduleMatch = {
+  id: string;
+  competitionId?: string | null;
+  matchDatetime: string;
+  lockAt: string;
+  stage: string;
+  homeTeamName: string;
+  awayTeamName: string;
+  homeTeamLogo?: string | null;
+  awayTeamLogo?: string | null;
+  officialResultType: PredictionValue | null;
+  homeScore?: number | null;
+  awayScore?: number | null;
+};
+
+export type UserPrediction = {
+  matchId: string;
+  selectedPrediction: PredictionDisplay;
+  isFinal: boolean;
+  finalizedAt: string | null;
+};
+
+export type OtherPrediction = {
+  name: string;
+  surname: string;
+  selectedPrediction: string;
+  finalizedAt: string;
+};
+
+function isSameCalendarDay(iso1: string, iso2: string): boolean {
+  const d1 = new Date(iso1);
+  const d2 = new Date(iso2);
+  return d1.getFullYear() === d2.getFullYear() && d1.getMonth() === d2.getMonth() && d1.getDate() === d2.getDate();
+}
+
+function formatStage(stage: string): string {
+  const map: Record<string, string> = {
+    GROUP_STAGE: "Group stage",
+    LEAGUE_STAGE: "Group stage",
+    ROUND_16: "Round of 16",
+    LAST_16: "Round of 16",
+    QUARTER_FINAL: "Quarter-final",
+    SEMI_FINAL: "Semi-final",
+    FINAL: "Final",
+    PLAYOFFS: "Play-offs",
+  };
+  return map[stage] ?? stage;
+}
+
+function formatResult(value: PredictionValue | null): string {
+  if (!value) return "–";
+  return toDisplay(value);
+}
+
+type Props = {
+  matches: ScheduleMatch[];
+  userPredictions: UserPrediction[];
+  othersByMatchId: Record<string, OtherPrediction[]>;
+  isAdmin?: boolean;
+};
+
+export function ScheduleTabs({
+  matches,
+  userPredictions,
+  othersByMatchId,
+  isAdmin = false,
+}: Props) {
+  const [competitionTab, setCompetitionTab] = useState<"ucl" | "other">("ucl");
+  const [activeTab, setActiveTab] = useState<"upcoming" | "past">("upcoming");
+  const [filterStage, setFilterStage] = useState<string>("");
+  const [filterTeam, setFilterTeam] = useState<string>("");
+  const [now] = useState(() => new Date());
+  const [finalizeModal, setFinalizeModal] = useState<{
+    matchId: string;
+    matchLabel: string;
+  } | null>(null);
+  const [pendingFinalize, setPendingFinalize] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [expandedOthers, setExpandedOthers] = useState<Set<string>>(new Set());
+  const [optimisticSelections, setOptimisticSelections] = useState<Record<string, PredictionDisplay>>({});
+  const [submittingMatchId, setSubmittingMatchId] = useState<string | null>(null);
+  const [undoingMatchId, setUndoingMatchId] = useState<string | null>(null);
+  const [pendingResetUpcoming, setPendingResetUpcoming] = useState(false);
+  const [pendingResetPast, setPendingResetPast] = useState(false);
+  const [resetMessage, setResetMessage] = useState<string | null>(null);
+  const router = useRouter();
+
+  const userPredictionByMatch = useMemo(() => {
+    const map: Record<string, UserPrediction> = {};
+    for (const p of userPredictions) map[p.matchId] = p;
+    return map;
+  }, [userPredictions]);
+
+  const matchesByCompetition = useMemo(() => {
+    if (competitionTab === "ucl") {
+      return matches.filter((m) => m.competitionId === UCL_ID || m.competitionId == null);
+    }
+    return matches.filter((m) => m.competitionId != null && m.competitionId !== UCL_ID);
+  }, [matches, competitionTab]);
+
+  const { upcoming, past } = useMemo(() => {
+    const upcomingList = matchesByCompetition
+      .filter((m) => new Date(m.matchDatetime) >= now)
+      .sort(
+        (a, b) =>
+          new Date(a.matchDatetime).getTime() -
+          new Date(b.matchDatetime).getTime()
+      );
+    const pastList = matchesByCompetition
+      .filter((m) => new Date(m.matchDatetime) < now)
+      .sort(
+        (a, b) =>
+          new Date(b.matchDatetime).getTime() -
+          new Date(a.matchDatetime).getTime()
+      );
+    return { upcoming: upcomingList, past: pastList };
+  }, [matchesByCompetition, now]);
+
+  const currentList = activeTab === "upcoming" ? upcoming : past;
+
+  const stageOptions = useMemo(() => {
+    const stages = new Set(currentList.map((m) => m.stage));
+    return Array.from(stages).sort((a, b) => {
+      const order = ["GROUP_STAGE", "LEAGUE_STAGE", "PLAYOFFS", "ROUND_16", "LAST_16", "QUARTER_FINAL", "SEMI_FINAL", "FINAL"];
+      const i = order.indexOf(a);
+      const j = order.indexOf(b);
+      if (i !== -1 && j !== -1) return i - j;
+      if (i !== -1) return -1;
+      if (j !== -1) return 1;
+      return a.localeCompare(b);
+    });
+  }, [currentList]);
+
+  const teamOptions = useMemo(() => {
+    const teams = new Set<string>();
+    currentList.forEach((m) => {
+      if (m.homeTeamName && m.homeTeamName !== "TBD") teams.add(m.homeTeamName);
+      if (m.awayTeamName && m.awayTeamName !== "TBD") teams.add(m.awayTeamName);
+    });
+    return Array.from(teams).sort((a, b) => a.localeCompare(b));
+  }, [currentList]);
+
+  const filteredList = useMemo(() => {
+    return currentList.filter((m) => {
+      if (filterStage && m.stage !== filterStage) return false;
+      if (filterTeam && m.homeTeamName !== filterTeam && m.awayTeamName !== filterTeam) return false;
+      return true;
+    });
+  }, [currentList, filterStage, filterTeam]);
+
+  /** En erkenden en geçe: tarih ve saate göre sıralı liste (upcoming = artan, past = azalan). */
+  const sortedList = useMemo(() => {
+    const list = [...filteredList];
+    const cmp = (a: ScheduleMatch, b: ScheduleMatch) =>
+      new Date(a.matchDatetime).getTime() - new Date(b.matchDatetime).getTime();
+    return activeTab === "upcoming" ? list.sort(cmp) : list.sort((a, b) => cmp(b, a));
+  }, [filteredList, activeTab]);
+
+  const resetFilters = () => {
+    setFilterStage("");
+    setFilterTeam("");
+  };
+
+  const handleSubmitPrediction = async (
+    matchId: string,
+    value: PredictionDisplay
+  ) => {
+    setActionError(null);
+    setOptimisticSelections((prev) => ({ ...prev, [matchId]: value }));
+    setSubmittingMatchId(matchId);
+    const result = await submitPredictionAction(matchId, value);
+    setSubmittingMatchId(null);
+    setOptimisticSelections((prev) => {
+      const next = { ...prev };
+      delete next[matchId];
+      return next;
+    });
+    if (result.ok) {
+      router.refresh();
+      return;
+    }
+    setActionError(result.error);
+  };
+
+  const handleFinalizeConfirm = async () => {
+    if (!finalizeModal) return;
+    setPendingFinalize(true);
+    setActionError(null);
+    const result = await finalizePredictionAction(finalizeModal.matchId);
+    setPendingFinalize(false);
+    setFinalizeModal(null);
+    if (result.ok) {
+      router.refresh();
+      return;
+    }
+    setActionError(result.error);
+  };
+
+  const handleUndo = async (matchId: string) => {
+    setActionError(null);
+    setUndoingMatchId(matchId);
+    const result = await unfinalizePredictionAction(matchId);
+    setUndoingMatchId(null);
+    if (result.ok) router.refresh();
+    else setActionError(result.error);
+  };
+
+  const toggleOthers = (matchId: string) => {
+    setExpandedOthers((prev) => {
+      const next = new Set(prev);
+      if (next.has(matchId)) next.delete(matchId);
+      else next.add(matchId);
+      return next;
+    });
+  };
+
+  const scheduleGrid =
+    "grid grid-cols-[7rem_minmax(12rem,1fr)_14rem_6rem_5rem] gap-4 px-4 py-3 items-center";
+
+  const ScheduleTableHeader = () => (
+    <div
+      className={`${scheduleGrid} bg-nord-snow/80 text-nord-polarLight text-xs font-semibold uppercase tracking-wide border-b border-nord-polarLighter/50`}
+    >
+      <span>Time</span>
+      <span>Match</span>
+      <span>Prediction</span>
+      <span>Match score</span>
+      <span className="text-center">Result</span>
+    </div>
+  );
+
+  function MatchCard({
+    m,
+    canPredict,
+    userPred,
+    others,
+    matchStarted,
+    displaySelection,
+    isSubmitting,
+    isUndoing,
+    onUndo,
+    separatorVariant,
+  }: {
+    m: ScheduleMatch;
+    canPredict: boolean;
+    userPred: UserPrediction | undefined;
+    others: OtherPrediction[];
+    matchStarted: boolean;
+    displaySelection: PredictionDisplay | undefined;
+    isSubmitting: boolean;
+    isUndoing: boolean;
+    onUndo: (matchId: string) => void;
+    /** Same day = thin line; new day = slightly thicker line; none = last item */
+    separatorVariant: "same-day" | "new-day" | "none";
+  }) {
+    const showOthers = userPred?.isFinal && others.length > 0;
+    const isExpanded = expandedOthers.has(m.id);
+    const matchDate = new Date(m.matchDatetime);
+
+    const borderStyle =
+      separatorVariant === "none"
+        ? undefined
+        : separatorVariant === "same-day"
+          ? { borderBottom: "1px solid rgba(76, 86, 106, 0.22)" }
+          : { borderBottom: "2px solid rgba(76, 86, 106, 0.45)" };
+
+    return (
+      <li
+        className="bg-white/60 hover:bg-white/80 transition-colors"
+        style={borderStyle}
+      >
+        <div className={`${scheduleGrid} text-sm min-h-[4rem]`}>
+          {/* Time */}
+          <div className="flex flex-col justify-center text-nord-polarLight">
+            <span className="font-medium text-nord-polar">
+              {matchDate.toLocaleDateString("en-GB", {
+                day: "2-digit",
+                month: "2-digit",
+                year: "2-digit",
+              })}
+            </span>
+            <span className="mt-0.5">
+              {matchDate.toLocaleTimeString("en-GB", {
+                hour: "2-digit",
+                minute: "2-digit",
+              })}
+            </span>
+            <span className="mt-1 text-xs">{formatStage(m.stage)}</span>
+          </div>
+
+          {/* Match (teams) */}
+          <div className="flex min-w-0 flex-col justify-center gap-1.5">
+            <div className="flex items-center gap-2">
+              {m.homeTeamLogo ? (
+                // eslint-disable-next-line @next/next/no-img-element -- external API logo URL
+                <img
+                  src={m.homeTeamLogo}
+                  alt=""
+                  className="h-7 w-7 shrink-0 rounded-full object-contain bg-white border border-nord-polarLighter/50"
+                />
+              ) : (
+                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-nord-snow text-xs font-medium text-nord-polarLighter">
+                  ?
+                </span>
+              )}
+              <span className="font-semibold text-nord-polar truncate">
+                {m.homeTeamName}
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              {m.awayTeamLogo ? (
+                // eslint-disable-next-line @next/next/no-img-element -- external API logo URL
+                <img
+                  src={m.awayTeamLogo}
+                  alt=""
+                  className="h-7 w-7 shrink-0 rounded-full object-contain bg-white border border-nord-polarLighter/50"
+                />
+              ) : (
+                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-nord-snow text-xs font-medium text-nord-polarLighter">
+                  ?
+                </span>
+              )}
+              <span className="font-medium text-nord-polar text-sm truncate">
+                {m.awayTeamName}
+              </span>
+            </div>
+          </div>
+
+          {/* Prediction (no per-row label) */}
+          <div className="flex flex-col justify-center">
+            {canPredict && (
+              <div className="flex flex-col gap-1.5">
+                <span className="text-[11px] text-nord-polarLight uppercase tracking-wide">
+                  Lock {new Date(m.lockAt).toLocaleTimeString("en-GB", { timeStyle: "short" })}
+                </span>
+                <div className="flex flex-wrap items-center gap-1.5">
+                {(["1", "X", "2"] as const).map((val) => (
+                  <button
+                    key={val}
+                    type="button"
+                    disabled={isSubmitting}
+                    onClick={() => handleSubmitPrediction(m.id, val)}
+                    className={`min-w-[2rem] rounded border px-2 py-1 text-xs font-medium transition-colors ${
+                      displaySelection === val
+                        ? "border-nord-frostDark bg-nord-frostDark text-white"
+                        : "border-nord-polarLighter bg-white text-nord-polar hover:bg-nord-snow"
+                    }`}
+                  >
+                    {val}
+                  </button>
+                ))}
+                <Button
+                  type="button"
+                  size="sm"
+                  disabled={!displaySelection || isSubmitting}
+                  onClick={() =>
+                    setFinalizeModal({
+                      matchId: m.id,
+                      matchLabel: `${m.homeTeamName} vs ${m.awayTeamName}`,
+                    })
+                  }
+                >
+                  Finalize
+                </Button>
+                </div>
+              </div>
+            )}
+            {!canPredict && userPred && (
+              <PredictionPickDisplay
+                lockAt={m.lockAt}
+                pick={userPred.selectedPrediction}
+                finalizedAt={userPred.finalizedAt}
+                isFinal={userPred.isFinal}
+                compact
+                onUndo={
+                  userPred.isFinal && m.officialResultType === null && isAdmin
+                    ? () => onUndo(m.id)
+                    : undefined
+                }
+                undoLoading={isUndoing}
+              />
+            )}
+            {!canPredict && !userPred && (
+              <span className="text-nord-polarLight mt-0.5">–</span>
+            )}
+          </div>
+
+          {/* Match score (no per-row label) */}
+          <div className="flex flex-col justify-center">
+            {m.homeScore != null && m.awayScore != null ? (
+              <span className="font-semibold text-nord-polar">
+                {m.homeScore} – {m.awayScore}
+              </span>
+            ) : (
+              <span className="text-nord-polarLight">–</span>
+            )}
+          </div>
+
+          {/* Result (no per-row label) */}
+          <div className="flex flex-col justify-center text-center">
+            <span className="font-semibold text-nord-polar">
+              {m.officialResultType != null
+                ? formatResult(m.officialResultType)
+                : "–"}
+            </span>
+          </div>
+        </div>
+
+        {showOthers && (
+          <div className="bg-nord-snow/50 px-4 pb-3 pt-1">
+            <button
+              type="button"
+              onClick={() => toggleOthers(m.id)}
+              className="text-xs font-medium text-nord-frostDark hover:underline py-1"
+            >
+              {isExpanded
+                ? "Hide others' predictions"
+                : `Others' predictions (${others.length})`}
+            </button>
+            {isExpanded && (
+              <ul className="mt-2 space-y-1 text-xs text-nord-polarLight">
+                {others.map((o, i) => (
+                  <li key={i}>
+                    {o.name} {o.surname}: {o.selectedPrediction} (finalized{" "}
+                    {new Date(o.finalizedAt).toLocaleString("en-GB")})
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
+      </li>
+    );
+  }
+
+  function MatchList({ list }: { list: ScheduleMatch[] }) {
+    return (
+      <>
+        <ScheduleTableHeader />
+        <ul className="divide-y-0">
+          {list.map((m, index) => {
+          const lockAt = new Date(m.lockAt).getTime();
+          const matchStarted = now.getTime() >= new Date(m.matchDatetime).getTime();
+          const canPredict = (now.getTime() < lockAt || isAdmin) && !userPredictionByMatch[m.id]?.isFinal;
+          const userPred = userPredictionByMatch[m.id];
+          const others = othersByMatchId[m.id] ?? [];
+          const displaySelection = optimisticSelections[m.id] ?? userPred?.selectedPrediction;
+          const isSubmitting = submittingMatchId === m.id;
+          const isLast = index === list.length - 1;
+          const nextMatch = list[index + 1];
+          const sameDayAsNext = nextMatch ? isSameCalendarDay(m.matchDatetime, nextMatch.matchDatetime) : false;
+          const separatorVariant = isLast ? "none" : sameDayAsNext ? "same-day" : "new-day";
+
+          return (
+            <MatchCard
+              key={m.id}
+              m={m}
+              canPredict={canPredict}
+              userPred={userPred}
+              others={others}
+              matchStarted={matchStarted}
+              displaySelection={displaySelection}
+              isSubmitting={isSubmitting}
+              isUndoing={undoingMatchId === m.id}
+              onUndo={handleUndo}
+              separatorVariant={separatorVariant}
+            />
+          );
+        })}
+        </ul>
+      </>
+    );
+  }
+
+  return (
+    <div className="mt-6">
+      {actionError && (
+        <div
+          role="alert"
+          className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800"
+        >
+          {actionError}
+        </div>
+      )}
+      {/* Competition / league tabs */}
+      <div className="flex border-b border-nord-polarLighter/50 mb-0">
+        <button
+          type="button"
+          onClick={() => { setCompetitionTab("ucl"); setActiveTab("upcoming"); resetFilters(); }}
+          className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 -mb-px transition-colors ${
+            competitionTab === "ucl"
+              ? "border-nord-frostDark text-nord-polar"
+              : "border-transparent text-nord-polarLight hover:text-nord-polar"
+          }`}
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element -- external league logo */}
+          <img
+            src="https://upload.wikimedia.org/wikipedia/en/f/f5/UEFA_Champions_League.svg"
+            alt=""
+            className="h-6 w-6 shrink-0 object-contain"
+          />
+          UEFA Champions League
+        </button>
+        <button
+          type="button"
+          onClick={() => { setCompetitionTab("other"); setActiveTab("upcoming"); resetFilters(); }}
+          className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 -mb-px transition-colors ${
+            competitionTab === "other"
+              ? "border-nord-frostDark text-nord-polar"
+              : "border-transparent text-nord-polarLight hover:text-nord-polar"
+          }`}
+        >
+          <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-nord-polarLighter/60" aria-hidden>
+            <svg className="h-3.5 w-3.5 text-nord-polar" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="10" />
+              <path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+            </svg>
+          </span>
+          Diğer
+        </button>
+      </div>
+      <div className="flex border-b border-nord-polarLighter/50 mb-0">
+        <button
+          type="button"
+          onClick={() => { setActiveTab("upcoming"); resetFilters(); }}
+          className={`px-4 py-3 text-sm font-medium border-b-2 -mb-px transition-colors ${
+            activeTab === "upcoming"
+              ? "border-nord-frostDark text-nord-polar"
+              : "border-transparent text-nord-polarLight hover:text-nord-polar"
+          }`}
+        >
+          Upcoming matches
+        </button>
+        <button
+          type="button"
+          onClick={() => { setActiveTab("past"); resetFilters(); }}
+          className={`px-4 py-3 text-sm font-medium border-b-2 -mb-px transition-colors ${
+            activeTab === "past"
+              ? "border-nord-frostDark text-nord-polar"
+              : "border-transparent text-nord-polarLight hover:text-nord-polar"
+          }`}
+        >
+          Past matches
+        </button>
+      </div>
+
+      {isAdmin && (
+        <div className="flex flex-wrap items-center gap-3 px-4 py-2 bg-nord-polar/5 border border-nord-polarLighter/50 border-t-0 text-sm">
+          <span className="font-medium text-nord-polar">Admin:</span>
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            onClick={async () => {
+              setActionError(null);
+              setResetMessage(null);
+              setPendingResetUpcoming(true);
+              const res = await resetUpcomingPredictionsAction();
+              setPendingResetUpcoming(false);
+              if (res.ok) {
+                setResetMessage(`Upcoming: ${res.count} prediction(s) reset.`);
+                router.refresh();
+                setTimeout(() => setResetMessage(null), 4000);
+              } else {
+                setActionError(res.error);
+              }
+            }}
+            disabled={pendingResetUpcoming || pendingResetPast}
+          >
+            {pendingResetUpcoming ? "Resetting…" : "Reset all my predictions (upcoming)"}
+          </Button>
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            onClick={async () => {
+              setActionError(null);
+              setResetMessage(null);
+              setPendingResetPast(true);
+              const res = await resetPastPredictionsAction();
+              setPendingResetPast(false);
+              if (res.ok) {
+                setResetMessage(`Past: ${res.count} prediction(s) reset.`);
+                router.refresh();
+                setTimeout(() => setResetMessage(null), 4000);
+              } else {
+                setActionError(res.error);
+              }
+            }}
+            disabled={pendingResetUpcoming || pendingResetPast}
+          >
+            {pendingResetPast ? "Resetting…" : "Reset all my predictions (past)"}
+          </Button>
+          {resetMessage && (
+            <span className="text-nord-frostDark font-medium">{resetMessage}</span>
+          )}
+        </div>
+      )}
+
+      {currentList.length > 0 && (
+        <div className="flex flex-wrap items-center gap-4 px-4 py-3 bg-nord-snow/50 border border-nord-polarLighter/50 border-t-0 text-sm">
+          <span className="font-medium text-nord-polar">Filters:</span>
+          <label className="flex items-center gap-2">
+            <span className="text-nord-polarLight">Stage</span>
+            <select
+              value={filterStage}
+              onChange={(e) => setFilterStage(e.target.value)}
+              className="rounded-lg border border-nord-polarLighter bg-white px-3 py-1.5 text-nord-polar focus:border-nord-frostDark focus:outline-none focus:ring-1 focus:ring-nord-frostDark"
+            >
+              <option value="">All stages</option>
+              {stageOptions.map((stage) => (
+                <option key={stage} value={stage}>
+                  {formatStage(stage)}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex items-center gap-2">
+            <span className="text-nord-polarLight">Team</span>
+            <select
+              value={filterTeam}
+              onChange={(e) => setFilterTeam(e.target.value)}
+              className="min-w-[12rem] rounded-lg border border-nord-polarLighter bg-white px-3 py-1.5 text-nord-polar focus:border-nord-frostDark focus:outline-none focus:ring-1 focus:ring-nord-frostDark"
+            >
+              <option value="">All teams</option>
+              {teamOptions.map((team) => (
+                <option key={team} value={team}>
+                  {team}
+                </option>
+              ))}
+            </select>
+          </label>
+          {(filterStage || filterTeam) && (
+            <button
+              type="button"
+              onClick={resetFilters}
+              className="text-nord-frostDark hover:underline text-sm"
+            >
+              Clear filters
+            </button>
+          )}
+        </div>
+      )}
+
+      <div className="border border-nord-polarLighter/50 border-t-0 rounded-b-lg overflow-hidden">
+        {currentList.length === 0 ? (
+          <div className="px-4 py-8 text-center text-nord-polarLight text-sm">
+            {activeTab === "upcoming" ? "No upcoming matches." : "No past matches."}
+          </div>
+        ) : sortedList.length === 0 ? (
+          <div className="px-4 py-8 text-center text-nord-polarLight text-sm">
+            No matches match the selected filters.
+          </div>
+        ) : (
+          <MatchList list={sortedList} />
+        )}
+      </div>
+
+      <Modal
+        open={!!finalizeModal}
+        onClose={() => !pendingFinalize && setFinalizeModal(null)}
+        title="Finalize prediction?"
+        confirmLabel="Yes, finalize"
+        cancelLabel="Cancel"
+        onConfirm={handleFinalizeConfirm}
+        loading={pendingFinalize}
+      >
+        {finalizeModal && (
+          <p>
+            Are you sure you want to finalize your prediction for{" "}
+            <strong>{finalizeModal.matchLabel}</strong>? You cannot change it
+            after finalizing.
+          </p>
+        )}
+      </Modal>
+    </div>
+  );
+}

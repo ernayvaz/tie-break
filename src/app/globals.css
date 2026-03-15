@@ -1,0 +1,40 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Scandinavian football era – minimal, clear, Nordic */
+:root {
+  --nord-snow: #eceff4;
+  --nord-frost: #8fbcbb;
+  --nord-frost-light: #88c0d0;
+  --nord-frost-mid: #81a1c1;
+  --nord-frost-dark: #5e81ac;
+  --nord-polar: #2e3440;
+  --nord-polar-mid: #3b4252;
+  --nord-polar-light: #434c5e;
+  --nord-polar-lighter: #4c566a;
+  --pitch-grass: #4a7c59;
+  --pitch-grass-light: #6b9b7a;
+  --pitch-line: #2d4a3e;
+  --pitch-white: #f8faf6;
+  --background: var(--pitch-white);
+  --foreground: var(--nord-polar);
+  --card: #ffffff;
+  --card-foreground: var(--nord-polar);
+  --muted: var(--nord-snow);
+  --muted-foreground: var(--nord-polar-lighter);
+  --accent: var(--nord-frost-dark);
+  --accent-foreground: #fff;
+  --border: #e2e8e6;
+  --ring: var(--pitch-grass);
+}
+
+body {
+  @apply bg-[var(--background)] text-[var(--foreground)] antialiased;
+  font-feature-settings: "rlig" 1, "calt" 1;
+}
+
+/* Subtle focus for accessibility */
+*:focus-visible {
+  @apply outline-none ring-2 ring-[var(--ring)] ring-offset-2 ring-offset-[var(--background)];
+}

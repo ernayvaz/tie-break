@@ -1,0 +1,223 @@
+// Tie Break – UEFA Champions League prediction platform
+// PostgreSQL + Prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
+enum UserStatus {
+  pending_approval
+  approved
+  rejected
+  blocked
+}
+
+enum UserRole {
+  user
+  admin
+}
+
+enum PredictionValue {
+  ONE  // 1 = home wins
+  X    // draw
+  TWO  // 2 = away wins
+}
+
+enum MatchSourceStatus {
+  api
+  manual
+  mixed
+}
+
+// ---------------------------------------------------------------------------
+// User & Auth
+// ---------------------------------------------------------------------------
+
+model User {
+  id         String     @id @default(cuid())
+  name       String
+  surname    String
+  username   String     @unique
+  pinHash    String     @map("pin_hash")
+  status     UserStatus @default(pending_approval)
+  role       UserRole   @default(user)
+  createdAt  DateTime   @default(now()) @map("created_at")
+  approvedAt DateTime?  @map("approved_at")
+  approvedBy String?    @map("approved_by")
+
+  sessions    Session[]
+  predictions  Prediction[]
+  leaderboardEntries LeaderboardEntry[]
+  approvedUsers User[]         @relation("ApprovedByUser")
+  approver     User?           @relation("ApprovedByUser", fields: [approvedBy], references: [id])
+  adminLogs   AdminLog[]      @relation("AdminUser")
+
+  @@map("users")
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  sessionToken String @unique @map("session_token")
+  createdAt DateTime @default(now()) @map("created_at")
+  expiresAt DateTime @map("expires_at")
+  lastSeenAt DateTime @default(now()) @map("last_seen_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+// ---------------------------------------------------------------------------
+// Matches
+// ---------------------------------------------------------------------------
+
+model Match {
+  id                 String    @id @default(cuid())
+  externalApiId      String?   @map("external_api_id")
+  competitionId      String?   @map("competition_id")  // e.g. "CL" = UEFA Champions League; null/other = Diğer
+  stage              String    // e.g. "GROUP_STAGE", "ROUND_16", "QUARTER_FINAL", "SEMI_FINAL", "FINAL"
+  matchDatetime      DateTime  @map("match_datetime")
+  homeTeamName       String    @map("home_team_name")
+  awayTeamName       String    @map("away_team_name")
+  homeTeamLogo       String?   @map("home_team_logo")
+  awayTeamLogo       String?   @map("away_team_logo")
+  officialResultType PredictionValue? @map("official_result_type") // 1 / X / 2 – 90 min + extra time only, no penalties
+  homeScore          Int?      @map("home_score")                  // full-time (90+ET) home goals
+  awayScore          Int?      @map("away_score")                  // full-time (90+ET) away goals
+  officialWinnerTeamId String? @map("official_winner_team_id")     // optional team id if needed
+  lockAt             DateTime  @map("lock_at")
+  isLocked           Boolean   @default(false) @map("is_locked")
+  sourceStatus       MatchSourceStatus @default(api) @map("source_status")
+  syncedAt          DateTime? @map("synced_at")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  predictions Prediction[]
+
+  @@index([matchDatetime])
+  @@index([externalApiId])
+  @@index([competitionId])
+  @@map("matches")
+}
+
+// ---------------------------------------------------------------------------
+// Predictions
+// ---------------------------------------------------------------------------
+
+model Prediction {
+  id                  String          @id @default(cuid())
+  userId              String          @map("user_id")
+  matchId             String          @map("match_id")
+  selectedPrediction  PredictionValue @map("selected_prediction")
+  isFinal             Boolean         @default(false) @map("is_final")
+  finalizedAt         DateTime?       @map("finalized_at")
+  awardedPoints       Int             @default(0) @map("awarded_points")
+  createdAt           DateTime        @default(now()) @map("created_at")
+  updatedAt           DateTime        @updatedAt @map("updated_at")
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  match Match @relation(fields: [matchId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, matchId])
+  @@index([matchId])
+  @@index([userId])
+  @@map("predictions")
+}
+
+// ---------------------------------------------------------------------------
+// Leaderboard (materialized / recalculated)
+// Tie-break: total_points DESC, then accuracy_rate DESC, then shared rank
+// ---------------------------------------------------------------------------
+
+model LeaderboardEntry {
+  userId                   String   @map("user_id")
+  competitionId            String   @default("CL") @map("competition_id")
+  totalPoints              Int      @default(0) @map("total_points")
+  knockoutPoints           Int      @default(0) @map("knockout_points")
+  semifinalFinalPoints     Int      @default(0) @map("semifinal_final_points")
+  finalizedPredictionCount Int      @default(0) @map("finalized_prediction_count")
+  completedMatchCount      Int      @default(0) @map("completed_match_count")
+  accuracyRate             Float    @default(0) @map("accuracy_rate")
+  averageFinalizedTimeMetric Float? @map("average_finalized_time_metric")
+  currentRank              Int      @map("current_rank")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, competitionId])
+  @@index([competitionId])
+  @@map("leaderboard")
+}
+
+// ---------------------------------------------------------------------------
+// Prizes
+// ---------------------------------------------------------------------------
+
+model Prize {
+  id            String   @id @default(cuid())
+  competitionId String   @default("CL") @map("competition_id") // "CL" = UCL, "OTHER" = Diğer
+  place         Int      // 1, 2, 3
+  title         String
+  description   String?
+
+  @@unique([competitionId, place])
+  @@index([competitionId])
+  @@map("prizes")
+}
+
+// ---------------------------------------------------------------------------
+// Invite links
+// ---------------------------------------------------------------------------
+
+model InviteLink {
+  id        String    @id @default(cuid())
+  token     String    @unique
+  isActive  Boolean   @default(true) @map("is_active")
+  createdAt DateTime  @default(now()) @map("created_at")
+  expiresAt DateTime? @map("expires_at")
+
+  @@map("invite_links")
+}
+
+// ---------------------------------------------------------------------------
+// Admin audit & API sync logs
+// ---------------------------------------------------------------------------
+
+model AdminLog {
+  id           String   @id @default(cuid())
+  adminUserId  String   @map("admin_user_id")
+  actionType   String   @map("action_type")
+  targetType   String   @map("target_type")
+  targetId     String   @map("target_id")
+  oldValue     String?  @map("old_value")
+  newValue     String?  @map("new_value")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  adminUser User @relation("AdminUser", fields: [adminUserId], references: [id], onDelete: Cascade)
+
+  @@index([adminUserId])
+  @@index([createdAt])
+  @@map("admin_logs")
+}
+
+model ApiSyncLog {
+  id           String   @id @default(cuid())
+  provider     String
+  action       String
+  status       String   // success | error
+  errorMessage String?  @map("error_message")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@index([createdAt])
+  @@map("api_sync_logs")
+}
