@@ -14,26 +14,23 @@ export default async function LoginPage({ searchParams }: Props) {
   return (
     <main className="min-h-screen flex bg-[var(--background)]">
       {/* Left: Sign-in area */}
-      <section className="flex-1 flex flex-col items-center justify-start px-6 py-10 sm:px-12 sm:py-12 lg:justify-center lg:px-16">
+      <section className="flex-1 flex flex-col items-center justify-center px-6 py-8 sm:px-12 sm:py-12 lg:px-16">
         <div className="w-full max-w-[360px]">
+          <section
+            className="mb-6 flex w-full justify-center lg:hidden"
+            aria-label="Prediction platform preview"
+          >
+            <div className="flex items-center justify-center">
+              <LeagueLogosCircle variant="mobile" />
+            </div>
+          </section>
+
           <h1 className="text-[2rem] sm:text-[2.5rem] font-light tracking-[0.22em] text-nord-polar uppercase">
             TIE-BREAK
           </h1>
           <p className="mt-3 text-sm tracking-wide text-nord-polarLighter">
             Sign in to the prediction platform
           </p>
-
-          <section
-            className="mt-8 lg:hidden"
-            aria-label="Prediction platform preview"
-          >
-            <div className="overflow-hidden rounded-[2rem] border border-nord-polarLighter/10 bg-gradient-to-b from-white via-white/95 to-nord-snow/70 px-3 py-4 shadow-[0_24px_70px_rgba(46,52,64,0.08)]">
-              <LeagueLogosCircle variant="mobile" />
-              <p className="mt-1 text-center text-[10px] font-medium tracking-[0.28em] text-nord-polarLighter uppercase">
-                Predict • Score • Leaderboard
-              </p>
-            </div>
-          </section>
 
           <div className="mt-8 lg:mt-10">
             <LoginForm loginAction={loginAction} />
