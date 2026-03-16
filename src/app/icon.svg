@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#5E81AC"/>
+      <stop offset="100%" stop-color="#88C0D0"/>
+    </linearGradient>
+  </defs>
+  <rect width="32" height="32" rx="7" fill="url(#bg)"/>
+  <!-- Minimal football: circle + seam -->
+  <circle cx="22" cy="10" r="6" fill="none" stroke="#ECEFF4" stroke-width="1.4"/>
+  <path d="M19 10 Q22 8 25 10 Q22 12 19 10" fill="none" stroke="#ECEFF4" stroke-width="1"/>
+  <!-- Letter T -->
+  <text x="6" y="23" font-family="ui-sans-serif, system-ui, sans-serif" font-size="20" font-weight="800" fill="#ECEFF4">T</text>
+</svg>

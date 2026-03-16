@@ -19,6 +19,10 @@ export const metadata: Metadata = {
   },
   description: "UEFA Champions League prediction platform",
   applicationName: "Tie-Break",
+  icons: {
+    icon: "/icon.svg",
+    apple: "/icon.svg",
+  },
 };
 
 export default function RootLayout({
