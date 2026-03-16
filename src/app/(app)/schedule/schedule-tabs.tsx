@@ -398,35 +398,62 @@ export function ScheduleTabs({
                 <span className="text-[11px] text-nord-polarLight uppercase tracking-wide">
                   Lock {new Date(m.lockAt).toLocaleTimeString("en-GB", { timeStyle: "short" })}
                 </span>
-                <div className="flex flex-wrap items-center gap-1.5">
-                {(["1", "X", "2"] as const).map((val) => (
-                  <button
-                    key={val}
-                    type="button"
-                    disabled={isSubmitting}
-                    onClick={() => handleSubmitPrediction(m.id, val)}
-                    className={`min-w-[2rem] rounded border px-2 py-1 text-xs font-medium transition-colors ${
-                      displaySelection === val
-                        ? "border-nord-frostDark bg-nord-frostDark text-white"
-                        : "border-nord-polarLighter bg-white text-nord-polar hover:bg-nord-snow"
-                    }`}
-                  >
-                    {val}
-                  </button>
-                ))}
-                <Button
-                  type="button"
-                  size="sm"
-                  disabled={!displaySelection || isSubmitting}
-                  onClick={() =>
-                    setFinalizeModal({
-                      matchId: m.id,
-                      matchLabel: `${m.homeTeamName} vs ${m.awayTeamName}`,
-                    })
-                  }
-                >
-                  Finalize
-                </Button>
+                {/* Mobile: prediction, match score and result in a single row */}
+                <div className="flex items-start justify-between gap-4 sm:block">
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    {(["1", "X", "2"] as const).map((val) => (
+                      <button
+                        key={val}
+                        type="button"
+                        disabled={isSubmitting}
+                        onClick={() => handleSubmitPrediction(m.id, val)}
+                        className={`min-w-[2rem] rounded border px-2 py-1 text-xs font-medium transition-colors ${
+                          displaySelection === val
+                            ? "border-nord-frostDark bg-nord-frostDark text-white"
+                            : "border-nord-polarLighter bg-white text-nord-polar hover:bg-nord-snow"
+                        }`}
+                      >
+                        {val}
+                      </button>
+                    ))}
+                    <Button
+                      type="button"
+                      size="sm"
+                      disabled={!displaySelection || isSubmitting}
+                      onClick={() =>
+                        setFinalizeModal({
+                          matchId: m.id,
+                          matchLabel: `${m.homeTeamName} vs ${m.awayTeamName}`,
+                        })
+                      }
+                    >
+                      Finalize
+                    </Button>
+                  </div>
+                  <div className="ml-2 flex flex-1 items-stretch justify-end gap-6 text-xs text-nord-polar sm:hidden">
+                    <div className="flex flex-col">
+                      <span className="mb-0.5 text-[11px] font-medium uppercase tracking-wide text-nord-polarLight">
+                        Match score
+                      </span>
+                      <span className="font-semibold text-nord-polar">
+                        {m.homeScore != null && m.awayScore != null ? (
+                          <>
+                            {m.homeScore} – {m.awayScore}
+                          </>
+                        ) : (
+                          "–"
+                        )}
+                      </span>
+                    </div>
+                    <div className="flex flex-col items-end">
+                      <span className="mb-0.5 text-[11px] font-medium uppercase tracking-wide text-nord-polarLight">
+                        Result
+                      </span>
+                      <span className="font-semibold text-nord-polar">
+                        {m.officialResultType != null ? formatResult(m.officialResultType) : "–"}
+                      </span>
+                    </div>
+                  </div>
                 </div>
               </div>
             )}
@@ -448,32 +475,6 @@ export function ScheduleTabs({
             {!canPredict && !userPred && (
               <span className="text-nord-polarLight mt-0.5">–</span>
             )}
-
-            {/* Mobile-only inline Match score + Result row under prediction */}
-            <div className="mt-3 flex items-stretch justify-between gap-6 text-xs text-nord-polar sm:hidden">
-              <div className="flex flex-col">
-                <span className="mb-0.5 text-[11px] font-medium uppercase tracking-wide text-nord-polarLight">
-                  Match score
-                </span>
-                <span className="font-semibold text-nord-polar">
-                  {m.homeScore != null && m.awayScore != null ? (
-                    <>
-                      {m.homeScore} – {m.awayScore}
-                    </>
-                  ) : (
-                    "–"
-                  )}
-                </span>
-              </div>
-              <div className="flex flex-col items-end">
-                <span className="mb-0.5 text-[11px] font-medium uppercase tracking-wide text-nord-polarLight">
-                  Result
-                </span>
-                <span className="font-semibold text-nord-polar">
-                  {m.officialResultType != null ? formatResult(m.officialResultType) : "–"}
-                </span>
-              </div>
-            </div>
           </div>
 
           {/* Match score (desktop / larger screens) */}
