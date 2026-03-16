@@ -230,9 +230,9 @@ export function PrizeManagementClient({ prizes }: { prizes: PrizeRow[] }) {
         title="Delete prize?"
         confirmLabel="Delete"
         variant="danger"
-        onConfirm={() =>
-          deleteModal && runAction(() => deletePrizeAction(deleteModal.id), () => setDeleteModal(null))
-        }
+        onConfirm={() => {
+          if (deleteModal) runAction(() => deletePrizeAction(deleteModal.id), () => setDeleteModal(null));
+        }}
         loading={busy}
       >
         {deleteModal && (
