@@ -105,7 +105,7 @@ export function ScheduleTabs({
     matchId: string;
     matchLabel: string;
   } | null>(null);
-  const [pendingFinalize, setPendingFinalize] = useState(false);
+  const [pendingFinalizeMatchId, setPendingFinalizeMatchId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [expandedOthers, setExpandedOthers] = useState<Set<string>>(new Set());
   const [optimisticSelections, setOptimisticSelections] = useState<Record<string, PredictionDisplay>>({});
@@ -115,7 +115,6 @@ export function ScheduleTabs({
   const [localOthersByMatchId, setLocalOthersByMatchId] = useState<Record<string, OtherPrediction[]>>(
     () => buildOthersMap(othersByMatchId)
   );
-  const [submittingMatchId, setSubmittingMatchId] = useState<string | null>(null);
   const [undoingMatchId, setUndoingMatchId] = useState<string | null>(null);
   const [pendingResetUpcoming, setPendingResetUpcoming] = useState(false);
   const [pendingResetPast, setPendingResetPast] = useState(false);
@@ -206,32 +205,41 @@ export function ScheduleTabs({
     setFilterTeam("");
   };
 
-  const handleSubmitPrediction = async (
+  const handleSubmitPrediction = (
     matchId: string,
     value: PredictionDisplay
   ) => {
+    const previousPrediction = userPredictionByMatch[matchId];
     setActionError(null);
     setOptimisticSelections((prev) => ({ ...prev, [matchId]: value }));
-    setSubmittingMatchId(matchId);
-    const result = await submitPredictionAction(matchId, value);
-    setSubmittingMatchId(null);
-    if (result.ok) {
-      setLocalPredictions((prev) => ({
-        ...prev,
-        [matchId]: {
-          matchId,
-          selectedPrediction: value,
-          isFinal: prev[matchId]?.isFinal ?? false,
-          finalizedAt: prev[matchId]?.finalizedAt ?? null,
-        },
-      }));
-      return;
-    }
-    setActionError(result.error);
-    setOptimisticSelections((prev) => {
-      const next = { ...prev };
-      delete next[matchId];
-      return next;
+    setLocalPredictions((prev) => ({
+      ...prev,
+      [matchId]: {
+        matchId,
+        selectedPrediction: value,
+        isFinal: prev[matchId]?.isFinal ?? false,
+        finalizedAt: prev[matchId]?.finalizedAt ?? null,
+      },
+    }));
+
+    void submitPredictionAction(matchId, value).then((result) => {
+      if (result.ok) return;
+
+      setActionError(result.error);
+      setOptimisticSelections((prev) => {
+        if (prev[matchId] !== value) return prev;
+        const next = { ...prev };
+        delete next[matchId];
+        return next;
+      });
+      setLocalPredictions((prev) => {
+        const current = prev[matchId];
+        if (current?.isFinal) return prev;
+        if (previousPrediction) return { ...prev, [matchId]: previousPrediction };
+        const next = { ...prev };
+        delete next[matchId];
+        return next;
+      });
     });
   };
 
@@ -243,7 +251,7 @@ export function ScheduleTabs({
       optimisticSelections[matchId] ?? previousPrediction?.selectedPrediction;
     const optimisticFinalizedAt = new Date().toISOString();
 
-    setPendingFinalize(true);
+    setPendingFinalizeMatchId(matchId);
     setActionError(null);
     setFinalizeModal(null);
     if (selectedPrediction) {
@@ -258,7 +266,7 @@ export function ScheduleTabs({
       }));
     }
     const result = await finalizePredictionAction(matchId, selectedPrediction);
-    setPendingFinalize(false);
+    setPendingFinalizeMatchId(null);
     if (result.ok) {
       setOptimisticSelections((prev) => {
         const next = { ...prev };
@@ -348,7 +356,6 @@ export function ScheduleTabs({
     userPred,
     others,
     displaySelection,
-    isSubmitting,
     isUndoing,
     onUndo,
     separatorVariant,
@@ -358,12 +365,13 @@ export function ScheduleTabs({
     userPred: UserPrediction | undefined;
     others: OtherPrediction[];
     displaySelection: PredictionDisplay | undefined;
-    isSubmitting: boolean;
     isUndoing: boolean;
     onUndo: (matchId: string) => void;
     /** Same day = thin line; new day = slightly thicker line; none = last item */
     separatorVariant: "same-day" | "new-day" | "none";
   }) {
+    const isFinalizing = pendingFinalizeMatchId === m.id;
+
     const showOthers = userPred?.isFinal && others.length > 0;
     const isExpanded = expandedOthers.has(m.id);
     const matchDate = new Date(m.matchDatetime);
@@ -455,7 +463,6 @@ export function ScheduleTabs({
                       <button
                         key={val}
                         type="button"
-                        disabled={isSubmitting}
                         onClick={() => handleSubmitPrediction(m.id, val)}
                         className={`min-w-[2rem] rounded-md border px-2.5 py-1 text-xs font-medium transition-colors ${
                           displaySelection === val
@@ -469,7 +476,7 @@ export function ScheduleTabs({
                     <Button
                       type="button"
                       size="sm"
-                      disabled={!displaySelection || pendingFinalize}
+                      disabled={!displaySelection || isFinalizing}
                       onClick={() =>
                         setFinalizeModal({
                           matchId: m.id,
@@ -592,7 +599,6 @@ export function ScheduleTabs({
                     <button
                       key={val}
                       type="button"
-                      disabled={isSubmitting}
                       onClick={() => handleSubmitPrediction(m.id, val)}
                       className={`min-w-[2rem] rounded border px-2 py-1 text-xs font-medium transition-colors ${
                         displaySelection === val
@@ -606,7 +612,7 @@ export function ScheduleTabs({
                   <Button
                     type="button"
                     size="sm"
-                    disabled={!displaySelection || pendingFinalize}
+                    disabled={!displaySelection || isFinalizing}
                     onClick={() =>
                       setFinalizeModal({
                         matchId: m.id,
@@ -696,7 +702,6 @@ export function ScheduleTabs({
           const userPred = userPredictionByMatch[m.id];
           const others = localOthersByMatchId[m.id] ?? [];
           const displaySelection = optimisticSelections[m.id] ?? userPred?.selectedPrediction;
-          const isSubmitting = submittingMatchId === m.id;
           const isLast = index === list.length - 1;
           const nextMatch = list[index + 1];
           const sameDayAsNext = nextMatch ? isSameCalendarDay(m.matchDatetime, nextMatch.matchDatetime) : false;
@@ -710,7 +715,6 @@ export function ScheduleTabs({
               userPred={userPred}
               others={others}
               displaySelection={displaySelection}
-              isSubmitting={isSubmitting}
               isUndoing={undoingMatchId === m.id}
               onUndo={handleUndo}
               separatorVariant={separatorVariant}
@@ -910,12 +914,12 @@ export function ScheduleTabs({
 
       <Modal
         open={!!finalizeModal}
-        onClose={() => !pendingFinalize && setFinalizeModal(null)}
+        onClose={() => !pendingFinalizeMatchId && setFinalizeModal(null)}
         title="Finalize prediction?"
         confirmLabel="Yes, finalize"
         cancelLabel="Cancel"
         onConfirm={handleFinalizeConfirm}
-        loading={pendingFinalize}
+        loading={!!pendingFinalizeMatchId}
       >
         {finalizeModal && (
           <p>
