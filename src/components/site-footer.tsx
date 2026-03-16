@@ -22,14 +22,16 @@ export function SiteFooter() {
       className="mt-auto border-t border-nord-polarLighter/20 bg-nord-snow/40"
       role="contentinfo"
     >
-      <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-center gap-x-2 gap-y-1 px-4 py-4 text-center text-sm text-nord-polarLighter">
-        <span>Bu site Eren Ayvaz tarafından oluşturulmuştur.</span>
-        <span className="text-nord-polarLight/80">·</span>
+      <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-center gap-x-2 gap-y-1 px-4 py-4 text-center">
+        <span className="text-sm font-light tracking-wide text-nord-polarLighter">
+          Designed and built by Eren Ayvaz
+        </span>
+        <span className="text-nord-polarLight/60" aria-hidden>·</span>
         <a
           href={LINKEDIN_URL}
           target="_blank"
           rel="noopener noreferrer"
-          className="inline-flex items-center gap-1.5 font-medium text-nord-polarLight transition-colors hover:text-nord-frostDark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)]"
+          className="inline-flex items-center gap-1.5 text-sm font-light tracking-wide text-nord-polarLight transition-colors hover:text-nord-frostDark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)]"
         >
           <LinkedInIcon className="shrink-0" />
           LinkedIn

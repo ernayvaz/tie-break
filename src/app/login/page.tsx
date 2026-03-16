@@ -17,7 +17,7 @@ export default async function LoginPage({ searchParams }: Props) {
       <section className="flex-1 flex flex-col items-center justify-center px-8 py-12 sm:px-12 lg:px-16">
         <div className="w-full max-w-[360px]">
           <h1 className="text-[2rem] sm:text-[2.5rem] font-light tracking-[0.22em] text-nord-polar uppercase">
-            Tie-Break
+            TIE-BREAK
           </h1>
           <p className="mt-3 text-sm tracking-wide text-nord-polarLighter">
             Sign in to the prediction platform

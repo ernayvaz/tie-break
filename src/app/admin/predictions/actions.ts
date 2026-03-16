@@ -5,6 +5,7 @@ import { createAdminLog } from "@/lib/admin-log";
 import { requireAdmin } from "@/lib/auth/get-user";
 import { rebuildLeaderboard } from "@/lib/scoring";
 import { revalidatePath } from "next/cache";
+import { unfinalizePrediction, resetAllPredictionsUpcoming } from "@/lib/predictions";
 
 export type PredictionActionState = { ok: true; message?: string } | { ok: false; error: string };
 
@@ -40,4 +41,36 @@ export async function setPredictionPointsAction(
   );
   revalidatePath("/admin/predictions");
   return { ok: true, message: "Points updated. Leaderboard refreshed." };
+}
+
+/**
+ * Admin: Unfinalize (reset) one user's prediction for one match.
+ */
+export async function adminResetUserPredictionAction(
+  targetUserId: string,
+  matchId: string
+): Promise<PredictionActionState> {
+  await requireAdmin();
+  const result = await unfinalizePrediction(targetUserId, matchId, { isAdmin: true });
+  if (!result.ok) {
+    const msg = result.error === "match_not_found" ? "Prediction or match not found." : result.error;
+    return { ok: false, error: msg };
+  }
+  await rebuildLeaderboard();
+  revalidatePath("/admin/predictions");
+  return { ok: true, message: "Prediction reset to draft. Leaderboard refreshed." };
+}
+
+/**
+ * Admin: Unfinalize all upcoming predictions for a user.
+ */
+export async function adminResetUserUpcomingPredictionsAction(
+  targetUserId: string
+): Promise<PredictionActionState> {
+  await requireAdmin();
+  const result = await resetAllPredictionsUpcoming(targetUserId);
+  if (!result.ok) return { ok: false, error: result.error };
+  await rebuildLeaderboard();
+  revalidatePath("/admin/predictions");
+  return { ok: true, message: `Reset ${result.count} upcoming prediction(s). Leaderboard refreshed.` };
 }

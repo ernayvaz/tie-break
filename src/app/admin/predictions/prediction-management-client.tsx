@@ -4,7 +4,7 @@ import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui";
-import { setPredictionPointsAction } from "./actions";
+import { setPredictionPointsAction, adminResetUserPredictionAction, adminResetUserUpcomingPredictionsAction } from "./actions";
 
 export type PredictionRow = {
   id: string;
@@ -59,6 +59,7 @@ export function PredictionManagementClient({
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [resettingUserId, setResettingUserId] = useState<string | null>(null);
 
   const filtered = useMemo(() => {
     return predictions.filter((p) => {
@@ -86,6 +87,31 @@ export function PredictionManagementClient({
     setBusyId(null);
     if (result.ok) {
       setSuccess(result.message ?? "Done.");
+      router.refresh();
+    } else setError(result.error);
+  };
+
+  const runResetOne = async (userId: string, matchId: string) => {
+    const id = `${userId}-${matchId}`;
+    setBusyId(id);
+    setError(null);
+    setSuccess(null);
+    const result = await adminResetUserPredictionAction(userId, matchId);
+    setBusyId(null);
+    if (result.ok) {
+      setSuccess(result.message ?? "Reset.");
+      router.refresh();
+    } else setError(result.error);
+  };
+
+  const runResetAllUpcomingForUser = async (userId: string) => {
+    setResettingUserId(userId);
+    setError(null);
+    setSuccess(null);
+    const result = await adminResetUserUpcomingPredictionsAction(userId);
+    setResettingUserId(null);
+    if (result.ok) {
+      setSuccess(result.message ?? "Reset.");
       router.refresh();
     } else setError(result.error);
   };
@@ -167,6 +193,16 @@ export function PredictionManagementClient({
         <span className="text-sm text-nord-polarLight">
           Showing {filtered.length} of {predictions.length}
         </span>
+        {userFilter && (
+          <Button
+            variant="secondary"
+            size="sm"
+            disabled={!!resettingUserId}
+            onClick={() => runResetAllUpcomingForUser(userFilter)}
+          >
+            {resettingUserId === userFilter ? "Resetting…" : "Reset all upcoming for this user"}
+          </Button>
+        )}
         <Link
           href="/admin/scoring"
           className="text-sm font-medium text-nord-frostDark hover:underline ml-auto"
@@ -230,26 +266,36 @@ export function PredictionManagementClient({
                       {p.isFinal ? p.awardedPoints : "–"}
                     </td>
                     <td className="px-4 py-3 text-right">
-                      {p.isFinal && (
-                        <div className="flex justify-end gap-1">
-                          <Button
-                            size="sm"
-                            variant={p.awardedPoints === 0 ? "primary" : "secondary"}
-                            onClick={() => runSetPoints(p.id, 0)}
-                            disabled={busy}
-                          >
-                            Set 0
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant={p.awardedPoints === 1 ? "primary" : "secondary"}
-                            onClick={() => runSetPoints(p.id, 1)}
-                            disabled={busy}
-                          >
-                            Set 1
-                          </Button>
-                        </div>
-                      )}
+                      <div className="flex justify-end gap-1 flex-wrap">
+                        {p.isFinal && (
+                          <>
+                            <Button
+                              size="sm"
+                              variant={p.awardedPoints === 0 ? "primary" : "secondary"}
+                              onClick={() => runSetPoints(p.id, 0)}
+                              disabled={!!busyId}
+                            >
+                              Set 0
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant={p.awardedPoints === 1 ? "primary" : "secondary"}
+                              onClick={() => runSetPoints(p.id, 1)}
+                              disabled={!!busyId}
+                            >
+                              Set 1
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => runResetOne(p.userId, p.matchId)}
+                              disabled={!!busyId}
+                            >
+                              {busyId === `${p.userId}-${p.matchId}` ? "…" : "Reset"}
+                            </Button>
+                          </>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 );

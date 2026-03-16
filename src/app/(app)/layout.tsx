@@ -18,6 +18,12 @@ export default async function AppLayout({
           <nav className="flex items-center gap-6 text-sm">
             <Link
               href="/schedule"
+              className="text-xl font-light tracking-[0.22em] text-nord-polar uppercase hover:text-nord-frostDark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] focus-visible:ring-offset-2 rounded"
+            >
+              TIE-BREAK
+            </Link>
+            <Link
+              href="/schedule"
               className="flex items-center gap-2 font-medium text-nord-polar hover:text-nord-frostDark"
             >
               <IconSchedule />

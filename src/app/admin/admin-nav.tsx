@@ -29,9 +29,12 @@ export function AdminNav() {
   return (
     <nav className="p-4 space-y-1 flex-1 flex flex-col">
       <div className="mb-2">
-        <p className="px-3 py-1.5 text-xs font-semibold uppercase tracking-wider text-nord-polarLight">
-          Tie-Break Platform
-        </p>
+        <Link
+          href="/schedule"
+          className="block px-3 py-2 text-lg font-light tracking-[0.22em] text-nord-polar uppercase hover:text-nord-frostDark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] focus-visible:ring-offset-2 rounded"
+        >
+          TIE-BREAK
+        </Link>
         {platformItems.map((item) => {
           const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
           const Icon = item.Icon;
