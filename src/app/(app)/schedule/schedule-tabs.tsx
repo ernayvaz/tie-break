@@ -237,11 +237,11 @@ export function ScheduleTabs({
   };
 
   const scheduleGrid =
-    "grid grid-cols-[7rem_minmax(12rem,1fr)_14rem_6rem_5rem] gap-4 px-4 py-3 items-center";
+    "grid grid-cols-1 sm:grid-cols-[7rem_minmax(12rem,1fr)_14rem_6rem_5rem] gap-4 px-4 py-3 items-center";
 
   const ScheduleTableHeader = () => (
     <div
-      className={`${scheduleGrid} bg-nord-snow/80 text-nord-polarLight text-xs font-semibold uppercase tracking-wide border-b border-nord-polarLighter/50`}
+      className={`${scheduleGrid} hidden bg-nord-snow/80 text-nord-polarLight text-xs font-semibold uppercase tracking-wide border-b border-nord-polarLighter/50 sm:grid`}
     >
       <span>Time</span>
       <span>Match</span>
@@ -292,6 +292,9 @@ export function ScheduleTabs({
         <div className={`${scheduleGrid} text-sm min-h-[4rem]`}>
           {/* Time */}
           <div className="flex flex-col justify-center text-nord-polarLight">
+            <span className="mb-0.5 text-[11px] font-medium uppercase tracking-wide text-nord-polarLight sm:hidden">
+              Time
+            </span>
             <span className="font-medium text-nord-polar">
               {matchDate.toLocaleDateString("en-GB", {
                 day: "2-digit",
@@ -346,8 +349,11 @@ export function ScheduleTabs({
             </div>
           </div>
 
-          {/* Prediction (no per-row label) */}
+          {/* Prediction */}
           <div className="flex flex-col justify-center">
+            <span className="mb-1 text-[11px] font-medium uppercase tracking-wide text-nord-polarLight sm:hidden">
+              Prediction
+            </span>
             {canPredict && (
               <div className="flex flex-col gap-1.5">
                 <span className="text-[11px] text-nord-polarLight uppercase tracking-wide">
@@ -405,8 +411,11 @@ export function ScheduleTabs({
             )}
           </div>
 
-          {/* Match score (no per-row label) */}
+          {/* Match score */}
           <div className="flex flex-col justify-center">
+            <span className="mb-1 text-[11px] font-medium uppercase tracking-wide text-nord-polarLight sm:hidden">
+              Match score
+            </span>
             {m.homeScore != null && m.awayScore != null ? (
               <span className="font-semibold text-nord-polar">
                 {m.homeScore} – {m.awayScore}
@@ -416,8 +425,11 @@ export function ScheduleTabs({
             )}
           </div>
 
-          {/* Result (no per-row label) */}
+          {/* Result */}
           <div className="flex flex-col justify-center text-center">
+            <span className="mb-1 text-[11px] font-medium uppercase tracking-wide text-nord-polarLight sm:hidden">
+              Result
+            </span>
             <span className="font-semibold text-nord-polar">
               {m.officialResultType != null
                 ? formatResult(m.officialResultType)
