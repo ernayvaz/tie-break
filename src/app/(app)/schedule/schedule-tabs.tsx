@@ -243,7 +243,7 @@ export function ScheduleTabs({
     });
   };
 
-  const handleFinalizeConfirm = async () => {
+  const handleFinalizeConfirm = () => {
     if (!finalizeModal) return;
     const { matchId } = finalizeModal;
     const previousPrediction = userPredictionByMatch[matchId];
@@ -265,32 +265,35 @@ export function ScheduleTabs({
         },
       }));
     }
-    const result = await finalizePredictionAction(matchId, selectedPrediction);
-    setPendingFinalizeMatchId(null);
-    if (result.ok) {
-      setOptimisticSelections((prev) => {
-        const next = { ...prev };
-        delete next[matchId];
-        return next;
-      });
-      if (result.others) {
-        setLocalOthersByMatchId((prev) => ({ ...prev, [matchId]: result.others ?? [] }));
+
+    void (async () => {
+      const result = await finalizePredictionAction(matchId, selectedPrediction);
+      setPendingFinalizeMatchId(null);
+      if (result.ok) {
+        setOptimisticSelections((prev) => {
+          const next = { ...prev };
+          delete next[matchId];
+          return next;
+        });
+        if (result.others) {
+          setLocalOthersByMatchId((prev) => ({ ...prev, [matchId]: result.others ?? [] }));
+        }
+        startRefreshTransition(() => {
+          router.refresh();
+        });
+        return;
       }
-      startRefreshTransition(() => {
-        router.refresh();
-      });
-      return;
-    }
-    if (previousPrediction) {
-      setLocalPredictions((prev) => ({ ...prev, [matchId]: previousPrediction }));
-    } else {
-      setLocalPredictions((prev) => {
-        const next = { ...prev };
-        delete next[matchId];
-        return next;
-      });
-    }
-    setActionError(result.error);
+      if (previousPrediction) {
+        setLocalPredictions((prev) => ({ ...prev, [matchId]: previousPrediction }));
+      } else {
+        setLocalPredictions((prev) => {
+          const next = { ...prev };
+          delete next[matchId];
+          return next;
+        });
+      }
+      setActionError(result.error);
+    })();
   };
 
   const handleUndo = async (matchId: string) => {
