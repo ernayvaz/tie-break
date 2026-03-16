@@ -232,7 +232,8 @@ export function PredictionManagementClient({
             </thead>
             <tbody>
               {filtered.map((p) => {
-                const busy = busyId === p.id;
+                const isBusy =
+                  busyId === p.id || busyId === `${p.userId}-${p.matchId}`;
                 return (
                   <tr key={p.id} className="border-b border-nord-polarLighter/30 hover:bg-nord-snow/50">
                     <td className="px-4 py-3">
@@ -273,7 +274,7 @@ export function PredictionManagementClient({
                               size="sm"
                               variant={p.awardedPoints === 0 ? "primary" : "secondary"}
                               onClick={() => runSetPoints(p.id, 0)}
-                              disabled={!!busyId}
+                              disabled={isBusy}
                             >
                               Set 0
                             </Button>
@@ -281,7 +282,7 @@ export function PredictionManagementClient({
                               size="sm"
                               variant={p.awardedPoints === 1 ? "primary" : "secondary"}
                               onClick={() => runSetPoints(p.id, 1)}
-                              disabled={!!busyId}
+                              disabled={isBusy}
                             >
                               Set 1
                             </Button>
@@ -289,7 +290,7 @@ export function PredictionManagementClient({
                               size="sm"
                               variant="ghost"
                               onClick={() => runResetOne(p.userId, p.matchId)}
-                              disabled={!!busyId}
+                              disabled={isBusy}
                             >
                               {busyId === `${p.userId}-${p.matchId}` ? "…" : "Reset"}
                             </Button>
