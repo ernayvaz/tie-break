@@ -4,6 +4,7 @@ import { getCurrentUser } from "@/lib/auth/get-user";
 import {
   createOrUpdatePrediction,
   finalizePrediction,
+  getOthersPredictions,
   unfinalizePrediction,
   resetAllPredictionsUpcoming,
   resetAllPredictionsPast,
@@ -15,7 +16,16 @@ import type { PredictionDisplay } from "@/lib/prediction-values";
 import { UCL_COMPETITION_ID } from "@/lib/config";
 
 export type ScheduleActionState =
-  | { ok: true; message?: string }
+  | {
+      ok: true;
+      message?: string;
+      others?: {
+        name: string;
+        surname: string;
+        selectedPrediction: string;
+        finalizedAt: string;
+      }[];
+    }
   | { ok: false; error: string };
 
 const predictionErrorMessages: Record<PredictionError | "match_has_result" | "undo_not_allowed", string> = {
@@ -65,7 +75,14 @@ export async function finalizePredictionAction(
     await scoreMatch(matchId);
   }
   await rebuildLeaderboardForCompetition(match?.competitionId ?? UCL_COMPETITION_ID);
-  return { ok: true };
+  const others = await getOthersPredictions(matchId, user.id);
+  return {
+    ok: true,
+    others: others.map((o) => ({
+      ...o,
+      finalizedAt: o.finalizedAt.toISOString(),
+    })),
+  };
 }
 
 export async function unfinalizePredictionAction(

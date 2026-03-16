@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useCallback, useEffect } from "react";
+import { useState, useMemo, useCallback, useEffect, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toDisplay } from "@/lib/prediction-values";
 import type { PredictionValue } from "@prisma/client";
@@ -84,6 +84,12 @@ function buildPredictionMap(predictions: UserPrediction[]) {
   return map;
 }
 
+function buildOthersMap(othersByMatchId: Record<string, OtherPrediction[]>) {
+  return Object.fromEntries(
+    Object.entries(othersByMatchId).map(([matchId, list]) => [matchId, [...list]])
+  ) as Record<string, OtherPrediction[]>;
+}
+
 export function ScheduleTabs({
   matches,
   userPredictions,
@@ -106,16 +112,24 @@ export function ScheduleTabs({
   const [localPredictions, setLocalPredictions] = useState<Record<string, UserPrediction>>(
     () => buildPredictionMap(userPredictions)
   );
+  const [localOthersByMatchId, setLocalOthersByMatchId] = useState<Record<string, OtherPrediction[]>>(
+    () => buildOthersMap(othersByMatchId)
+  );
   const [submittingMatchId, setSubmittingMatchId] = useState<string | null>(null);
   const [undoingMatchId, setUndoingMatchId] = useState<string | null>(null);
   const [pendingResetUpcoming, setPendingResetUpcoming] = useState(false);
   const [pendingResetPast, setPendingResetPast] = useState(false);
   const [resetMessage, setResetMessage] = useState<string | null>(null);
+  const [, startRefreshTransition] = useTransition();
   const router = useRouter();
 
   useEffect(() => {
     setLocalPredictions(buildPredictionMap(userPredictions));
   }, [userPredictions]);
+
+  useEffect(() => {
+    setLocalOthersByMatchId(buildOthersMap(othersByMatchId));
+  }, [othersByMatchId]);
 
   const userPredictionByMatch = localPredictions;
 
@@ -251,7 +265,12 @@ export function ScheduleTabs({
         delete next[matchId];
         return next;
       });
-      router.refresh();
+      if (result.others) {
+        setLocalOthersByMatchId((prev) => ({ ...prev, [matchId]: result.others ?? [] }));
+      }
+      startRefreshTransition(() => {
+        router.refresh();
+      });
       return;
     }
     if (previousPrediction) {
@@ -283,7 +302,14 @@ export function ScheduleTabs({
     const result = await unfinalizePredictionAction(matchId);
     setUndoingMatchId(null);
     if (result.ok) {
-      router.refresh();
+      setLocalOthersByMatchId((prev) => {
+        const next = { ...prev };
+        delete next[matchId];
+        return next;
+      });
+      startRefreshTransition(() => {
+        router.refresh();
+      });
     } else {
       if (previousPrediction) {
         setLocalPredictions((prev) => ({ ...prev, [matchId]: previousPrediction }));
@@ -668,7 +694,7 @@ export function ScheduleTabs({
           const lockAt = new Date(m.lockAt).getTime();
           const canPredict = (now.getTime() < lockAt || isAdmin) && !userPredictionByMatch[m.id]?.isFinal;
           const userPred = userPredictionByMatch[m.id];
-          const others = othersByMatchId[m.id] ?? [];
+          const others = localOthersByMatchId[m.id] ?? [];
           const displaySelection = optimisticSelections[m.id] ?? userPred?.selectedPrediction;
           const isSubmitting = submittingMatchId === m.id;
           const isLast = index === list.length - 1;
