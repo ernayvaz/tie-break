@@ -19,7 +19,8 @@ export default async function RegisterPage({ searchParams }: Props) {
           <div className="text-center">
             <h1 className="text-2xl font-semibold text-nord-polar">Invalid invite link</h1>
             <p className="text-nord-polarLight text-sm mt-2">
-              This invite link is invalid or has expired. Please use a valid link shared by the administrator.
+              This invite link is invalid or has expired. Please use a valid link shared by the administrator or request a
+              new invite from the organisers or other participants.
             </p>
           </div>
           <Link
