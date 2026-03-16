@@ -5,7 +5,8 @@ import Link from "next/link";
 export const UCL_ID = "CL";
 export const OTHER_ID = "OTHER";
 
-const tabClass = "flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 -mb-px transition-colors";
+const tabClass =
+  "flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors sm:rounded-none sm:px-4 sm:py-3 sm:border-b-2 sm:-mb-px";
 
 const UclContent = () => (
   <>
@@ -15,7 +16,8 @@ const UclContent = () => (
       alt=""
       className="h-6 w-6 shrink-0 object-contain"
     />
-    UEFA Champions League
+    <span className="sm:hidden">UCL</span>
+    <span className="hidden sm:inline">UEFA Champions League</span>
   </>
 );
 
@@ -27,7 +29,8 @@ const OtherContent = () => (
         <path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
       </svg>
     </span>
-    Diğer
+    <span className="sm:hidden">Other</span>
+    <span className="hidden sm:inline">Diğer</span>
   </>
 );
 
@@ -42,11 +45,13 @@ export function CompetitionTabs({ currentCompetitionId, basePath }: Props) {
   const isOther = currentCompetitionId === OTHER_ID;
 
   return (
-    <div className="flex border-b border-nord-polarLighter/50 mb-0">
+    <div className="mb-0 grid grid-cols-2 gap-1 rounded-xl border border-nord-polarLighter/30 bg-nord-snow/60 p-1 sm:flex sm:gap-0 sm:rounded-none sm:border-0 sm:bg-transparent sm:p-0 sm:border-b sm:border-nord-polarLighter/50">
       <Link
         href={`${basePath}?competition=${UCL_ID}`}
         className={`${tabClass} ${
-          isUcl ? "border-nord-frostDark text-nord-polar" : "border-transparent text-nord-polarLight hover:text-nord-polar"
+          isUcl
+            ? "bg-white text-nord-polar shadow-sm sm:bg-transparent sm:shadow-none sm:border-nord-frostDark"
+            : "text-nord-polarLight hover:text-nord-polar sm:border-transparent"
         }`}
       >
         <UclContent />
@@ -54,7 +59,9 @@ export function CompetitionTabs({ currentCompetitionId, basePath }: Props) {
       <Link
         href={`${basePath}?competition=${OTHER_ID}`}
         className={`${tabClass} ${
-          isOther ? "border-nord-frostDark text-nord-polar" : "border-transparent text-nord-polarLight hover:text-nord-polar"
+          isOther
+            ? "bg-white text-nord-polar shadow-sm sm:bg-transparent sm:shadow-none sm:border-nord-frostDark"
+            : "text-nord-polarLight hover:text-nord-polar sm:border-transparent"
         }`}
       >
         <OtherContent />
@@ -74,12 +81,14 @@ export function CompetitionTabsClient({ currentCompetitionId, onSelect }: Client
   const isOther = currentCompetitionId === OTHER_ID;
 
   return (
-    <div className="flex border-b border-nord-polarLighter/50 mb-0">
+    <div className="mb-0 grid grid-cols-2 gap-1 rounded-xl border border-nord-polarLighter/30 bg-nord-snow/60 p-1 sm:flex sm:gap-0 sm:rounded-none sm:border-0 sm:bg-transparent sm:p-0 sm:border-b sm:border-nord-polarLighter/50">
       <button
         type="button"
         onClick={() => onSelect(UCL_ID)}
         className={`${tabClass} ${
-          isUcl ? "border-nord-frostDark text-nord-polar" : "border-transparent text-nord-polarLight hover:text-nord-polar"
+          isUcl
+            ? "bg-white text-nord-polar shadow-sm sm:bg-transparent sm:shadow-none sm:border-nord-frostDark"
+            : "text-nord-polarLight hover:text-nord-polar sm:border-transparent"
         }`}
       >
         <UclContent />
@@ -88,7 +97,9 @@ export function CompetitionTabsClient({ currentCompetitionId, onSelect }: Client
         type="button"
         onClick={() => onSelect(OTHER_ID)}
         className={`${tabClass} ${
-          isOther ? "border-nord-frostDark text-nord-polar" : "border-transparent text-nord-polarLight hover:text-nord-polar"
+          isOther
+            ? "bg-white text-nord-polar shadow-sm sm:bg-transparent sm:shadow-none sm:border-nord-frostDark"
+            : "text-nord-polarLight hover:text-nord-polar sm:border-transparent"
         }`}
       >
         <OtherContent />

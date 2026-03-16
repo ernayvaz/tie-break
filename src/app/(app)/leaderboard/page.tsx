@@ -102,57 +102,126 @@ export default async function LeaderboardPage({
         </div>
       )}
 
-      <div className="mt-6 overflow-x-auto">
+      <div className="mt-6">
         {entries.length === 0 ? (
           <p className="text-nord-polarLight text-sm">
             No leaderboard data yet. Make predictions and run &quot;Recalculate scores & leaderboard&quot; in the admin panel.
           </p>
         ) : (
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-nord-polarLighter text-left text-nord-polarLight">
-                <th className="pb-2 pr-4">Rank</th>
-                <th className="pb-2 pr-4">Name</th>
-                <th className="pb-2 pr-4">Points</th>
-                <th className="pb-2 pr-4">Predictions</th>
-                <th className="pb-2 pr-4">Matches completed</th>
-                <th className="pb-2">Accuracy</th>
-              </tr>
-            </thead>
-            <tbody>
+          <>
+            <ul className="space-y-3 sm:hidden">
               {entries.map((e) => {
                 const isAdminRow = e.user.role === "admin";
                 return (
-                  <tr
-                    key={`${e.userId}-${e.competitionId}`}
-                    className={`border-b border-nord-polarLighter/50 ${isAdminRow ? "bg-nord-snow/60" : ""}`}
+                  <li
+                    key={`${e.userId}-${e.competitionId}-mobile`}
+                    className={`rounded-xl border border-nord-polarLighter/35 bg-white/85 px-4 py-3 shadow-sm ${isAdminRow ? "bg-nord-snow/80" : ""}`}
                   >
-                    <td className="py-3 pr-4 font-medium text-nord-polar">
-                      {isAdminRow ? "–" : e.currentRank}
-                    </td>
-                    <td className="py-3 pr-4 text-nord-polar">
-                      {e.user.name} {e.user.surname}
-                      {isAdminRow && (
-                        <span className="ml-2 text-xs text-nord-polarLight">(Admin – not visible to others)</span>
-                      )}
-                    </td>
-                    <td className="py-3 pr-4 text-nord-polar">{e.totalPoints}</td>
-                    <td className="py-3 pr-4 text-nord-polarLight">
-                      {e.finalizedPredictionCount}
-                    </td>
-                    <td className="py-3 pr-4 text-nord-polarLight">
-                      {e.completedMatchCount}
-                    </td>
-                    <td className="py-3 text-nord-polar">
-                      {e.finalizedPredictionCount > 0
-                        ? `${Math.round(e.accuracyRate * 100)}%`
-                        : "–"}
-                    </td>
-                  </tr>
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="text-xs uppercase tracking-wide text-nord-polarLight">
+                          {isAdminRow ? "Admin row" : `Rank #${e.currentRank}`}
+                        </div>
+                        <div className="mt-1 truncate font-semibold text-nord-polar">
+                          {e.user.name} {e.user.surname}
+                        </div>
+                        {isAdminRow && (
+                          <div className="mt-1 text-xs text-nord-polarLight">
+                            Not visible to other users
+                          </div>
+                        )}
+                      </div>
+                      <div className="rounded-lg bg-nord-frostDark/10 px-3 py-2 text-right">
+                        <div className="text-[11px] uppercase tracking-wide text-nord-polarLight">
+                          Points
+                        </div>
+                        <div className="text-lg font-semibold text-nord-frostDark">
+                          {e.totalPoints}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="mt-3 grid grid-cols-3 gap-2 border-t border-nord-polarLighter/20 pt-3 text-center">
+                      <div>
+                        <div className="text-[11px] uppercase tracking-wide text-nord-polarLight">
+                          Predictions
+                        </div>
+                        <div className="mt-1 font-medium text-nord-polar">
+                          {e.finalizedPredictionCount}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-[11px] uppercase tracking-wide text-nord-polarLight">
+                          Completed
+                        </div>
+                        <div className="mt-1 font-medium text-nord-polar">
+                          {e.completedMatchCount}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-[11px] uppercase tracking-wide text-nord-polarLight">
+                          Accuracy
+                        </div>
+                        <div className="mt-1 font-medium text-nord-polar">
+                          {e.finalizedPredictionCount > 0
+                            ? `${Math.round(e.accuracyRate * 100)}%`
+                            : "–"}
+                        </div>
+                      </div>
+                    </div>
+                  </li>
                 );
               })}
-            </tbody>
-          </table>
+            </ul>
+
+            <div className="hidden overflow-x-auto sm:block">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-nord-polarLighter text-left text-nord-polarLight">
+                    <th className="pb-2 pr-4">Rank</th>
+                    <th className="pb-2 pr-4">Name</th>
+                    <th className="pb-2 pr-4">Points</th>
+                    <th className="pb-2 pr-4">Predictions</th>
+                    <th className="pb-2 pr-4">Matches completed</th>
+                    <th className="pb-2">Accuracy</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {entries.map((e) => {
+                    const isAdminRow = e.user.role === "admin";
+                    return (
+                      <tr
+                        key={`${e.userId}-${e.competitionId}`}
+                        className={`border-b border-nord-polarLighter/50 ${isAdminRow ? "bg-nord-snow/60" : ""}`}
+                      >
+                        <td className="py-3 pr-4 font-medium text-nord-polar">
+                          {isAdminRow ? "–" : e.currentRank}
+                        </td>
+                        <td className="py-3 pr-4 text-nord-polar">
+                          {e.user.name} {e.user.surname}
+                          {isAdminRow && (
+                            <span className="ml-2 text-xs text-nord-polarLight">(Admin – not visible to others)</span>
+                          )}
+                        </td>
+                        <td className="py-3 pr-4 text-nord-polar">{e.totalPoints}</td>
+                        <td className="py-3 pr-4 text-nord-polarLight">
+                          {e.finalizedPredictionCount}
+                        </td>
+                        <td className="py-3 pr-4 text-nord-polarLight">
+                          {e.completedMatchCount}
+                        </td>
+                        <td className="py-3 text-nord-polar">
+                          {e.finalizedPredictionCount > 0
+                            ? `${Math.round(e.accuracyRate * 100)}%`
+                            : "–"}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
       </div>
     </div>

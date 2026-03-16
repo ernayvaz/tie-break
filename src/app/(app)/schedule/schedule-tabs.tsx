@@ -289,117 +289,76 @@ export function ScheduleTabs({
         className="bg-white/60 hover:bg-white/80 transition-colors"
         style={borderStyle}
       >
-        <div className={`${scheduleGrid} text-sm min-h-[4rem]`}>
-          {/* Time + teams (mobile) */}
-          <div className="flex flex-col justify-center text-nord-polarLight">
-            <span className="mb-0.5 text-[11px] font-medium uppercase tracking-wide text-nord-polarLight sm:hidden">
-              Time
-            </span>
-            <span className="font-medium text-nord-polar">
-              {matchDate.toLocaleDateString("en-GB", {
-                day: "2-digit",
-                month: "2-digit",
-                year: "2-digit",
-              })}
-            </span>
-            <span className="mt-0.5">
-              {matchDate.toLocaleTimeString("en-GB", {
-                hour: "2-digit",
-                minute: "2-digit",
-              })}
-            </span>
-            <span className="mt-1 text-xs">{formatStage(m.stage)}</span>
-            {/* On mobile, show teams next to time for a compact header row */}
-            <div className="mt-2 flex items-start gap-3 sm:hidden">
-              <div className="flex flex-col gap-1">
-                <div className="flex items-center gap-2">
-                  {m.homeTeamLogo ? (
-                    // eslint-disable-next-line @next/next/no-img-element -- external API logo URL
-                    <img
-                      src={m.homeTeamLogo}
-                      alt=""
-                      className="h-6 w-6 shrink-0 rounded-full object-contain bg-white border border-nord-polarLighter/40"
-                    />
-                  ) : (
-                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-nord-snow text-[10px] font-medium text-nord-polarLighter">
-                      ?
-                    </span>
-                  )}
-                  <span className="max-w-[9rem] truncate text-sm font-semibold text-nord-polar">
-                    {m.homeTeamName}
+        <div className="px-4 py-4 sm:hidden">
+          <div className="flex items-start gap-4">
+            <div className="min-w-[5.5rem] text-nord-polarLight">
+              <span className="block text-[11px] font-medium uppercase tracking-[0.12em]">
+                Time
+              </span>
+              <span className="mt-1 block text-base font-semibold text-nord-polar">
+                {matchDate.toLocaleDateString("en-GB", {
+                  day: "2-digit",
+                  month: "2-digit",
+                  year: "2-digit",
+                })}
+              </span>
+              <span className="mt-0.5 block text-sm">
+                {matchDate.toLocaleTimeString("en-GB", {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })}
+              </span>
+              <span className="mt-1 block text-xs">{formatStage(m.stage)}</span>
+            </div>
+
+            <div className="min-w-0 flex-1 space-y-2">
+              <div className="flex items-center gap-2.5">
+                {m.homeTeamLogo ? (
+                  // eslint-disable-next-line @next/next/no-img-element -- external API logo URL
+                  <img
+                    src={m.homeTeamLogo}
+                    alt=""
+                    className="h-7 w-7 shrink-0 rounded-full border border-nord-polarLighter/40 bg-white object-contain"
+                  />
+                ) : (
+                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-nord-snow text-xs font-medium text-nord-polarLighter">
+                    ?
                   </span>
-                </div>
-                <div className="flex items-center gap-2">
-                  {m.awayTeamLogo ? (
-                    // eslint-disable-next-line @next/next/no-img-element -- external API logo URL
-                    <img
-                      src={m.awayTeamLogo}
-                      alt=""
-                      className="h-6 w-6 shrink-0 rounded-full object-contain bg-white border border-nord-polarLighter/40"
-                    />
-                  ) : (
-                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-nord-snow text-[10px] font-medium text-nord-polarLighter">
-                      ?
-                    </span>
-                  )}
-                  <span className="max-w-[9rem] truncate text-sm font-medium text-nord-polar">
-                    {m.awayTeamName}
+                )}
+                <span className="truncate text-base font-semibold text-nord-polar">
+                  {m.homeTeamName}
+                </span>
+              </div>
+              <div className="flex items-center gap-2.5">
+                {m.awayTeamLogo ? (
+                  // eslint-disable-next-line @next/next/no-img-element -- external API logo URL
+                  <img
+                    src={m.awayTeamLogo}
+                    alt=""
+                    className="h-7 w-7 shrink-0 rounded-full border border-nord-polarLighter/40 bg-white object-contain"
+                  />
+                ) : (
+                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-nord-snow text-xs font-medium text-nord-polarLighter">
+                    ?
                   </span>
-                </div>
+                )}
+                <span className="truncate text-[15px] font-medium text-nord-polar">
+                  {m.awayTeamName}
+                </span>
               </div>
             </div>
           </div>
 
-          {/* Match (teams) */}
-          <div className="hidden min-w-0 flex-col justify-center gap-1.5 sm:flex">
-            <div className="flex items-center gap-2">
-              {m.homeTeamLogo ? (
-                // eslint-disable-next-line @next/next/no-img-element -- external API logo URL
-                <img
-                  src={m.homeTeamLogo}
-                  alt=""
-                  className="h-7 w-7 shrink-0 rounded-full object-contain bg-white border border-nord-polarLighter/50"
-                />
-              ) : (
-                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-nord-snow text-xs font-medium text-nord-polarLighter">
-                  ?
-                </span>
-              )}
-              <span className="font-semibold text-nord-polar truncate">
-                {m.homeTeamName}
+          <div className="mt-4 grid grid-cols-[minmax(0,1fr)_4.25rem_3.5rem] gap-3 border-t border-nord-polarLighter/20 pt-3">
+            <div className="min-w-0">
+              <span className="mb-1 block text-[11px] font-medium uppercase tracking-[0.12em] text-nord-polarLight">
+                Prediction
               </span>
-            </div>
-            <div className="flex items-center gap-2">
-              {m.awayTeamLogo ? (
-                // eslint-disable-next-line @next/next/no-img-element -- external API logo URL
-                <img
-                  src={m.awayTeamLogo}
-                  alt=""
-                  className="h-7 w-7 shrink-0 rounded-full object-contain bg-white border border-nord-polarLighter/50"
-                />
-              ) : (
-                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-nord-snow text-xs font-medium text-nord-polarLighter">
-                  ?
-                </span>
-              )}
-              <span className="font-medium text-nord-polar text-sm truncate">
-                {m.awayTeamName}
-              </span>
-            </div>
-          </div>
-
-          {/* Prediction */}
-          <div className="flex flex-col justify-center">
-            <span className="mb-1 text-[11px] font-medium uppercase tracking-wide text-nord-polarLight sm:hidden">
-              Prediction
-            </span>
-            {canPredict && (
-              <div className="flex flex-col gap-1.5">
-                <span className="text-[11px] text-nord-polarLight uppercase tracking-wide">
-                  Lock {new Date(m.lockAt).toLocaleTimeString("en-GB", { timeStyle: "short" })}
-                </span>
-                {/* Mobile: prediction, match score and result in a single row */}
-                <div className="flex items-start justify-between gap-4 sm:block">
+              {canPredict && (
+                <div className="space-y-1.5">
+                  <span className="block text-[11px] uppercase tracking-wide text-nord-polarLight">
+                    Lock {new Date(m.lockAt).toLocaleTimeString("en-GB", { timeStyle: "short" })}
+                  </span>
                   <div className="flex flex-wrap items-center gap-1.5">
                     {(["1", "X", "2"] as const).map((val) => (
                       <button
@@ -407,7 +366,7 @@ export function ScheduleTabs({
                         type="button"
                         disabled={isSubmitting}
                         onClick={() => handleSubmitPrediction(m.id, val)}
-                        className={`min-w-[2rem] rounded border px-2 py-1 text-xs font-medium transition-colors ${
+                        className={`min-w-[2rem] rounded-md border px-2.5 py-1 text-xs font-medium transition-colors ${
                           displaySelection === val
                             ? "border-nord-frostDark bg-nord-frostDark text-white"
                             : "border-nord-polarLighter bg-white text-nord-polar hover:bg-nord-snow"
@@ -430,30 +389,142 @@ export function ScheduleTabs({
                       Finalize
                     </Button>
                   </div>
-                  <div className="ml-2 flex flex-1 items-stretch justify-end gap-6 text-xs text-nord-polar sm:hidden">
-                    <div className="flex flex-col">
-                      <span className="mb-0.5 text-[11px] font-medium uppercase tracking-wide text-nord-polarLight">
-                        Match score
-                      </span>
-                      <span className="font-semibold text-nord-polar">
-                        {m.homeScore != null && m.awayScore != null ? (
-                          <>
-                            {m.homeScore} – {m.awayScore}
-                          </>
-                        ) : (
-                          "–"
-                        )}
-                      </span>
-                    </div>
-                    <div className="flex flex-col items-end">
-                      <span className="mb-0.5 text-[11px] font-medium uppercase tracking-wide text-nord-polarLight">
-                        Result
-                      </span>
-                      <span className="font-semibold text-nord-polar">
-                        {m.officialResultType != null ? formatResult(m.officialResultType) : "–"}
-                      </span>
-                    </div>
-                  </div>
+                </div>
+              )}
+              {!canPredict && userPred && (
+                <PredictionPickDisplay
+                  lockAt={m.lockAt}
+                  pick={userPred.selectedPrediction}
+                  finalizedAt={userPred.finalizedAt}
+                  isFinal={userPred.isFinal}
+                  compact
+                  onUndo={
+                    userPred.isFinal && m.officialResultType === null && isAdmin
+                      ? () => onUndo(m.id)
+                      : undefined
+                  }
+                  undoLoading={isUndoing}
+                />
+              )}
+              {!canPredict && !userPred && (
+                <span className="mt-0.5 block text-nord-polarLight">–</span>
+              )}
+            </div>
+
+            <div className="text-right">
+              <span className="mb-1 block text-[11px] font-medium uppercase tracking-[0.12em] text-nord-polarLight">
+                Score
+              </span>
+              <span className="block text-sm font-semibold text-nord-polar">
+                {m.homeScore != null && m.awayScore != null
+                  ? `${m.homeScore} – ${m.awayScore}`
+                  : "–"}
+              </span>
+            </div>
+
+            <div className="text-right">
+              <span className="mb-1 block text-[11px] font-medium uppercase tracking-[0.12em] text-nord-polarLight">
+                Result
+              </span>
+              <span className="block text-sm font-semibold text-nord-polar">
+                {m.officialResultType != null
+                  ? formatResult(m.officialResultType)
+                  : "–"}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div className={`${scheduleGrid} hidden min-h-[4rem] text-sm sm:grid`}>
+          <div className="flex flex-col justify-center text-nord-polarLight">
+            <span className="font-medium text-nord-polar">
+              {matchDate.toLocaleDateString("en-GB", {
+                day: "2-digit",
+                month: "2-digit",
+                year: "2-digit",
+              })}
+            </span>
+            <span className="mt-0.5">
+              {matchDate.toLocaleTimeString("en-GB", {
+                hour: "2-digit",
+                minute: "2-digit",
+              })}
+            </span>
+            <span className="mt-1 text-xs">{formatStage(m.stage)}</span>
+          </div>
+
+          <div className="min-w-0 space-y-1.5">
+            <div className="flex items-center gap-2">
+              {m.homeTeamLogo ? (
+                // eslint-disable-next-line @next/next/no-img-element -- external API logo URL
+                <img
+                  src={m.homeTeamLogo}
+                  alt=""
+                  className="h-7 w-7 shrink-0 rounded-full object-contain bg-white border border-nord-polarLighter/50"
+                />
+              ) : (
+                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-nord-snow text-xs font-medium text-nord-polarLighter">
+                  ?
+                </span>
+              )}
+              <span className="truncate font-semibold text-nord-polar">
+                {m.homeTeamName}
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              {m.awayTeamLogo ? (
+                // eslint-disable-next-line @next/next/no-img-element -- external API logo URL
+                <img
+                  src={m.awayTeamLogo}
+                  alt=""
+                  className="h-7 w-7 shrink-0 rounded-full object-contain bg-white border border-nord-polarLighter/50"
+                />
+              ) : (
+                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-nord-snow text-xs font-medium text-nord-polarLighter">
+                  ?
+                </span>
+              )}
+              <span className="truncate text-sm font-medium text-nord-polar">
+                {m.awayTeamName}
+              </span>
+            </div>
+          </div>
+
+          <div className="flex flex-col justify-center">
+            {canPredict && (
+              <div className="flex flex-col gap-1.5">
+                <span className="text-[11px] text-nord-polarLight uppercase tracking-wide">
+                  Lock {new Date(m.lockAt).toLocaleTimeString("en-GB", { timeStyle: "short" })}
+                </span>
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {(["1", "X", "2"] as const).map((val) => (
+                    <button
+                      key={val}
+                      type="button"
+                      disabled={isSubmitting}
+                      onClick={() => handleSubmitPrediction(m.id, val)}
+                      className={`min-w-[2rem] rounded border px-2 py-1 text-xs font-medium transition-colors ${
+                        displaySelection === val
+                          ? "border-nord-frostDark bg-nord-frostDark text-white"
+                          : "border-nord-polarLighter bg-white text-nord-polar hover:bg-nord-snow"
+                      }`}
+                    >
+                      {val}
+                    </button>
+                  ))}
+                  <Button
+                    type="button"
+                    size="sm"
+                    disabled={!displaySelection || isSubmitting}
+                    onClick={() =>
+                      setFinalizeModal({
+                        matchId: m.id,
+                        matchLabel: `${m.homeTeamName} vs ${m.awayTeamName}`,
+                      })
+                    }
+                  >
+                    Finalize
+                  </Button>
                 </div>
               </div>
             )}
@@ -477,8 +548,7 @@ export function ScheduleTabs({
             )}
           </div>
 
-          {/* Match score (desktop / larger screens) */}
-          <div className="hidden flex-col justify-center sm:flex">
+          <div className="flex flex-col justify-center">
             {m.homeScore != null && m.awayScore != null ? (
               <span className="font-semibold text-nord-polar">
                 {m.homeScore} – {m.awayScore}
@@ -488,8 +558,7 @@ export function ScheduleTabs({
             )}
           </div>
 
-          {/* Result (desktop / larger screens) */}
-          <div className="hidden flex-col justify-center text-center sm:flex">
+          <div className="flex flex-col justify-center text-center">
             <span className="font-semibold text-nord-polar">
               {m.officialResultType != null
                 ? formatResult(m.officialResultType)
@@ -573,14 +642,14 @@ export function ScheduleTabs({
         </div>
       )}
       {/* Competition / league tabs */}
-      <div className="flex border-b border-nord-polarLighter/50 mb-0">
+      <div className="mb-0 grid grid-cols-2 gap-1 rounded-xl border border-nord-polarLighter/30 bg-nord-snow/60 p-1 sm:flex sm:gap-0 sm:rounded-none sm:border-0 sm:bg-transparent sm:p-0 sm:border-b sm:border-nord-polarLighter/50">
         <button
           type="button"
           onClick={() => { setCompetitionTab("ucl"); setActiveTab("upcoming"); resetFilters(); }}
-          className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 -mb-px transition-colors ${
+          className={`flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors sm:rounded-none sm:px-4 sm:py-3 sm:border-b-2 sm:-mb-px ${
             competitionTab === "ucl"
-              ? "border-nord-frostDark text-nord-polar"
-              : "border-transparent text-nord-polarLight hover:text-nord-polar"
+              ? "bg-white text-nord-polar shadow-sm sm:bg-transparent sm:shadow-none sm:border-nord-frostDark"
+              : "text-nord-polarLight hover:text-nord-polar sm:border-transparent"
           }`}
         >
           {/* eslint-disable-next-line @next/next/no-img-element -- external league logo */}
@@ -589,15 +658,16 @@ export function ScheduleTabs({
             alt=""
             className="h-6 w-6 shrink-0 object-contain"
           />
-          UEFA Champions League
+          <span className="sm:hidden">UCL</span>
+          <span className="hidden sm:inline">UEFA Champions League</span>
         </button>
         <button
           type="button"
           onClick={() => { setCompetitionTab("other"); setActiveTab("upcoming"); resetFilters(); }}
-          className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 -mb-px transition-colors ${
+          className={`flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors sm:rounded-none sm:px-4 sm:py-3 sm:border-b-2 sm:-mb-px ${
             competitionTab === "other"
-              ? "border-nord-frostDark text-nord-polar"
-              : "border-transparent text-nord-polarLight hover:text-nord-polar"
+              ? "bg-white text-nord-polar shadow-sm sm:bg-transparent sm:shadow-none sm:border-nord-frostDark"
+              : "text-nord-polarLight hover:text-nord-polar sm:border-transparent"
           }`}
         >
           <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-nord-polarLighter/60" aria-hidden>
@@ -606,17 +676,18 @@ export function ScheduleTabs({
               <path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
             </svg>
           </span>
-          Diğer
+          <span className="sm:hidden">Other</span>
+          <span className="hidden sm:inline">Diğer</span>
         </button>
       </div>
-      <div className="flex border-b border-nord-polarLighter/50 mb-0">
+      <div className="mt-3 mb-0 grid grid-cols-2 gap-1 rounded-xl border border-nord-polarLighter/30 bg-nord-snow/40 p-1 sm:mt-0 sm:flex sm:gap-0 sm:rounded-none sm:border-0 sm:bg-transparent sm:p-0 sm:border-b sm:border-nord-polarLighter/50">
         <button
           type="button"
           onClick={() => { setActiveTab("upcoming"); resetFilters(); }}
-          className={`px-4 py-3 text-sm font-medium border-b-2 -mb-px transition-colors ${
+          className={`rounded-lg px-3 py-2 text-sm font-medium transition-colors sm:rounded-none sm:px-4 sm:py-3 sm:border-b-2 sm:-mb-px ${
             activeTab === "upcoming"
-              ? "border-nord-frostDark text-nord-polar"
-              : "border-transparent text-nord-polarLight hover:text-nord-polar"
+              ? "bg-white text-nord-polar shadow-sm sm:bg-transparent sm:shadow-none sm:border-nord-frostDark"
+              : "text-nord-polarLight hover:text-nord-polar sm:border-transparent"
           }`}
         >
           Upcoming matches
@@ -624,10 +695,10 @@ export function ScheduleTabs({
         <button
           type="button"
           onClick={() => { setActiveTab("past"); resetFilters(); }}
-          className={`px-4 py-3 text-sm font-medium border-b-2 -mb-px transition-colors ${
+          className={`rounded-lg px-3 py-2 text-sm font-medium transition-colors sm:rounded-none sm:px-4 sm:py-3 sm:border-b-2 sm:-mb-px ${
             activeTab === "past"
-              ? "border-nord-frostDark text-nord-polar"
-              : "border-transparent text-nord-polarLight hover:text-nord-polar"
+              ? "bg-white text-nord-polar shadow-sm sm:bg-transparent sm:shadow-none sm:border-nord-frostDark"
+              : "text-nord-polarLight hover:text-nord-polar sm:border-transparent"
           }`}
         >
           Past matches
@@ -688,14 +759,14 @@ export function ScheduleTabs({
       )}
 
       {currentList.length > 0 && (
-        <div className="flex flex-wrap items-center gap-4 px-4 py-3 bg-nord-snow/50 border border-nord-polarLighter/50 border-t-0 text-sm">
+        <div className="flex flex-col gap-3 border border-nord-polarLighter/50 border-t-0 bg-nord-snow/50 px-4 py-3 text-sm sm:flex-row sm:flex-wrap sm:items-center sm:gap-4">
           <span className="font-medium text-nord-polar">Filters:</span>
-          <label className="flex items-center gap-2">
+          <label className="flex w-full items-center justify-between gap-3 sm:w-auto sm:justify-start sm:gap-2">
             <span className="text-nord-polarLight">Stage</span>
             <select
               value={filterStage}
               onChange={(e) => setFilterStage(e.target.value)}
-              className="rounded-lg border border-nord-polarLighter bg-white px-3 py-1.5 text-nord-polar focus:border-nord-frostDark focus:outline-none focus:ring-1 focus:ring-nord-frostDark"
+              className="min-w-0 flex-1 rounded-lg border border-nord-polarLighter bg-white px-3 py-2 text-nord-polar focus:border-nord-frostDark focus:outline-none focus:ring-1 focus:ring-nord-frostDark sm:flex-none"
             >
               <option value="">All stages</option>
               {stageOptions.map((stage) => (
@@ -705,12 +776,12 @@ export function ScheduleTabs({
               ))}
             </select>
           </label>
-          <label className="flex items-center gap-2">
+          <label className="flex w-full items-center justify-between gap-3 sm:w-auto sm:justify-start sm:gap-2">
             <span className="text-nord-polarLight">Team</span>
             <select
               value={filterTeam}
               onChange={(e) => setFilterTeam(e.target.value)}
-              className="min-w-[12rem] rounded-lg border border-nord-polarLighter bg-white px-3 py-1.5 text-nord-polar focus:border-nord-frostDark focus:outline-none focus:ring-1 focus:ring-nord-frostDark"
+              className="min-w-0 flex-1 rounded-lg border border-nord-polarLighter bg-white px-3 py-2 text-nord-polar focus:border-nord-frostDark focus:outline-none focus:ring-1 focus:ring-nord-frostDark sm:min-w-[12rem] sm:flex-none"
             >
               <option value="">All teams</option>
               {teamOptions.map((team) => (

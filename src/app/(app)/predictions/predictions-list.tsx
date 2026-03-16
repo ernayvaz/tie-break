@@ -135,7 +135,7 @@ export function PredictionsList({
   };
 
   return (
-    <div className="mt-6 overflow-x-auto">
+    <div className="mt-6">
       {actionError && (
         <div
           role="alert"
@@ -170,7 +170,7 @@ export function PredictionsList({
           ) : (
           <>
           {isAdmin && canUnfinalizeCount > 0 && (
-            <div className="mb-4 flex flex-wrap items-center gap-3">
+            <div className="mb-4 flex flex-col items-start gap-3 sm:flex-row sm:flex-wrap sm:items-center">
               <Button
                 type="button"
                 variant="secondary"
@@ -185,13 +185,13 @@ export function PredictionsList({
             </div>
           )}
 
-          <div className="mb-4 flex flex-wrap items-center gap-4 border-b border-nord-polarLighter/50 pb-4">
-            <div className="flex flex-wrap items-center gap-2">
+          <div className="mb-4 flex flex-col gap-3 border-b border-nord-polarLighter/50 pb-4 sm:flex-row sm:flex-wrap sm:items-center sm:gap-4">
+            <div className="flex w-full items-center justify-between gap-3 sm:w-auto sm:flex-wrap sm:justify-start sm:gap-2">
               <span className="text-sm font-medium text-nord-polar">Status:</span>
               <select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
-                className="rounded-lg border border-nord-polarLighter bg-white px-3 py-2 text-sm text-nord-polar focus:border-nord-frostDark focus:outline-none focus:ring-1 focus:ring-nord-frostDark"
+                className="min-w-0 flex-1 rounded-lg border border-nord-polarLighter bg-white px-3 py-2 text-sm text-nord-polar focus:border-nord-frostDark focus:outline-none focus:ring-1 focus:ring-nord-frostDark sm:flex-none"
               >
                 {STATUS_FILTERS.map((f) => (
                   <option key={f.value} value={f.value}>
@@ -200,12 +200,12 @@ export function PredictionsList({
                 ))}
               </select>
             </div>
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex w-full items-center justify-between gap-3 sm:w-auto sm:flex-wrap sm:justify-start sm:gap-2">
               <span className="text-sm font-medium text-nord-polar">Outcome:</span>
               <select
                 value={outcomeFilter}
                 onChange={(e) => setOutcomeFilter(e.target.value as OutcomeFilter)}
-                className="rounded-lg border border-nord-polarLighter bg-white px-3 py-2 text-sm text-nord-polar focus:border-nord-frostDark focus:outline-none focus:ring-1 focus:ring-nord-frostDark"
+                className="min-w-0 flex-1 rounded-lg border border-nord-polarLighter bg-white px-3 py-2 text-sm text-nord-polar focus:border-nord-frostDark focus:outline-none focus:ring-1 focus:ring-nord-frostDark sm:flex-none"
               >
                 {OUTCOME_FILTERS.map((f) => (
                   <option key={f.value} value={f.value}>
