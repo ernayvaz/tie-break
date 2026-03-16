@@ -48,22 +48,37 @@ function CrossMiniIcon({ className }: { className?: string }) {
   );
 }
 
-function TopRankBadge({ rank }: { rank: number }) {
-  if (rank < 1 || rank > 3) return null;
+function TopPlacementBadge({ place }: { place?: 1 | 2 | 3 }) {
+  if (!place) return null;
 
-  const palette: Record<1 | 2 | 3, string> = {
-    1: "border-amber-300/70 bg-amber-100/90 text-amber-700 ring-amber-200/70",
-    2: "border-slate-300/80 bg-slate-100/90 text-slate-600 ring-slate-200/80",
-    3: "border-orange-300/70 bg-orange-100/90 text-orange-700 ring-orange-200/70",
+  const config: Record<
+    1 | 2 | 3,
+    { label: string; className: string }
+  > = {
+    1: {
+      label: "1st",
+      className:
+        "border-amber-200/90 bg-amber-50 text-amber-700 ring-amber-100/80",
+    },
+    2: {
+      label: "2nd",
+      className:
+        "border-slate-200/90 bg-slate-50 text-slate-600 ring-slate-100/80",
+    },
+    3: {
+      label: "3rd",
+      className:
+        "border-orange-200/90 bg-orange-50 text-orange-700 ring-orange-100/80",
+    },
   };
 
   return (
     <span
-      className={`inline-flex h-6 min-w-[1.5rem] shrink-0 items-center justify-center rounded-full border px-1.5 text-[11px] font-semibold shadow-sm ring-1 ${palette[rank as 1 | 2 | 3]}`}
-      title={`Rank ${rank} badge`}
-      aria-label={`Rank ${rank} badge`}
+      className={`inline-flex h-6 shrink-0 items-center justify-center rounded-full border px-2.5 text-[11px] font-medium tracking-wide shadow-sm ring-1 ${config[place].className}`}
+      title={`${config[place].label} place`}
+      aria-label={`${config[place].label} place`}
     >
-      {rank}
+      {config[place].label}
     </span>
   );
 }
@@ -205,6 +220,11 @@ export default async function LeaderboardPage({
     ? [...publicEntries, ...adminEntries]
     : publicEntries;
 
+  const podiumPlaces = new Map<string, 1 | 2 | 3>();
+  publicEntries.slice(0, 3).forEach((entry, index) => {
+    podiumPlaces.set(entry.userId, (index + 1) as 1 | 2 | 3);
+  });
+
   const adminHasLiveRow =
     isAdmin &&
     adminEntries.length > 0 &&
@@ -342,7 +362,9 @@ export default async function LeaderboardPage({
                           <div className="min-w-0 truncate font-semibold text-nord-polar">
                             {e.user.name} {e.user.surname}
                           </div>
-                          {!isAdminRow && <TopRankBadge rank={e.currentRank} />}
+                          {!isAdminRow && (
+                            <TopPlacementBadge place={podiumPlaces.get(e.userId)} />
+                          )}
                         </div>
                         {isAdminRow && (
                           <div className="mt-1 text-xs text-nord-polarLight">
@@ -433,7 +455,9 @@ export default async function LeaderboardPage({
                             <span>
                               {e.user.name} {e.user.surname}
                             </span>
-                            {!isAdminRow && <TopRankBadge rank={e.currentRank} />}
+                            {!isAdminRow && (
+                              <TopPlacementBadge place={podiumPlaces.get(e.userId)} />
+                            )}
                           </div>
                           {isAdminRow && (
                             <span className="ml-2 text-xs text-nord-polarLight">(Admin – not visible to others)</span>
