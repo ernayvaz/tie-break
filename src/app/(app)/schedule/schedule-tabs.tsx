@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { toDisplay } from "@/lib/prediction-values";
 import type { PredictionValue } from "@prisma/client";
@@ -78,6 +78,12 @@ type Props = {
   isAdmin?: boolean;
 };
 
+function buildPredictionMap(predictions: UserPrediction[]) {
+  const map: Record<string, UserPrediction> = {};
+  for (const p of predictions) map[p.matchId] = p;
+  return map;
+}
+
 export function ScheduleTabs({
   matches,
   userPredictions,
@@ -97,6 +103,9 @@ export function ScheduleTabs({
   const [actionError, setActionError] = useState<string | null>(null);
   const [expandedOthers, setExpandedOthers] = useState<Set<string>>(new Set());
   const [optimisticSelections, setOptimisticSelections] = useState<Record<string, PredictionDisplay>>({});
+  const [localPredictions, setLocalPredictions] = useState<Record<string, UserPrediction>>(
+    () => buildPredictionMap(userPredictions)
+  );
   const [submittingMatchId, setSubmittingMatchId] = useState<string | null>(null);
   const [undoingMatchId, setUndoingMatchId] = useState<string | null>(null);
   const [pendingResetUpcoming, setPendingResetUpcoming] = useState(false);
@@ -104,11 +113,11 @@ export function ScheduleTabs({
   const [resetMessage, setResetMessage] = useState<string | null>(null);
   const router = useRouter();
 
-  const userPredictionByMatch = useMemo(() => {
-    const map: Record<string, UserPrediction> = {};
-    for (const p of userPredictions) map[p.matchId] = p;
-    return map;
+  useEffect(() => {
+    setLocalPredictions(buildPredictionMap(userPredictions));
   }, [userPredictions]);
+
+  const userPredictionByMatch = localPredictions;
 
   const matchesByCompetition = useMemo(() => {
     if (competitionTab === "ucl") {
@@ -193,7 +202,15 @@ export function ScheduleTabs({
     const result = await submitPredictionAction(matchId, value);
     setSubmittingMatchId(null);
     if (result.ok) {
-      router.refresh();
+      setLocalPredictions((prev) => ({
+        ...prev,
+        [matchId]: {
+          matchId,
+          selectedPrediction: value,
+          isFinal: prev[matchId]?.isFinal ?? false,
+          finalizedAt: prev[matchId]?.finalizedAt ?? null,
+        },
+      }));
       return;
     }
     setActionError(result.error);
@@ -206,25 +223,73 @@ export function ScheduleTabs({
 
   const handleFinalizeConfirm = async () => {
     if (!finalizeModal) return;
+    const { matchId } = finalizeModal;
+    const previousPrediction = userPredictionByMatch[matchId];
+    const selectedPrediction =
+      optimisticSelections[matchId] ?? previousPrediction?.selectedPrediction;
+    const optimisticFinalizedAt = new Date().toISOString();
+
     setPendingFinalize(true);
     setActionError(null);
-    const result = await finalizePredictionAction(finalizeModal.matchId);
-    setPendingFinalize(false);
     setFinalizeModal(null);
+    if (selectedPrediction) {
+      setLocalPredictions((prev) => ({
+        ...prev,
+        [matchId]: {
+          matchId,
+          selectedPrediction,
+          isFinal: true,
+          finalizedAt: optimisticFinalizedAt,
+        },
+      }));
+    }
+    const result = await finalizePredictionAction(matchId);
+    setPendingFinalize(false);
     if (result.ok) {
+      setOptimisticSelections((prev) => {
+        const next = { ...prev };
+        delete next[matchId];
+        return next;
+      });
       router.refresh();
       return;
+    }
+    if (previousPrediction) {
+      setLocalPredictions((prev) => ({ ...prev, [matchId]: previousPrediction }));
+    } else {
+      setLocalPredictions((prev) => {
+        const next = { ...prev };
+        delete next[matchId];
+        return next;
+      });
     }
     setActionError(result.error);
   };
 
   const handleUndo = async (matchId: string) => {
+    const previousPrediction = userPredictionByMatch[matchId];
     setActionError(null);
     setUndoingMatchId(matchId);
+    if (previousPrediction) {
+      setLocalPredictions((prev) => ({
+        ...prev,
+        [matchId]: {
+          ...previousPrediction,
+          isFinal: false,
+          finalizedAt: null,
+        },
+      }));
+    }
     const result = await unfinalizePredictionAction(matchId);
     setUndoingMatchId(null);
-    if (result.ok) router.refresh();
-    else setActionError(result.error);
+    if (result.ok) {
+      router.refresh();
+    } else {
+      if (previousPrediction) {
+        setLocalPredictions((prev) => ({ ...prev, [matchId]: previousPrediction }));
+      }
+      setActionError(result.error);
+    }
   };
 
   const toggleOthers = (matchId: string) => {

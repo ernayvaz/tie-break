@@ -80,15 +80,24 @@ export async function getLeaderboardStatsForUser(
 /**
  * Rebuild leaderboard per competition: compute totals per user per competition, sort, assign ranks.
  */
-export async function rebuildLeaderboard(): Promise<{ ok: true; count: number } | { ok: false; error: string }> {
-  const competitionIds = await prisma.match.findMany({
-    where: { officialResultType: { not: null } },
-    select: { competitionId: true },
-    distinct: ["competitionId"],
-  }).then((rows) => {
-    const ids = rows.map((r) => r.competitionId ?? UCL_COMPETITION_ID);
-    return [...new Set(ids)];
+export async function rebuildLeaderboardForCompetition(
+  competitionId: string = UCL_COMPETITION_ID
+): Promise<{ ok: true; count: number } | { ok: false; error: string }> {
+  const matchWhere = matchCompetitionFilter(competitionId);
+  const hasCompletedMatches = await prisma.match.findFirst({
+    where: {
+      ...matchWhere,
+      officialResultType: { not: null },
+    },
+    select: { id: true },
   });
+
+  if (!hasCompletedMatches) {
+    await prisma.leaderboardEntry.deleteMany({
+      where: { competitionId },
+    });
+    return { ok: true, count: 0 };
+  }
 
   const users = await prisma.user.findMany({
     where: { status: "approved", role: { not: "admin" } },
@@ -105,95 +114,111 @@ export async function rebuildLeaderboard(): Promise<{ ok: true; count: number } 
     correctCount: number;
   };
 
-  let totalCount = 0;
+  const rows: Row[] = [];
 
-  for (const competitionId of competitionIds) {
-    const matchWhere = matchCompetitionFilter(competitionId);
-    const rows: Row[] = [];
-
-    for (const u of users) {
-      const predictions = await prisma.prediction.findMany({
-        where: { userId: u.id, isFinal: true, match: matchWhere },
-        include: { match: { select: { stage: true, officialResultType: true } } },
-      });
-
-      let totalPoints = 0;
-      let knockoutPoints = 0;
-      let semifinalFinalPoints = 0;
-      let correctCount = 0;
-      let completedMatchCount = 0;
-
-      for (const p of predictions) {
-        if (p.match.officialResultType !== null) completedMatchCount++;
-        totalPoints += p.awardedPoints ?? 0;
-        if (p.awardedPoints === 1) {
-          correctCount++;
-          if (KNOCKOUT_STAGES.includes(p.match.stage)) knockoutPoints += 1;
-          if (SEMI_FINAL_STAGES.includes(p.match.stage)) semifinalFinalPoints += 1;
-        }
-      }
-
-      rows.push({
-        userId: u.id,
-        totalPoints,
-        knockoutPoints,
-        semifinalFinalPoints,
-        finalizedCount: predictions.length,
-        completedMatchCount,
-        correctCount,
-      });
-    }
-
-    const rowsWithPredictions = rows.filter((r) => r.finalizedCount > 0);
-    rowsWithPredictions.sort((a, b) => {
-      if (b.totalPoints !== a.totalPoints) return b.totalPoints - a.totalPoints;
-      const accA = a.correctCount / a.finalizedCount;
-      const accB = b.correctCount / b.finalizedCount;
-      return accB - accA;
+  for (const u of users) {
+    const predictions = await prisma.prediction.findMany({
+      where: { userId: u.id, isFinal: true, match: matchWhere },
+      include: { match: { select: { stage: true, officialResultType: true } } },
     });
 
-    let rank = 1;
-    for (let i = 0; i < rowsWithPredictions.length; i++) {
-      const r = rowsWithPredictions[i];
-      const accuracyRate = r.correctCount / r.finalizedCount;
-      if (i > 0) {
-        const prev = rowsWithPredictions[i - 1];
-        const prevAcc = prev.correctCount / prev.finalizedCount;
-        if (r.totalPoints !== prev.totalPoints || accuracyRate !== prevAcc) rank = i + 1;
-      }
-      await prisma.leaderboardEntry.upsert({
-        where: { userId_competitionId: { userId: r.userId, competitionId } },
-        create: {
-          userId: r.userId,
-          competitionId,
-          totalPoints: r.totalPoints,
-          knockoutPoints: r.knockoutPoints,
-          semifinalFinalPoints: r.semifinalFinalPoints,
-          finalizedPredictionCount: r.finalizedCount,
-          completedMatchCount: r.completedMatchCount,
-          accuracyRate,
-          currentRank: rank,
-        },
-        update: {
-          totalPoints: r.totalPoints,
-          knockoutPoints: r.knockoutPoints,
-          semifinalFinalPoints: r.semifinalFinalPoints,
-          finalizedPredictionCount: r.finalizedCount,
-          completedMatchCount: r.completedMatchCount,
-          accuracyRate,
-          currentRank: rank,
-        },
-      });
-    }
-    totalCount += rowsWithPredictions.length;
+    let totalPoints = 0;
+    let knockoutPoints = 0;
+    let semifinalFinalPoints = 0;
+    let correctCount = 0;
+    let completedMatchCount = 0;
 
-    const userIdsOnBoard = new Set(rowsWithPredictions.map((r) => r.userId));
-    await prisma.leaderboardEntry.deleteMany({
-      where: { competitionId, userId: { notIn: [...userIdsOnBoard] } },
+    for (const p of predictions) {
+      if (p.match.officialResultType !== null) completedMatchCount++;
+      totalPoints += p.awardedPoints ?? 0;
+      if (p.awardedPoints === 1) {
+        correctCount++;
+        if (KNOCKOUT_STAGES.includes(p.match.stage)) knockoutPoints += 1;
+        if (SEMI_FINAL_STAGES.includes(p.match.stage)) semifinalFinalPoints += 1;
+      }
+    }
+
+    rows.push({
+      userId: u.id,
+      totalPoints,
+      knockoutPoints,
+      semifinalFinalPoints,
+      finalizedCount: predictions.length,
+      completedMatchCount,
+      correctCount,
     });
   }
 
-  // Remove entries for competitions that no longer have any matches with results
+  const rowsWithPredictions = rows.filter((r) => r.finalizedCount > 0);
+  rowsWithPredictions.sort((a, b) => {
+    if (b.totalPoints !== a.totalPoints) return b.totalPoints - a.totalPoints;
+    const accA = a.correctCount / a.finalizedCount;
+    const accB = b.correctCount / b.finalizedCount;
+    return accB - accA;
+  });
+
+  let rank = 1;
+  for (let i = 0; i < rowsWithPredictions.length; i++) {
+    const r = rowsWithPredictions[i];
+    const accuracyRate = r.correctCount / r.finalizedCount;
+    if (i > 0) {
+      const prev = rowsWithPredictions[i - 1];
+      const prevAcc = prev.correctCount / prev.finalizedCount;
+      if (r.totalPoints !== prev.totalPoints || accuracyRate !== prevAcc) rank = i + 1;
+    }
+    await prisma.leaderboardEntry.upsert({
+      where: { userId_competitionId: { userId: r.userId, competitionId } },
+      create: {
+        userId: r.userId,
+        competitionId,
+        totalPoints: r.totalPoints,
+        knockoutPoints: r.knockoutPoints,
+        semifinalFinalPoints: r.semifinalFinalPoints,
+        finalizedPredictionCount: r.finalizedCount,
+        completedMatchCount: r.completedMatchCount,
+        accuracyRate,
+        currentRank: rank,
+      },
+      update: {
+        totalPoints: r.totalPoints,
+        knockoutPoints: r.knockoutPoints,
+        semifinalFinalPoints: r.semifinalFinalPoints,
+        finalizedPredictionCount: r.finalizedCount,
+        completedMatchCount: r.completedMatchCount,
+        accuracyRate,
+        currentRank: rank,
+      },
+    });
+  }
+
+  const userIdsOnBoard = new Set(rowsWithPredictions.map((r) => r.userId));
+  await prisma.leaderboardEntry.deleteMany({
+    where: {
+      competitionId,
+      ...(userIdsOnBoard.size > 0 ? { userId: { notIn: [...userIdsOnBoard] } } : {}),
+    },
+  });
+
+  return { ok: true, count: rowsWithPredictions.length };
+}
+
+export async function rebuildLeaderboard(): Promise<{ ok: true; count: number } | { ok: false; error: string }> {
+  const competitionIds = await prisma.match.findMany({
+    where: { officialResultType: { not: null } },
+    select: { competitionId: true },
+    distinct: ["competitionId"],
+  }).then((rows) => {
+    const ids = rows.map((r) => r.competitionId ?? UCL_COMPETITION_ID);
+    return [...new Set(ids)];
+  });
+
+  let totalCount = 0;
+  for (const competitionId of competitionIds) {
+    const result = await rebuildLeaderboardForCompetition(competitionId);
+    if (!result.ok) return result;
+    totalCount += result.count;
+  }
+
   if (competitionIds.length > 0) {
     const existingCompetitionIds = new Set(competitionIds);
     await prisma.leaderboardEntry.deleteMany({

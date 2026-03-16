@@ -9,9 +9,10 @@ import {
   resetAllPredictionsPast,
   type PredictionError,
 } from "@/lib/predictions";
-import { scoreMatch, rebuildLeaderboard } from "@/lib/scoring";
+import { scoreMatch, rebuildLeaderboard, rebuildLeaderboardForCompetition } from "@/lib/scoring";
 import { prisma } from "@/lib/db";
 import type { PredictionDisplay } from "@/lib/prediction-values";
+import { UCL_COMPETITION_ID } from "@/lib/config";
 
 export type ScheduleActionState =
   | { ok: true; message?: string }
@@ -51,12 +52,12 @@ export async function finalizePredictionAction(
 
   const match = await prisma.match.findUnique({
     where: { id: matchId },
-    select: { officialResultType: true },
+    select: { officialResultType: true, competitionId: true },
   });
   if (match?.officialResultType != null) {
     await scoreMatch(matchId);
   }
-  await rebuildLeaderboard();
+  await rebuildLeaderboardForCompetition(match?.competitionId ?? UCL_COMPETITION_ID);
   return { ok: true };
 }
 
@@ -72,10 +73,10 @@ export async function unfinalizePredictionAction(
 
   const match = await prisma.match.findUnique({
     where: { id: matchId },
-    select: { officialResultType: true },
+    select: { officialResultType: true, competitionId: true },
   });
   if (match?.officialResultType != null) await scoreMatch(matchId);
-  await rebuildLeaderboard();
+  await rebuildLeaderboardForCompetition(match?.competitionId ?? UCL_COMPETITION_ID);
   return { ok: true };
 }
 
