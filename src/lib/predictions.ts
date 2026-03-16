@@ -43,7 +43,10 @@ export async function createOrUpdatePrediction(
   const existing = await prisma.prediction.findUnique({
     where: { userId_matchId: { userId, matchId } },
   });
-  if (!allowLocked && existing?.isFinal) return { ok: false, error: "already_finalized" };
+  if (!allowLocked && existing?.isFinal) {
+    if (existing.selectedPrediction === value) return { ok: true };
+    return { ok: false, error: "already_finalized" };
+  }
 
   await prisma.prediction.upsert({
     where: { userId_matchId: { userId, matchId } },

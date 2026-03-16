@@ -41,12 +41,19 @@ export async function submitPredictionAction(
 }
 
 export async function finalizePredictionAction(
-  matchId: string
+  matchId: string,
+  value?: PredictionDisplay
 ): Promise<ScheduleActionState> {
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: "You must be logged in." };
 
   const isAdmin = user.role === "admin";
+  if (value) {
+    const draftResult = await createOrUpdatePrediction(user.id, matchId, value, { isAdmin });
+    if (!draftResult.ok) {
+      return { ok: false, error: predictionErrorMessages[draftResult.error] ?? draftResult.error };
+    }
+  }
   const result = await finalizePrediction(user.id, matchId, { isAdmin });
   if (!result.ok) return { ok: false, error: predictionErrorMessages[result.error] ?? result.error };
 

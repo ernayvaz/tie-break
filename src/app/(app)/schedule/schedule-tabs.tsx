@@ -243,7 +243,7 @@ export function ScheduleTabs({
         },
       }));
     }
-    const result = await finalizePredictionAction(matchId);
+    const result = await finalizePredictionAction(matchId, selectedPrediction);
     setPendingFinalize(false);
     if (result.ok) {
       setOptimisticSelections((prev) => {
@@ -443,7 +443,7 @@ export function ScheduleTabs({
                     <Button
                       type="button"
                       size="sm"
-                      disabled={!displaySelection || isSubmitting}
+                      disabled={!displaySelection || pendingFinalize}
                       onClick={() =>
                         setFinalizeModal({
                           matchId: m.id,
@@ -580,7 +580,7 @@ export function ScheduleTabs({
                   <Button
                     type="button"
                     size="sm"
-                    disabled={!displaySelection || isSubmitting}
+                    disabled={!displaySelection || pendingFinalize}
                     onClick={() =>
                       setFinalizeModal({
                         matchId: m.id,
