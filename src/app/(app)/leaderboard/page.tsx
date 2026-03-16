@@ -31,11 +31,13 @@ export default async function LeaderboardPage({
       adminEntries = [
         ...adminEntries,
         {
+          competitionId,
           userId: currentUser.id,
           totalPoints: liveStats.totalPoints,
           finalizedPredictionCount: liveStats.finalizedPredictionCount,
           completedMatchCount: liveStats.completedMatchCount,
           accuracyRate: liveStats.accuracyRate,
+          averageFinalizedTimeMetric: null,
           currentRank: 0,
           knockoutPoints: 0,
           semifinalFinalPoints: 0,
