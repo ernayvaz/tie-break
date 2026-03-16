@@ -121,7 +121,7 @@ export async function updateMatchAction(
   }
   if (data.officialResultType !== undefined) {
     resultUpdated = true;
-    if (data.officialResultType === null || data.officialResultType === "") {
+    if (data.officialResultType === null) {
       update.officialResultType = null;
       update.homeScore = null;
       update.awayScore = null;
