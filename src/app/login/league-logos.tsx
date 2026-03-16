@@ -117,7 +117,8 @@ export function LeagueLogosCircle({
   const angleStep = (2 * Math.PI) / n;
   const logoRingR = isMobile ? 0.7 : 0.72;
   const radii = isMobile ? MOBILE_RADII : DESKTOP_RADII;
-  const innerHintRadius = isMobile ? 22 / 50 : 24 / 50;
+  const textHintRadius = isMobile ? 20 / 50 : 24 / 50;
+  const symbolHintRadius = isMobile ? 19 / 50 : 24 / 50;
 
   return (
     <div
@@ -176,14 +177,16 @@ export function LeagueLogosCircle({
       {(() => {
         const h = TEXT_HINT;
         const rad = (h.angleDeg * Math.PI) / 180;
-        const r = innerHintRadius;
+        const r = textHintRadius;
         const x = 50 + 50 * r * Math.cos(rad);
         const y = 50 + 50 * r * Math.sin(rad);
         return (
           <div
             key="1x2"
-            className={`absolute z-10 flex items-center justify-center rounded-full bg-white/90 px-1.5 py-0.5 font-semibold text-nord-frostDark shadow-sm ring-1 ring-nord-polarLighter/20 ${
-              isMobile ? "min-w-[1.85rem] text-[9px]" : "min-w-[2rem] text-[10px] sm:text-xs"
+            className={`absolute flex items-center justify-center rounded-full bg-white/90 px-1.5 py-0.5 font-semibold text-nord-frostDark shadow-sm ring-1 ring-nord-polarLighter/20 ${
+              isMobile
+                ? "z-[8] min-w-[1.6rem] text-[8px]"
+                : "z-10 min-w-[2rem] text-[10px] sm:text-xs"
             }`}
             style={{ left: pct(x), top: pct(y), transform: "translate(-50%, -50%)" }}
             aria-hidden
@@ -195,20 +198,20 @@ export function LeagueLogosCircle({
       {/* Platform hint symbols (Predict, Score, Rank) – no text; design already has Predict • Score • Leaderboard below */}
       {SYMBOL_HINTS.map((h) => {
         const rad = (h.angleDeg * Math.PI) / 180;
-        const r = innerHintRadius;
+        const r = symbolHintRadius;
         const x = 50 + 50 * r * Math.cos(rad);
         const y = 50 + 50 * r * Math.sin(rad);
         const Icon = h.type === "predict" ? PredictIcon : h.type === "score" ? ScoreIcon : RankIcon;
         return (
           <div
             key={h.type}
-            className={`absolute z-10 flex items-center justify-center rounded-full bg-white/90 text-nord-frostDark shadow-sm ring-1 ring-nord-polarLighter/20 ${
-              isMobile ? "h-7 w-7" : "h-8 w-8 sm:h-9 sm:w-9"
+            className={`absolute flex items-center justify-center rounded-full bg-white/90 text-nord-frostDark shadow-sm ring-1 ring-nord-polarLighter/20 ${
+              isMobile ? "z-[8] h-6 w-6" : "z-10 h-8 w-8 sm:h-9 sm:w-9"
             }`}
             style={{ left: pct(x), top: pct(y), transform: "translate(-50%, -50%)" }}
             aria-hidden
           >
-            <Icon className={isMobile ? "h-4 w-4" : "h-4 w-4 sm:h-5 sm:w-5"} />
+            <Icon className={isMobile ? "h-3.5 w-3.5" : "h-4 w-4 sm:h-5 sm:w-5"} />
           </div>
         );
       })}
