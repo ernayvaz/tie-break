@@ -29,16 +29,19 @@ export function Modal({
   const [busy, setBusy] = React.useState(false);
   const isBusy = loading || busy;
 
+  React.useEffect(() => {
+    if (!open) setBusy(false);
+  }, [open]);
+
   const handleConfirm = React.useCallback(async () => {
     if (!onConfirm) return;
     setBusy(true);
     try {
       await onConfirm();
-      onClose();
     } finally {
       setBusy(false);
     }
-  }, [onConfirm, onClose]);
+  }, [onConfirm]);
 
   const handleBackdropClick = (e: React.MouseEvent) => {
     if (e.target === e.currentTarget && !isBusy) onClose();
@@ -80,12 +83,13 @@ export function Modal({
         <div className="px-4 py-4 text-nord-polarLight text-sm">
           {children}
         </div>
-        <div className="flex justify-end gap-2 border-t border-nord-polarLighter/50 px-4 py-3">
+        <div className="grid grid-cols-2 gap-2 border-t border-nord-polarLighter/50 px-4 py-3 sm:flex sm:justify-end">
           <Button
             type="button"
             variant="secondary"
             onClick={onClose}
             disabled={isBusy}
+            className="w-full sm:w-auto"
           >
             {cancelLabel}
           </Button>
@@ -95,6 +99,7 @@ export function Modal({
               variant={variant}
               onClick={handleConfirm}
               disabled={isBusy}
+              className="w-full sm:w-auto"
             >
               {isBusy ? "…" : confirmLabel}
             </Button>
