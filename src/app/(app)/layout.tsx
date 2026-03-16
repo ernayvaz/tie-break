@@ -14,15 +14,15 @@ export default async function AppLayout({
   return (
     <div className="min-h-screen bg-[var(--background)]">
       <header className="sticky top-0 z-10 border-b border-nord-polarLighter/30 bg-white/80">
-        <div className="mx-auto flex h-14 max-w-7xl items-center justify-between px-4">
-          <div className="flex items-center gap-8">
+        <div className="mx-auto flex max-w-7xl flex-col items-start gap-2 px-3 py-2 sm:px-4 sm:py-2 md:h-14 md:flex-row md:items-center md:justify-between">
+          <div className="flex w-full flex-wrap items-center gap-x-4 gap-y-2 md:w-auto md:gap-8">
             <Link
               href="/schedule"
-              className="text-xl font-light tracking-[0.22em] text-nord-polar uppercase hover:text-nord-frostDark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] focus-visible:ring-offset-2 rounded"
+              className="text-lg font-light tracking-[0.18em] text-nord-polar uppercase hover:text-nord-frostDark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] focus-visible:ring-offset-2 rounded sm:text-xl sm:tracking-[0.22em]"
             >
               TIE-BREAK
             </Link>
-            <nav className="flex items-center gap-6 text-sm">
+            <nav className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs sm:text-sm sm:gap-x-5 md:flex-nowrap md:gap-x-6">
               <Link
                 href="/schedule"
                 className="flex items-center gap-2 font-medium text-nord-polar hover:text-nord-frostDark"
@@ -62,7 +62,7 @@ export default async function AppLayout({
               )}
             </nav>
           </div>
-          <div className="flex items-center gap-3 text-sm">
+          <div className="flex w-full items-center justify-end gap-3 text-xs sm:text-sm md:w-auto">
             <span className="text-nord-polarLight">
               {user.name} {user.surname}
             </span>
