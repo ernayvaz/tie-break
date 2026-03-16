@@ -11,6 +11,15 @@ const compat = new FlatCompat({
 
 const eslintConfig = [
   ...compat.extends("next/core-web-vitals", "next/typescript"),
+  {
+    files: [
+      "src/app/login/league-logos.tsx",
+      "src/app/admin/matches/match-management-client.tsx",
+    ],
+    rules: {
+      "@next/next/no-img-element": "off",
+    },
+  },
 ];
 
 export default eslintConfig;
