@@ -253,7 +253,7 @@ export function ScheduleTabs({
     canPredict,
     userPred,
     others,
-    matchStarted,
+    matchStarted: _matchStarted,
     displaySelection,
     isSubmitting,
     isUndoing,

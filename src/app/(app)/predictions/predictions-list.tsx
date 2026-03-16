@@ -4,7 +4,7 @@ import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button, Modal } from "@/components/ui";
-import { CompetitionTabsClient, UCL_ID, OTHER_ID } from "@/components/competition-tabs";
+import { CompetitionTabsClient, UCL_ID } from "@/components/competition-tabs";
 import { PredictionPickDisplay } from "@/components/prediction-pick-display";
 import { unfinalizePredictionAction, resetAllPredictionsAction } from "./actions";
 
