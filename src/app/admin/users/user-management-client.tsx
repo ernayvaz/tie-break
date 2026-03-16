@@ -329,7 +329,7 @@ export function UserManagementClient({
 
       {/* Confirm modals */}
       <Modal
-        open={confirmModal?.type === "approve" ?? false}
+        open={confirmModal?.type === "approve"}
         onClose={() => !busy && setConfirmModal(null)}
         title="Approve user?"
         confirmLabel="Yes, approve"
@@ -343,7 +343,7 @@ export function UserManagementClient({
         )}
       </Modal>
       <Modal
-        open={confirmModal?.type === "reject" ?? false}
+        open={confirmModal?.type === "reject"}
         onClose={() => !busy && setConfirmModal(null)}
         title="Reject user?"
         confirmLabel="Yes, reject"
@@ -358,7 +358,7 @@ export function UserManagementClient({
         )}
       </Modal>
       <Modal
-        open={confirmModal?.type === "block" ?? false}
+        open={confirmModal?.type === "block"}
         onClose={() => !busy && setConfirmModal(null)}
         title="Block user?"
         confirmLabel="Yes, block"
@@ -373,7 +373,7 @@ export function UserManagementClient({
         )}
       </Modal>
       <Modal
-        open={confirmModal?.type === "unblock" ?? false}
+        open={confirmModal?.type === "unblock"}
         onClose={() => !busy && setConfirmModal(null)}
         title="Unblock user?"
         confirmLabel="Yes, unblock"
@@ -387,7 +387,7 @@ export function UserManagementClient({
         )}
       </Modal>
       <Modal
-        open={confirmModal?.type === "delete" ?? false}
+        open={confirmModal?.type === "delete"}
         onClose={() => !busy && setConfirmModal(null)}
         title="Delete user?"
         confirmLabel="Yes, delete"
