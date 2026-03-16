@@ -458,7 +458,7 @@ export function MatchManagementClient({ matches }: { matches: MatchRow[] }) {
         title="Delete match?"
         confirmLabel="Delete"
         variant="danger"
-        onConfirm={() => deleteModal && runAction(() => deleteMatchAction(deleteModal.id), () => setDeleteModal(null))}
+        onConfirm={() => { if (deleteModal) runAction(() => deleteMatchAction(deleteModal.id), () => setDeleteModal(null)); }}
         loading={busy}
       >
         {deleteModal && (
