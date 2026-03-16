@@ -10,7 +10,7 @@ import {
   resetAllPredictionsPast,
   type PredictionError,
 } from "@/lib/predictions";
-import { scoreMatch, rebuildLeaderboard, rebuildLeaderboardForCompetition } from "@/lib/scoring";
+import { scoreMatch, rebuildLeaderboardForCompetition } from "@/lib/scoring";
 import { prisma } from "@/lib/db";
 import type { PredictionDisplay } from "@/lib/prediction-values";
 import { UCL_COMPETITION_ID } from "@/lib/config";
@@ -25,6 +25,15 @@ export type ScheduleActionState =
         selectedPrediction: string;
         finalizedAt: string;
       }[];
+    }
+  | { ok: false; error: string };
+
+export type ScheduleResetActionState =
+  | {
+      ok: true;
+      count: number;
+      matchIds: string[];
+      competitionIds: string[];
     }
   | { ok: false; error: string };
 
@@ -66,15 +75,6 @@ export async function finalizePredictionAction(
   }
   const result = await finalizePrediction(user.id, matchId, { isAdmin });
   if (!result.ok) return { ok: false, error: predictionErrorMessages[result.error] ?? result.error };
-
-  const match = await prisma.match.findUnique({
-    where: { id: matchId },
-    select: { officialResultType: true, competitionId: true },
-  });
-  if (match?.officialResultType != null) {
-    await scoreMatch(matchId);
-  }
-  await rebuildLeaderboardForCompetition(match?.competitionId ?? UCL_COMPETITION_ID);
   const others = await getOthersPredictions(matchId, user.id);
   return {
     ok: true,
@@ -94,38 +94,50 @@ export async function unfinalizePredictionAction(
   const isAdmin = user.role === "admin";
   const result = await unfinalizePrediction(user.id, matchId, { isAdmin });
   if (!result.ok) return { ok: false, error: predictionErrorMessages[result.error] ?? result.error };
+  return { ok: true };
+}
+
+export async function syncPredictionDerivedDataAction(matchId: string): Promise<void> {
+  const user = await getCurrentUser();
+  if (!user) return;
 
   const match = await prisma.match.findUnique({
     where: { id: matchId },
     select: { officialResultType: true, competitionId: true },
   });
-  if (match?.officialResultType != null) await scoreMatch(matchId);
-  await rebuildLeaderboardForCompetition(match?.competitionId ?? UCL_COMPETITION_ID);
-  return { ok: true };
+  if (!match) return;
+  if (match.officialResultType != null) {
+    await scoreMatch(matchId);
+  }
+  await rebuildLeaderboardForCompetition(match.competitionId ?? UCL_COMPETITION_ID);
+}
+
+export async function rebuildCompetitionLeaderboardsAction(
+  competitionIds: string[]
+): Promise<void> {
+  const user = await getCurrentUser();
+  if (!user) return;
+
+  const uniqueCompetitionIds = [...new Set(competitionIds.filter(Boolean))];
+  for (const competitionId of uniqueCompetitionIds) {
+    await rebuildLeaderboardForCompetition(competitionId);
+  }
 }
 
 /** Admin only: unfinalize all current user's predictions for upcoming matches. */
-export async function resetUpcomingPredictionsAction(): Promise<
-  { ok: true; count: number } | { ok: false; error: string }
-> {
+export async function resetUpcomingPredictionsAction(): Promise<ScheduleResetActionState> {
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: "You must be logged in." };
   if (user.role !== "admin") return { ok: false, error: "Admin only." };
   const result = await resetAllPredictionsUpcoming(user.id);
-  if (!result.ok) return result;
-  await rebuildLeaderboard();
   return result;
 }
 
 /** Admin only: unfinalize all current user's predictions for past matches. */
-export async function resetPastPredictionsAction(): Promise<
-  { ok: true; count: number } | { ok: false; error: string }
-> {
+export async function resetPastPredictionsAction(): Promise<ScheduleResetActionState> {
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: "You must be logged in." };
   if (user.role !== "admin") return { ok: false, error: "Admin only." };
   const result = await resetAllPredictionsPast(user.id);
-  if (!result.ok) return result;
-  await rebuildLeaderboard();
   return result;
 }

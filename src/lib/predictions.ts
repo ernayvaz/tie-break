@@ -122,19 +122,33 @@ export async function unfinalizePrediction(
  */
 export async function resetAllPredictions(
   userId: string
-): Promise<{ ok: true; count: number } | { ok: false; error: string }> {
+) : Promise<{
+  ok: true;
+  count: number;
+  matchIds: string[];
+  competitionIds: string[];
+} | { ok: false; error: string }> {
   const predictions = await prisma.prediction.findMany({
     where: { userId, isFinal: true },
-    include: { match: { select: { officialResultType: true } } },
+    select: {
+      id: true,
+      matchId: true,
+      match: { select: { officialResultType: true, competitionId: true } },
+    },
   });
   const toUnfinalize = predictions.filter((p) => p.match.officialResultType === null);
-  for (const p of toUnfinalize) {
-    await prisma.prediction.update({
-      where: { id: p.id },
+  if (toUnfinalize.length > 0) {
+    await prisma.prediction.updateMany({
+      where: { id: { in: toUnfinalize.map((p) => p.id) } },
       data: { isFinal: false, finalizedAt: null, awardedPoints: 0 },
     });
   }
-  return { ok: true, count: toUnfinalize.length };
+  return {
+    ok: true,
+    count: toUnfinalize.length,
+    matchIds: toUnfinalize.map((p) => p.matchId),
+    competitionIds: [...new Set(toUnfinalize.map((p) => p.match.competitionId ?? "CL"))],
+  };
 }
 
 /**
@@ -143,7 +157,12 @@ export async function resetAllPredictions(
  */
 export async function resetAllPredictionsUpcoming(
   userId: string
-): Promise<{ ok: true; count: number } | { ok: false; error: string }> {
+): Promise<{
+  ok: true;
+  count: number;
+  matchIds: string[];
+  competitionIds: string[];
+} | { ok: false; error: string }> {
   const now = new Date();
   const predictions = await prisma.prediction.findMany({
     where: {
@@ -151,15 +170,24 @@ export async function resetAllPredictionsUpcoming(
       isFinal: true,
       match: { matchDatetime: { gte: now } },
     },
-    select: { id: true },
+    select: {
+      id: true,
+      matchId: true,
+      match: { select: { competitionId: true } },
+    },
   });
-  for (const p of predictions) {
-    await prisma.prediction.update({
-      where: { id: p.id },
+  if (predictions.length > 0) {
+    await prisma.prediction.updateMany({
+      where: { id: { in: predictions.map((p) => p.id) } },
       data: { isFinal: false, finalizedAt: null, awardedPoints: 0 },
     });
   }
-  return { ok: true, count: predictions.length };
+  return {
+    ok: true,
+    count: predictions.length,
+    matchIds: predictions.map((p) => p.matchId),
+    competitionIds: [...new Set(predictions.map((p) => p.match.competitionId ?? "CL"))],
+  };
 }
 
 /**
@@ -168,7 +196,12 @@ export async function resetAllPredictionsUpcoming(
  */
 export async function resetAllPredictionsPast(
   userId: string
-): Promise<{ ok: true; count: number } | { ok: false; error: string }> {
+): Promise<{
+  ok: true;
+  count: number;
+  matchIds: string[];
+  competitionIds: string[];
+} | { ok: false; error: string }> {
   const now = new Date();
   const predictions = await prisma.prediction.findMany({
     where: {
@@ -176,15 +209,24 @@ export async function resetAllPredictionsPast(
       isFinal: true,
       match: { matchDatetime: { lt: now } },
     },
-    select: { id: true },
+    select: {
+      id: true,
+      matchId: true,
+      match: { select: { competitionId: true } },
+    },
   });
-  for (const p of predictions) {
-    await prisma.prediction.update({
-      where: { id: p.id },
+  if (predictions.length > 0) {
+    await prisma.prediction.updateMany({
+      where: { id: { in: predictions.map((p) => p.id) } },
       data: { isFinal: false, finalizedAt: null, awardedPoints: 0 },
     });
   }
-  return { ok: true, count: predictions.length };
+  return {
+    ok: true,
+    count: predictions.length,
+    matchIds: predictions.map((p) => p.matchId),
+    competitionIds: [...new Set(predictions.map((p) => p.match.competitionId ?? "CL"))],
+  };
 }
 
 /**

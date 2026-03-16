@@ -10,7 +10,9 @@ import { PredictionPickDisplay } from "@/components/prediction-pick-display";
 import {
   submitPredictionAction,
   finalizePredictionAction,
+  syncPredictionDerivedDataAction,
   unfinalizePredictionAction,
+  rebuildCompetitionLeaderboardsAction,
   resetUpcomingPredictionsAction,
   resetPastPredictionsAction,
 } from "./actions";
@@ -208,6 +210,37 @@ export function ScheduleTabs({
     setFilterTeam("");
   };
 
+  const applyLocalReset = useCallback((matchIds: string[]) => {
+    if (matchIds.length === 0) return;
+    const matchIdSet = new Set(matchIds);
+
+    setLocalPredictions((prev) => {
+      const next = { ...prev };
+      for (const matchId of matchIds) {
+        const existing = next[matchId];
+        if (!existing) continue;
+        next[matchId] = {
+          ...existing,
+          isFinal: false,
+          finalizedAt: null,
+        };
+      }
+      return next;
+    });
+
+    setLocalOthersByMatchId((prev) => {
+      const next = { ...prev };
+      for (const matchId of matchIds) delete next[matchId];
+      return next;
+    });
+
+    setExpandedOthers((prev) => {
+      const next = new Set(prev);
+      for (const matchId of matchIdSet) next.delete(matchId);
+      return next;
+    });
+  }, []);
+
   const handleSubmitPrediction = (
     matchId: string,
     value: PredictionDisplay
@@ -285,6 +318,7 @@ export function ScheduleTabs({
         if (result.others) {
           setLocalOthersByMatchId((prev) => ({ ...prev, [matchId]: result.others ?? [] }));
         }
+        void syncPredictionDerivedDataAction(matchId);
         startRefreshTransition(() => {
           router.refresh();
         });
@@ -325,6 +359,7 @@ export function ScheduleTabs({
         delete next[matchId];
         return next;
       });
+      void syncPredictionDerivedDataAction(matchId);
       startRefreshTransition(() => {
         router.refresh();
       });
@@ -824,8 +859,12 @@ export function ScheduleTabs({
               const res = await resetUpcomingPredictionsAction();
               setPendingResetUpcoming(false);
               if (res.ok) {
+                applyLocalReset(res.matchIds);
                 setResetMessage(`Upcoming: ${res.count} prediction(s) reset.`);
-                router.refresh();
+                void rebuildCompetitionLeaderboardsAction(res.competitionIds);
+                startRefreshTransition(() => {
+                  router.refresh();
+                });
                 setTimeout(() => setResetMessage(null), 4000);
               } else {
                 setActionError(res.error);
@@ -846,8 +885,12 @@ export function ScheduleTabs({
               const res = await resetPastPredictionsAction();
               setPendingResetPast(false);
               if (res.ok) {
+                applyLocalReset(res.matchIds);
                 setResetMessage(`Past: ${res.count} prediction(s) reset.`);
-                router.refresh();
+                void rebuildCompetitionLeaderboardsAction(res.competitionIds);
+                startRefreshTransition(() => {
+                  router.refresh();
+                });
                 setTimeout(() => setResetMessage(null), 4000);
               } else {
                 setActionError(res.error);

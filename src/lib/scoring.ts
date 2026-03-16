@@ -19,19 +19,28 @@ function matchCompetitionFilter(competitionId: string) {
 export async function scoreMatch(matchId: string): Promise<{ ok: true } | { ok: false; error: string }> {
   const match = await prisma.match.findUnique({
     where: { id: matchId },
-    include: { predictions: { where: { isFinal: true } } },
+    select: { officialResultType: true },
   });
 
   if (!match) return { ok: false, error: "Match not found" };
   if (match.officialResultType === null) return { ok: false, error: "Match has no result yet" };
 
-  for (const p of match.predictions) {
-    const points = p.selectedPrediction === match.officialResultType ? 1 : 0;
-    await prisma.prediction.update({
-      where: { id: p.id },
-      data: { awardedPoints: points },
-    });
-  }
+  await prisma.prediction.updateMany({
+    where: {
+      matchId,
+      isFinal: true,
+      selectedPrediction: match.officialResultType,
+    },
+    data: { awardedPoints: 1 },
+  });
+  await prisma.prediction.updateMany({
+    where: {
+      matchId,
+      isFinal: true,
+      NOT: { selectedPrediction: match.officialResultType },
+    },
+    data: { awardedPoints: 0 },
+  });
   return { ok: true };
 }
 
@@ -99,11 +108,6 @@ export async function rebuildLeaderboardForCompetition(
     return { ok: true, count: 0 };
   }
 
-  const users = await prisma.user.findMany({
-    where: { status: "approved", role: { not: "admin" } },
-    select: { id: true },
-  });
-
   type Row = {
     userId: string;
     totalPoints: number;
@@ -114,42 +118,44 @@ export async function rebuildLeaderboardForCompetition(
     correctCount: number;
   };
 
-  const rows: Row[] = [];
+  const predictions = await prisma.prediction.findMany({
+    where: {
+      isFinal: true,
+      user: { status: "approved", role: { not: "admin" } },
+      match: matchWhere,
+    },
+    select: {
+      userId: true,
+      awardedPoints: true,
+      match: { select: { stage: true, officialResultType: true } },
+    },
+  });
 
-  for (const u of users) {
-    const predictions = await prisma.prediction.findMany({
-      where: { userId: u.id, isFinal: true, match: matchWhere },
-      include: { match: { select: { stage: true, officialResultType: true } } },
-    });
+  const rowsByUser = new Map<string, Row>();
+  for (const p of predictions) {
+    const existing = rowsByUser.get(p.userId) ?? {
+      userId: p.userId,
+      totalPoints: 0,
+      knockoutPoints: 0,
+      semifinalFinalPoints: 0,
+      finalizedCount: 0,
+      completedMatchCount: 0,
+      correctCount: 0,
+    };
 
-    let totalPoints = 0;
-    let knockoutPoints = 0;
-    let semifinalFinalPoints = 0;
-    let correctCount = 0;
-    let completedMatchCount = 0;
-
-    for (const p of predictions) {
-      if (p.match.officialResultType !== null) completedMatchCount++;
-      totalPoints += p.awardedPoints ?? 0;
-      if (p.awardedPoints === 1) {
-        correctCount++;
-        if (KNOCKOUT_STAGES.includes(p.match.stage)) knockoutPoints += 1;
-        if (SEMI_FINAL_STAGES.includes(p.match.stage)) semifinalFinalPoints += 1;
-      }
+    existing.finalizedCount += 1;
+    existing.totalPoints += p.awardedPoints ?? 0;
+    if (p.match.officialResultType !== null) existing.completedMatchCount += 1;
+    if (p.awardedPoints === 1) {
+      existing.correctCount += 1;
+      if (KNOCKOUT_STAGES.includes(p.match.stage)) existing.knockoutPoints += 1;
+      if (SEMI_FINAL_STAGES.includes(p.match.stage)) existing.semifinalFinalPoints += 1;
     }
 
-    rows.push({
-      userId: u.id,
-      totalPoints,
-      knockoutPoints,
-      semifinalFinalPoints,
-      finalizedCount: predictions.length,
-      completedMatchCount,
-      correctCount,
-    });
+    rowsByUser.set(p.userId, existing);
   }
 
-  const rowsWithPredictions = rows.filter((r) => r.finalizedCount > 0);
+  const rowsWithPredictions = [...rowsByUser.values()];
   rowsWithPredictions.sort((a, b) => {
     if (b.totalPoints !== a.totalPoints) return b.totalPoints - a.totalPoints;
     const accA = a.correctCount / a.finalizedCount;
