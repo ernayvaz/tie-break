@@ -48,6 +48,24 @@ function CrossMiniIcon({ className }: { className?: string }) {
   );
 }
 
+function MedalMiniIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.4"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      <circle cx="8" cy="5.5" r="3.25" />
+      <path d="M6.1 8.1 4.5 13l3.5-1.8L11.5 13 9.9 8.1" />
+    </svg>
+  );
+}
+
 function TopPlacementBadge({ place }: { place?: 1 | 2 | 3 }) {
   if (!place) return null;
 
@@ -74,11 +92,11 @@ function TopPlacementBadge({ place }: { place?: 1 | 2 | 3 }) {
 
   return (
     <span
-      className={`inline-flex h-6 shrink-0 items-center justify-center rounded-full border px-2.5 text-[11px] font-medium tracking-wide shadow-sm ring-1 ${config[place].className}`}
+      className={`inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border shadow-sm ring-1 ${config[place].className}`}
       title={`${config[place].label} place`}
       aria-label={`${config[place].label} place`}
     >
-      {config[place].label}
+      <MedalMiniIcon className="h-3.5 w-3.5" />
     </span>
   );
 }
