@@ -415,6 +415,8 @@ export function ScheduleTabs({
     /** Same day = thin line; new day = slightly thicker line; none = last item */
     separatorVariant: "same-day" | "new-day" | "none";
   }) {
+    const teamsDetermined =
+      m.homeTeamName !== "TBD" && m.awayTeamName !== "TBD";
     const isFinalizing = !!pendingFinalizeMatchIds[m.id];
 
     const showOthers = userPred?.isFinal && others.length > 0;
@@ -498,7 +500,7 @@ export function ScheduleTabs({
               <span className="mb-1 block text-[11px] font-medium uppercase tracking-[0.12em] text-nord-polarLight">
                 Prediction
               </span>
-              {canPredict && (
+              {canPredict && teamsDetermined && (
                 <div className="space-y-1.5">
                   <span className="block text-[11px] uppercase tracking-wide text-nord-polarLight">
                     Lock {new Date(m.lockAt).toLocaleTimeString("en-GB", { timeStyle: "short" })}
@@ -534,7 +536,7 @@ export function ScheduleTabs({
                   </div>
                 </div>
               )}
-              {!canPredict && userPred && (
+              {!canPredict && userPred && teamsDetermined && (
                 <PredictionPickDisplay
                   lockAt={m.lockAt}
                   pick={userPred.selectedPrediction}
@@ -549,7 +551,7 @@ export function ScheduleTabs({
                   undoLoading={isUndoing}
                 />
               )}
-              {!canPredict && !userPred && (
+            {!canPredict && !userPred && teamsDetermined && (
                 <span className="mt-0.5 block text-nord-polarLight">–</span>
               )}
             </div>
