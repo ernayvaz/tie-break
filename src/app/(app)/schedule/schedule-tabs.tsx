@@ -290,7 +290,7 @@ export function ScheduleTabs({
         style={borderStyle}
       >
         <div className={`${scheduleGrid} text-sm min-h-[4rem]`}>
-          {/* Time */}
+          {/* Time + teams (mobile) */}
           <div className="flex flex-col justify-center text-nord-polarLight">
             <span className="mb-0.5 text-[11px] font-medium uppercase tracking-wide text-nord-polarLight sm:hidden">
               Time
@@ -309,10 +309,49 @@ export function ScheduleTabs({
               })}
             </span>
             <span className="mt-1 text-xs">{formatStage(m.stage)}</span>
+            {/* On mobile, show teams next to time for a compact header row */}
+            <div className="mt-2 flex items-start gap-3 sm:hidden">
+              <div className="flex flex-col gap-1">
+                <div className="flex items-center gap-2">
+                  {m.homeTeamLogo ? (
+                    // eslint-disable-next-line @next/next/no-img-element -- external API logo URL
+                    <img
+                      src={m.homeTeamLogo}
+                      alt=""
+                      className="h-6 w-6 shrink-0 rounded-full object-contain bg-white border border-nord-polarLighter/40"
+                    />
+                  ) : (
+                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-nord-snow text-[10px] font-medium text-nord-polarLighter">
+                      ?
+                    </span>
+                  )}
+                  <span className="max-w-[9rem] truncate text-sm font-semibold text-nord-polar">
+                    {m.homeTeamName}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  {m.awayTeamLogo ? (
+                    // eslint-disable-next-line @next/next/no-img-element -- external API logo URL
+                    <img
+                      src={m.awayTeamLogo}
+                      alt=""
+                      className="h-6 w-6 shrink-0 rounded-full object-contain bg-white border border-nord-polarLighter/40"
+                    />
+                  ) : (
+                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-nord-snow text-[10px] font-medium text-nord-polarLighter">
+                      ?
+                    </span>
+                  )}
+                  <span className="max-w-[9rem] truncate text-sm font-medium text-nord-polar">
+                    {m.awayTeamName}
+                  </span>
+                </div>
+              </div>
+            </div>
           </div>
 
           {/* Match (teams) */}
-          <div className="flex min-w-0 flex-col justify-center gap-1.5">
+          <div className="hidden min-w-0 flex-col justify-center gap-1.5 sm:flex">
             <div className="flex items-center gap-2">
               {m.homeTeamLogo ? (
                 // eslint-disable-next-line @next/next/no-img-element -- external API logo URL
@@ -409,13 +448,36 @@ export function ScheduleTabs({
             {!canPredict && !userPred && (
               <span className="text-nord-polarLight mt-0.5">–</span>
             )}
+
+            {/* Mobile-only inline Match score + Result row under prediction */}
+            <div className="mt-3 flex items-stretch justify-between gap-6 text-xs text-nord-polar sm:hidden">
+              <div className="flex flex-col">
+                <span className="mb-0.5 text-[11px] font-medium uppercase tracking-wide text-nord-polarLight">
+                  Match score
+                </span>
+                <span className="font-semibold text-nord-polar">
+                  {m.homeScore != null && m.awayScore != null ? (
+                    <>
+                      {m.homeScore} – {m.awayScore}
+                    </>
+                  ) : (
+                    "–"
+                  )}
+                </span>
+              </div>
+              <div className="flex flex-col items-end">
+                <span className="mb-0.5 text-[11px] font-medium uppercase tracking-wide text-nord-polarLight">
+                  Result
+                </span>
+                <span className="font-semibold text-nord-polar">
+                  {m.officialResultType != null ? formatResult(m.officialResultType) : "–"}
+                </span>
+              </div>
+            </div>
           </div>
 
-          {/* Match score */}
-          <div className="flex flex-col justify-center">
-            <span className="mb-1 text-[11px] font-medium uppercase tracking-wide text-nord-polarLight sm:hidden">
-              Match score
-            </span>
+          {/* Match score (desktop / larger screens) */}
+          <div className="hidden flex-col justify-center sm:flex">
             {m.homeScore != null && m.awayScore != null ? (
               <span className="font-semibold text-nord-polar">
                 {m.homeScore} – {m.awayScore}
@@ -425,11 +487,8 @@ export function ScheduleTabs({
             )}
           </div>
 
-          {/* Result */}
-          <div className="flex flex-col justify-center text-center">
-            <span className="mb-1 text-[11px] font-medium uppercase tracking-wide text-nord-polarLight sm:hidden">
-              Result
-            </span>
+          {/* Result (desktop / larger screens) */}
+          <div className="hidden flex-col justify-center text-center sm:flex">
             <span className="font-semibold text-nord-polar">
               {m.officialResultType != null
                 ? formatResult(m.officialResultType)
