@@ -65,6 +65,104 @@ export default async function LeaderboardPage({
     orderBy: { place: "asc" },
   });
 
+  const leaderboardUserIds = entries.map((e) => e.userId);
+
+  const recentPredictionMap = new Map<
+    string,
+    { isCorrect: boolean }[]
+  >();
+
+  if (leaderboardUserIds.length > 0) {
+    const predictionRows = await prisma.prediction.findMany({
+      where: {
+        userId: { in: leaderboardUserIds },
+        isFinal: true,
+        match: {
+          ...(competitionId === UCL_COMPETITION_ID
+            ? { OR: [{ competitionId: UCL_COMPETITION_ID }, { competitionId: null }] }
+            : { competitionId }),
+          officialResultType: { not: null },
+        },
+      },
+      orderBy: { finalizedAt: "asc" },
+      select: {
+        userId: true,
+        awardedPoints: true,
+      },
+    });
+
+    for (const row of predictionRows) {
+      const list = recentPredictionMap.get(row.userId) ?? [];
+      list.push({ isCorrect: row.awardedPoints === 1 });
+      recentPredictionMap.set(row.userId, list);
+    }
+
+    for (const [userId, list] of recentPredictionMap.entries()) {
+      const lastFive = list.slice(-5);
+      recentPredictionMap.set(userId, lastFive);
+    }
+  }
+
+  function renderRankBadge(rank: number | null, isAdminRow: boolean) {
+    if (!rank || isAdminRow) return null;
+    if (rank > 3) return null;
+
+    const baseClasses =
+      "ml-2 inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium";
+
+    if (rank === 1) {
+      return (
+        <span className={`${baseClasses} bg-amber-100 text-amber-800 border border-amber-200`}>
+          1
+        </span>
+      );
+    }
+    if (rank === 2) {
+      return (
+        <span className={`${baseClasses} bg-slate-100 text-slate-700 border border-slate-200`}>
+          2
+        </span>
+      );
+    }
+    return (
+      <span className={`${baseClasses} bg-amber-50 text-amber-700 border border-amber-100`}>
+        3
+      </span>
+    );
+  }
+
+  function renderRecentPredictionPills(userId: string) {
+    const recent = recentPredictionMap.get(userId) ?? [];
+    const maxCount = 5;
+
+    return (
+      <div className="flex items-center gap-1.5">
+        {Array.from({ length: maxCount }).map((_, index) => {
+          const pred = recent[index];
+          if (!pred) {
+            return (
+              <span
+                key={index}
+                className="h-2.5 w-2.5 rounded-full border border-nord-polarLighter/40 bg-transparent"
+              />
+            );
+          }
+
+          return (
+            <span
+              key={index}
+              className={`h-2.5 w-2.5 rounded-full border ${
+                pred.isCorrect
+                  ? "border-emerald-500 bg-emerald-500"
+                  : "border-rose-400 bg-transparent"
+              }`}
+            />
+          );
+        })}
+      </div>
+    );
+  }
+
   return (
     <div>
       <h1 className="text-xl font-semibold text-nord-polar">Leaderboard</h1>
@@ -124,6 +222,7 @@ export default async function LeaderboardPage({
                         </div>
                         <div className="mt-1 truncate font-semibold text-nord-polar">
                           {e.user.name} {e.user.surname}
+                          {renderRankBadge(isAdminRow ? null : e.currentRank, isAdminRow)}
                         </div>
                         {isAdminRow && (
                           <div className="mt-1 text-xs text-nord-polarLight">
@@ -168,6 +267,10 @@ export default async function LeaderboardPage({
                             : "–"}
                         </div>
                       </div>
+                      <div className="col-span-3 mt-2 flex items-center justify-center gap-2 text-[11px] text-nord-polarLight">
+                        <span>Last 5</span>
+                        {renderRecentPredictionPills(e.userId)}
+                      </div>
                     </div>
                   </li>
                 );
@@ -183,7 +286,8 @@ export default async function LeaderboardPage({
                     <th className="pb-2 pr-4">Points</th>
                     <th className="pb-2 pr-4">Predictions</th>
                     <th className="pb-2 pr-4">Matches completed</th>
-                    <th className="pb-2">Accuracy</th>
+                    <th className="pb-2 pr-4">Accuracy</th>
+                    <th className="pb-2">Last 5</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -199,6 +303,7 @@ export default async function LeaderboardPage({
                         </td>
                         <td className="py-3 pr-4 text-nord-polar">
                           {e.user.name} {e.user.surname}
+                          {renderRankBadge(isAdminRow ? null : e.currentRank, isAdminRow)}
                           {isAdminRow && (
                             <span className="ml-2 text-xs text-nord-polarLight">(Admin – not visible to others)</span>
                           )}
@@ -210,10 +315,13 @@ export default async function LeaderboardPage({
                         <td className="py-3 pr-4 text-nord-polarLight">
                           {e.completedMatchCount}
                         </td>
-                        <td className="py-3 text-nord-polar">
+                        <td className="py-3 pr-4 text-nord-polar">
                           {e.finalizedPredictionCount > 0
                             ? `${Math.round(e.accuracyRate * 100)}%`
                             : "–"}
+                        </td>
+                        <td className="py-3">
+                          {renderRecentPredictionPills(e.userId)}
                         </td>
                       </tr>
                     );
