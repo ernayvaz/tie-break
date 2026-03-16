@@ -253,7 +253,6 @@ export function ScheduleTabs({
     canPredict,
     userPred,
     others,
-    matchStarted: _matchStarted,
     displaySelection,
     isSubmitting,
     isUndoing,
@@ -264,7 +263,6 @@ export function ScheduleTabs({
     canPredict: boolean;
     userPred: UserPrediction | undefined;
     others: OtherPrediction[];
-    matchStarted: boolean;
     displaySelection: PredictionDisplay | undefined;
     isSubmitting: boolean;
     isUndoing: boolean;
@@ -459,7 +457,6 @@ export function ScheduleTabs({
         <ul className="divide-y-0">
           {list.map((m, index) => {
           const lockAt = new Date(m.lockAt).getTime();
-          const matchStarted = now.getTime() >= new Date(m.matchDatetime).getTime();
           const canPredict = (now.getTime() < lockAt || isAdmin) && !userPredictionByMatch[m.id]?.isFinal;
           const userPred = userPredictionByMatch[m.id];
           const others = othersByMatchId[m.id] ?? [];
@@ -477,7 +474,6 @@ export function ScheduleTabs({
               canPredict={canPredict}
               userPred={userPred}
               others={others}
-              matchStarted={matchStarted}
               displaySelection={displaySelection}
               isSubmitting={isSubmitting}
               isUndoing={undoingMatchId === m.id}
