@@ -91,7 +91,7 @@ export async function rebuildLeaderboard(): Promise<{ ok: true; count: number } 
   });
 
   const users = await prisma.user.findMany({
-    where: { status: "approved" },
+    where: { status: "approved", role: { not: "admin" } },
     select: { id: true },
   });
 
