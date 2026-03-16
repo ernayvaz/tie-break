@@ -252,8 +252,8 @@ export function PredictionsList({
                       finalizedAt={p.finalizedAt}
                       isFinal={p.isFinal}
                       compact
-                      onUndo={isAdmin && canUnfinalize ? () => handleUnfinalize(m.matchId) : undefined}
-                      undoLoading={undoingId === m.matchId}
+                      onUndo={isAdmin && canUnfinalize ? () => handleUnfinalize(p.matchId) : undefined}
+                      undoLoading={undoingId === p.matchId}
                     />
                   </div>
                   {matchFinished && (
