@@ -105,7 +105,7 @@ export function ScheduleTabs({
     matchId: string;
     matchLabel: string;
   } | null>(null);
-  const [pendingFinalizeMatchId, setPendingFinalizeMatchId] = useState<string | null>(null);
+  const [pendingFinalizeMatchIds, setPendingFinalizeMatchIds] = useState<Record<string, true>>({});
   const [actionError, setActionError] = useState<string | null>(null);
   const [expandedOthers, setExpandedOthers] = useState<Set<string>>(new Set());
   const [optimisticSelections, setOptimisticSelections] = useState<Record<string, PredictionDisplay>>({});
@@ -121,6 +121,9 @@ export function ScheduleTabs({
   const [resetMessage, setResetMessage] = useState<string | null>(null);
   const [, startRefreshTransition] = useTransition();
   const router = useRouter();
+  const modalIsFinalizing = finalizeModal
+    ? !!pendingFinalizeMatchIds[finalizeModal.matchId]
+    : false;
 
   useEffect(() => {
     setLocalPredictions(buildPredictionMap(userPredictions));
@@ -251,7 +254,7 @@ export function ScheduleTabs({
       optimisticSelections[matchId] ?? previousPrediction?.selectedPrediction;
     const optimisticFinalizedAt = new Date().toISOString();
 
-    setPendingFinalizeMatchId(matchId);
+    setPendingFinalizeMatchIds((prev) => ({ ...prev, [matchId]: true }));
     setActionError(null);
     setFinalizeModal(null);
     if (selectedPrediction) {
@@ -268,7 +271,11 @@ export function ScheduleTabs({
 
     void (async () => {
       const result = await finalizePredictionAction(matchId, selectedPrediction);
-      setPendingFinalizeMatchId(null);
+      setPendingFinalizeMatchIds((prev) => {
+        const next = { ...prev };
+        delete next[matchId];
+        return next;
+      });
       if (result.ok) {
         setOptimisticSelections((prev) => {
           const next = { ...prev };
@@ -373,7 +380,7 @@ export function ScheduleTabs({
     /** Same day = thin line; new day = slightly thicker line; none = last item */
     separatorVariant: "same-day" | "new-day" | "none";
   }) {
-    const isFinalizing = pendingFinalizeMatchId === m.id;
+    const isFinalizing = !!pendingFinalizeMatchIds[m.id];
 
     const showOthers = userPred?.isFinal && others.length > 0;
     const isExpanded = expandedOthers.has(m.id);
@@ -917,12 +924,12 @@ export function ScheduleTabs({
 
       <Modal
         open={!!finalizeModal}
-        onClose={() => !pendingFinalizeMatchId && setFinalizeModal(null)}
+        onClose={() => !modalIsFinalizing && setFinalizeModal(null)}
         title="Finalize prediction?"
         confirmLabel="Yes, finalize"
         cancelLabel="Cancel"
         onConfirm={handleFinalizeConfirm}
-        loading={!!pendingFinalizeMatchId}
+        loading={modalIsFinalizing}
       >
         {finalizeModal && (
           <p>
