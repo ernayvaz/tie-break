@@ -4,6 +4,156 @@ import { getLeaderboardStatsForUser } from "@/lib/scoring";
 import { Card, CardContent } from "@/components/ui";
 import { CompetitionTabs } from "@/components/competition-tabs";
 import { UCL_COMPETITION_ID, OTHER_COMPETITION_ID } from "@/lib/config";
+import { toDisplay } from "@/lib/prediction-values";
+
+type RecentPredictionStatus = "correct" | "incorrect" | "pending";
+
+type RecentPredictionItem = {
+  id: string;
+  status: RecentPredictionStatus;
+  label: string;
+};
+
+function CheckMiniIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      <path d="M3.5 8l2.5 2.5 6-6" />
+    </svg>
+  );
+}
+
+function CrossMiniIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      <path d="M5 5l6 6M11 5l-6 6" />
+    </svg>
+  );
+}
+
+function TopRankBadge({ rank }: { rank: number }) {
+  if (rank < 1 || rank > 3) return null;
+
+  const palette: Record<1 | 2 | 3, string> = {
+    1: "border-amber-300/70 bg-amber-100/90 text-amber-700 ring-amber-200/70",
+    2: "border-slate-300/80 bg-slate-100/90 text-slate-600 ring-slate-200/80",
+    3: "border-orange-300/70 bg-orange-100/90 text-orange-700 ring-orange-200/70",
+  };
+
+  return (
+    <span
+      className={`inline-flex h-6 min-w-[1.5rem] shrink-0 items-center justify-center rounded-full border px-1.5 text-[11px] font-semibold shadow-sm ring-1 ${palette[rank as 1 | 2 | 3]}`}
+      title={`Rank ${rank} badge`}
+      aria-label={`Rank ${rank} badge`}
+    >
+      {rank}
+    </span>
+  );
+}
+
+function RecentPredictionMarker({
+  status,
+  label,
+}: {
+  status: RecentPredictionStatus | "empty";
+  label: string;
+}) {
+  const sharedClassName =
+    "inline-flex h-6 w-6 items-center justify-center rounded-full ring-1";
+
+  if (status === "correct") {
+    return (
+      <span
+        className={`${sharedClassName} bg-emerald-500/12 text-emerald-600 ring-emerald-500/25`}
+        title={label}
+        aria-label={label}
+      >
+        <CheckMiniIcon className="h-3.5 w-3.5" />
+      </span>
+    );
+  }
+
+  if (status === "incorrect") {
+    return (
+      <span
+        className={`${sharedClassName} bg-rose-500/10 text-rose-500 ring-rose-500/20`}
+        title={label}
+        aria-label={label}
+      >
+        <CrossMiniIcon className="h-3.5 w-3.5" />
+      </span>
+    );
+  }
+
+  if (status === "pending") {
+    return (
+      <span
+        className={`${sharedClassName} bg-nord-frostDark/10 text-nord-frostDark ring-nord-frostDark/20`}
+        title={label}
+        aria-label={label}
+      >
+        <span className="h-1.5 w-1.5 rounded-full bg-current" aria-hidden />
+      </span>
+    );
+  }
+
+  return (
+    <span
+      className={`${sharedClassName} bg-transparent text-nord-polarLighter/25 ring-nord-polarLighter/15`}
+      title={label}
+      aria-hidden
+    />
+  );
+}
+
+function RecentPredictionsStrip({
+  predictions,
+}: {
+  predictions: RecentPredictionItem[];
+}) {
+  const visiblePredictions = predictions.slice(-5);
+  const items = [
+    ...Array.from({ length: Math.max(0, 5 - visiblePredictions.length) }, (_, index) => ({
+      id: `empty-${index}`,
+      status: "empty" as const,
+      label: "No prediction yet",
+    })),
+    ...visiblePredictions,
+  ];
+
+  return (
+    <div
+      className="flex items-center gap-1.5 whitespace-nowrap"
+      title="Last 5 predictions, left to right from oldest to newest"
+      aria-label="Last 5 predictions, left to right from oldest to newest"
+    >
+      {items.map((item, index) => (
+        <RecentPredictionMarker
+          key={`${item.id}-${index}`}
+          status={item.status}
+          label={item.label}
+        />
+      ))}
+    </div>
+  );
+}
 
 export default async function LeaderboardPage({
   searchParams,
@@ -60,114 +210,82 @@ export default async function LeaderboardPage({
     adminEntries.length > 0 &&
     !allEntries.some((e) => e.userId === currentUser.id);
 
+  const entryUserIds = [...new Set(entries.map((e) => e.userId))];
+  const recentPredictionRows =
+    entryUserIds.length > 0
+      ? await prisma.prediction.findMany({
+          where: {
+            userId: { in: entryUserIds },
+            isFinal: true,
+            match:
+              competitionId === UCL_COMPETITION_ID
+                ? { OR: [{ competitionId: UCL_COMPETITION_ID }, { competitionId: null }] }
+                : { competitionId },
+          },
+          orderBy: [{ userId: "asc" }, { finalizedAt: "desc" }, { createdAt: "desc" }],
+          select: {
+            id: true,
+            userId: true,
+            selectedPrediction: true,
+            finalizedAt: true,
+            awardedPoints: true,
+            match: {
+              select: {
+                officialResultType: true,
+              },
+            },
+          },
+        })
+      : [];
+
+  const recentPredictionsByUser = new Map<string, RecentPredictionItem[]>();
+  for (const prediction of recentPredictionRows) {
+    const items = recentPredictionsByUser.get(prediction.userId) ?? [];
+    if (items.length >= 5) continue;
+
+    const status: RecentPredictionStatus =
+      prediction.match.officialResultType === null
+        ? "pending"
+        : prediction.awardedPoints === 1
+          ? "correct"
+          : "incorrect";
+
+    const statusLabel =
+      status === "correct"
+        ? "Correct"
+        : status === "incorrect"
+          ? "Incorrect"
+          : "Pending";
+    const finalizedLabel = prediction.finalizedAt
+      ? new Date(prediction.finalizedAt).toLocaleString("en-GB", {
+          dateStyle: "short",
+          timeStyle: "short",
+        })
+      : "Time unavailable";
+
+    items.push({
+      id: prediction.id,
+      status,
+      label: `${toDisplay(prediction.selectedPrediction)} - ${statusLabel} - ${finalizedLabel}`,
+    });
+    recentPredictionsByUser.set(prediction.userId, items);
+  }
+
+  for (const items of recentPredictionsByUser.values()) {
+    items.reverse();
+  }
+
   const prizes = await prisma.prize.findMany({
     where: { competitionId },
     orderBy: { place: "asc" },
   });
 
-  const leaderboardUserIds = entries.map((e) => e.userId);
-
-  const recentPredictionMap = new Map<
-    string,
-    { isCorrect: boolean }[]
-  >();
-
-  if (leaderboardUserIds.length > 0) {
-    const predictionRows = await prisma.prediction.findMany({
-      where: {
-        userId: { in: leaderboardUserIds },
-        isFinal: true,
-        match: {
-          ...(competitionId === UCL_COMPETITION_ID
-            ? { OR: [{ competitionId: UCL_COMPETITION_ID }, { competitionId: null }] }
-            : { competitionId }),
-          officialResultType: { not: null },
-        },
-      },
-      orderBy: { finalizedAt: "asc" },
-      select: {
-        userId: true,
-        awardedPoints: true,
-      },
-    });
-
-    for (const row of predictionRows) {
-      const list = recentPredictionMap.get(row.userId) ?? [];
-      list.push({ isCorrect: row.awardedPoints === 1 });
-      recentPredictionMap.set(row.userId, list);
-    }
-
-    for (const [userId, list] of recentPredictionMap.entries()) {
-      const lastFive = list.slice(-5);
-      recentPredictionMap.set(userId, lastFive);
-    }
-  }
-
-  function renderRankBadge(rank: number | null, isAdminRow: boolean) {
-    if (!rank || isAdminRow) return null;
-    if (rank > 3) return null;
-
-    const baseClasses =
-      "ml-2 inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium";
-
-    if (rank === 1) {
-      return (
-        <span className={`${baseClasses} bg-amber-100 text-amber-800 border border-amber-200`}>
-          1
-        </span>
-      );
-    }
-    if (rank === 2) {
-      return (
-        <span className={`${baseClasses} bg-slate-100 text-slate-700 border border-slate-200`}>
-          2
-        </span>
-      );
-    }
-    return (
-      <span className={`${baseClasses} bg-amber-50 text-amber-700 border border-amber-100`}>
-        3
-      </span>
-    );
-  }
-
-  function renderRecentPredictionPills(userId: string) {
-    const recent = recentPredictionMap.get(userId) ?? [];
-    const maxCount = 5;
-
-    return (
-      <div className="flex items-center gap-1.5">
-        {Array.from({ length: maxCount }).map((_, index) => {
-          const pred = recent[index];
-          if (!pred) {
-            return (
-              <span
-                key={index}
-                className="h-2.5 w-2.5 rounded-full border border-nord-polarLighter/40 bg-transparent"
-              />
-            );
-          }
-
-          return (
-            <span
-              key={index}
-              className={`h-2.5 w-2.5 rounded-full border ${
-                pred.isCorrect
-                  ? "border-emerald-500 bg-emerald-500"
-                  : "border-rose-400 bg-transparent"
-              }`}
-            />
-          );
-        })}
-      </div>
-    );
-  }
-
   return (
     <div>
       <h1 className="text-xl font-semibold text-nord-polar">Leaderboard</h1>
       <p className="mt-1 text-sm text-nord-polarLight">
-        Ranked by total points, then accuracy. Username is never shown.
+        Ranked by total points, then accuracy. Username is never shown. Last 5 reads left to
+        right from oldest to newest.
         {isAdmin && adminEntries.length > 0 && (
           <> Admin entries are shown at the bottom for testing only; other users do not see them.</>
         )}
@@ -220,9 +338,11 @@ export default async function LeaderboardPage({
                         <div className="text-xs uppercase tracking-wide text-nord-polarLight">
                           {isAdminRow ? "Admin row" : `Rank #${e.currentRank}`}
                         </div>
-                        <div className="mt-1 truncate font-semibold text-nord-polar">
-                          {e.user.name} {e.user.surname}
-                          {renderRankBadge(isAdminRow ? null : e.currentRank, isAdminRow)}
+                        <div className="mt-1 flex items-center gap-2">
+                          <div className="min-w-0 truncate font-semibold text-nord-polar">
+                            {e.user.name} {e.user.surname}
+                          </div>
+                          {!isAdminRow && <TopRankBadge rank={e.currentRank} />}
                         </div>
                         {isAdminRow && (
                           <div className="mt-1 text-xs text-nord-polarLight">
@@ -267,9 +387,16 @@ export default async function LeaderboardPage({
                             : "–"}
                         </div>
                       </div>
-                      <div className="col-span-3 mt-2 flex items-center justify-center gap-2 text-[11px] text-nord-polarLight">
-                        <span>Last 5</span>
-                        {renderRecentPredictionPills(e.userId)}
+                    </div>
+
+                    <div className="mt-3 border-t border-nord-polarLighter/20 pt-3">
+                      <div className="text-[11px] uppercase tracking-wide text-nord-polarLight">
+                        Last 5 (old to new)
+                      </div>
+                      <div className="mt-2">
+                        <RecentPredictionsStrip
+                          predictions={recentPredictionsByUser.get(e.userId) ?? []}
+                        />
                       </div>
                     </div>
                   </li>
@@ -286,8 +413,8 @@ export default async function LeaderboardPage({
                     <th className="pb-2 pr-4">Points</th>
                     <th className="pb-2 pr-4">Predictions</th>
                     <th className="pb-2 pr-4">Matches completed</th>
-                    <th className="pb-2 pr-4">Accuracy</th>
-                    <th className="pb-2">Last 5</th>
+                    <th className="pb-2 pr-4">Last 5</th>
+                    <th className="pb-2">Accuracy</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -302,8 +429,12 @@ export default async function LeaderboardPage({
                           {isAdminRow ? "–" : e.currentRank}
                         </td>
                         <td className="py-3 pr-4 text-nord-polar">
-                          {e.user.name} {e.user.surname}
-                          {renderRankBadge(isAdminRow ? null : e.currentRank, isAdminRow)}
+                          <div className="flex items-center gap-2">
+                            <span>
+                              {e.user.name} {e.user.surname}
+                            </span>
+                            {!isAdminRow && <TopRankBadge rank={e.currentRank} />}
+                          </div>
                           {isAdminRow && (
                             <span className="ml-2 text-xs text-nord-polarLight">(Admin – not visible to others)</span>
                           )}
@@ -315,13 +446,15 @@ export default async function LeaderboardPage({
                         <td className="py-3 pr-4 text-nord-polarLight">
                           {e.completedMatchCount}
                         </td>
-                        <td className="py-3 pr-4 text-nord-polar">
+                        <td className="py-3 pr-4">
+                          <RecentPredictionsStrip
+                            predictions={recentPredictionsByUser.get(e.userId) ?? []}
+                          />
+                        </td>
+                        <td className="py-3 text-nord-polar">
                           {e.finalizedPredictionCount > 0
                             ? `${Math.round(e.accuracyRate * 100)}%`
                             : "–"}
-                        </td>
-                        <td className="py-3">
-                          {renderRecentPredictionPills(e.userId)}
                         </td>
                       </tr>
                     );
