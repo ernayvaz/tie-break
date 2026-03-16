@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { toDisplay } from "@/lib/prediction-values";
 import type { PredictionValue } from "@prisma/client";
@@ -117,23 +117,26 @@ export function ScheduleTabs({
     return matches.filter((m) => m.competitionId != null && m.competitionId !== UCL_ID);
   }, [matches, competitionTab]);
 
+  /** Aynı tarihli maçlarda sıra sabit kalsın diye önce matchDatetime sonra id ile sırala. */
+  const sortByDatetimeAsc = useCallback((a: ScheduleMatch, b: ScheduleMatch) => {
+    const t =
+      new Date(a.matchDatetime).getTime() - new Date(b.matchDatetime).getTime();
+    return t !== 0 ? t : a.id.localeCompare(b.id);
+  }, []);
+  const sortByDatetimeDesc = useCallback(
+    (a: ScheduleMatch, b: ScheduleMatch) => sortByDatetimeAsc(b, a),
+    [sortByDatetimeAsc]
+  );
+
   const { upcoming, past } = useMemo(() => {
     const upcomingList = matchesByCompetition
       .filter((m) => new Date(m.matchDatetime) >= now)
-      .sort(
-        (a, b) =>
-          new Date(a.matchDatetime).getTime() -
-          new Date(b.matchDatetime).getTime()
-      );
+      .sort(sortByDatetimeAsc);
     const pastList = matchesByCompetition
       .filter((m) => new Date(m.matchDatetime) < now)
-      .sort(
-        (a, b) =>
-          new Date(b.matchDatetime).getTime() -
-          new Date(a.matchDatetime).getTime()
-      );
+      .sort(sortByDatetimeDesc);
     return { upcoming: upcomingList, past: pastList };
-  }, [matchesByCompetition, now]);
+  }, [matchesByCompetition, now, sortByDatetimeAsc, sortByDatetimeDesc]);
 
   const currentList = activeTab === "upcoming" ? upcoming : past;
 
@@ -167,13 +170,13 @@ export function ScheduleTabs({
     });
   }, [currentList, filterStage, filterTeam]);
 
-  /** En erkenden en geçe: tarih ve saate göre sıralı liste (upcoming = artan, past = azalan). */
+  /** En erkenden en geçe: tarih ve id ile sabit sıralı liste (upcoming = artan, past = azalan). */
   const sortedList = useMemo(() => {
     const list = [...filteredList];
-    const cmp = (a: ScheduleMatch, b: ScheduleMatch) =>
-      new Date(a.matchDatetime).getTime() - new Date(b.matchDatetime).getTime();
-    return activeTab === "upcoming" ? list.sort(cmp) : list.sort((a, b) => cmp(b, a));
-  }, [filteredList, activeTab]);
+    return activeTab === "upcoming"
+      ? list.sort(sortByDatetimeAsc)
+      : list.sort(sortByDatetimeDesc);
+  }, [filteredList, activeTab, sortByDatetimeAsc, sortByDatetimeDesc]);
 
   const resetFilters = () => {
     setFilterStage("");
@@ -189,16 +192,16 @@ export function ScheduleTabs({
     setSubmittingMatchId(matchId);
     const result = await submitPredictionAction(matchId, value);
     setSubmittingMatchId(null);
-    setOptimisticSelections((prev) => {
-      const next = { ...prev };
-      delete next[matchId];
-      return next;
-    });
     if (result.ok) {
       router.refresh();
       return;
     }
     setActionError(result.error);
+    setOptimisticSelections((prev) => {
+      const next = { ...prev };
+      delete next[matchId];
+      return next;
+    });
   };
 
   const handleFinalizeConfirm = async () => {

@@ -119,17 +119,17 @@ Kendi domain’inizi kullanmak için sitenin **Vercel**’de yayında olması ge
 2. Soldan **DNS** → **Records** bölümüne girin.
 3. Vercel’in söylediği kayıtları tek tek ekleyin:
 
-   **Ana domain (tiebreak.com) için:**
+   **Ana domain (tie-break.uk) için:** Vercel → Domains’te **tie-break.uk** için yazan değerleri kullanın.
    - **Type:** `A`  
    - **Name:** `@`  
-   - **IPv4 address:** Vercel’in verdiği IP (örn. `76.76.21.21`)  
-   - **Proxy status:** DNS only (turuncu bulut kapalı; gri bulut)  
+   - **IPv4 address:** Vercel’in o an gösterdiği IP (örn. `216.198.79.1` veya `76.76.21.21`)  
+   - **Proxy status:** DNS only (gri bulut – Proxy kapalı)  
    - **Save**
 
-   **www için:**
+   **www için:** Vercel → Domains’te **www.tie-break.uk** için yazan CNAME’i kullanın.
    - **Type:** `CNAME`  
    - **Name:** `www`  
-   - **Target:** `cname.vercel-dns.com`  
+   - **Target:** Vercel’in gösterdiği adres (örn. `c983cc9f194ac369.vercel-dns-017.com.` veya `cname.vercel-dns.com`)  
    - **Proxy status:** DNS only (gri bulut)  
    - **Save**
 
