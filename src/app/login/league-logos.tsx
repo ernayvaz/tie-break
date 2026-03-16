@@ -25,14 +25,18 @@ const SYMBOL_HINTS: { type: "predict" | "score" | "rank"; angleDeg: number }[] =
   { type: "rank", angleDeg: 210 },
 ];
 
-/** Concentric circles: dense rings filling the area (infinity effect). */
-const CIRCLE_STEP = 0.7;
-const RADII: number[] = [];
-for (let r = 3; r <= 50; r += CIRCLE_STEP) RADII.push(Math.min(r, 50));
+function buildRadii(step: number): number[] {
+  const radii: number[] = [];
+  for (let r = 3; r <= 50; r += step) radii.push(Math.min(r, 50));
+  return radii;
+}
+
+const DESKTOP_RADII = buildRadii(0.7);
+const MOBILE_RADII = buildRadii(1.05);
 
 /** Stroke width and opacity: thick at center, nearly invisible at edge */
-function circleStyle(r: number): { strokeWidth: number; opacity: number } {
-  const t = (r - RADII[0]) / (50 - RADII[0]);
+function circleStyle(r: number, firstRadius: number): { strokeWidth: number; opacity: number } {
+  const t = (r - firstRadius) / (50 - firstRadius);
   const strokeWidth = Math.max(0.15, 2.2 - t * 2.1);
   const opacity = Math.max(0.04, 0.45 - t * 0.42);
   return { strokeWidth, opacity };
@@ -101,13 +105,28 @@ function RankIcon({ className }: { className?: string }) {
   );
 }
 
-export function LeagueLogosCircle() {
+type LeagueLogosCircleProps = {
+  variant?: "desktop" | "mobile";
+};
+
+export function LeagueLogosCircle({
+  variant = "desktop",
+}: LeagueLogosCircleProps) {
+  const isMobile = variant === "mobile";
   const n = LEAGUE_CRESTS.length;
   const angleStep = (2 * Math.PI) / n;
-  const logoRingR = 0.72;
+  const logoRingR = isMobile ? 0.7 : 0.72;
+  const radii = isMobile ? MOBILE_RADII : DESKTOP_RADII;
+  const innerHintRadius = isMobile ? 22 / 50 : 24 / 50;
 
   return (
-    <div className="relative w-full max-w-2xl aspect-square flex items-center justify-center min-h-[320px]">
+    <div
+      className={`relative flex aspect-square w-full items-center justify-center ${
+        isMobile
+          ? "max-w-[17.5rem] min-h-[240px]"
+          : "max-w-2xl min-h-[320px]"
+      }`}
+    >
       {/* Many concentric circles: infinite ripple, stroke thins toward edge */}
       <svg className="absolute inset-0 w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet" aria-hidden>
         <defs>
@@ -116,8 +135,8 @@ export function LeagueLogosCircle() {
             <stop offset="100%" stopColor="rgb(136,192,208)" stopOpacity="0.25" />
           </linearGradient>
         </defs>
-        {RADII.map((r, i) => {
-          const { strokeWidth, opacity } = circleStyle(r);
+        {radii.map((r, i) => {
+          const { strokeWidth, opacity } = circleStyle(r, radii[0]);
           const isInnermost = i === 0;
           return (
             <circle
@@ -136,11 +155,17 @@ export function LeagueLogosCircle() {
       </svg>
 
       {/* Center: UEFA Champions League */}
-      <div className="relative z-10 w-24 h-24 sm:w-28 sm:h-28 flex items-center justify-center rounded-full bg-white/95 shadow-lg shadow-nord-polar/5 ring-1 ring-nord-polarLighter/10">
+      <div
+        className={`relative z-10 flex items-center justify-center rounded-full bg-white/95 shadow-lg shadow-nord-polar/5 ring-1 ring-nord-polarLighter/10 ${
+          isMobile ? "h-20 w-20" : "h-24 w-24 sm:h-28 sm:w-28"
+        }`}
+      >
         <img
           src={`${CREST_BASE}/CL.png`}
           alt="UEFA Champions League"
-          className="w-14 h-14 sm:w-16 sm:h-16 object-contain"
+          className={`object-contain ${
+            isMobile ? "h-12 w-12" : "h-14 w-14 sm:h-16 sm:w-16"
+          }`}
           width={64}
           height={64}
           fetchPriority="high"
@@ -151,13 +176,15 @@ export function LeagueLogosCircle() {
       {(() => {
         const h = TEXT_HINT;
         const rad = (h.angleDeg * Math.PI) / 180;
-        const r = 24 / 50;
+        const r = innerHintRadius;
         const x = 50 + 50 * r * Math.cos(rad);
         const y = 50 + 50 * r * Math.sin(rad);
         return (
           <div
             key="1x2"
-            className="absolute z-10 flex items-center justify-center rounded-full bg-white/90 shadow-sm ring-1 ring-nord-polarLighter/20 text-nord-frostDark font-semibold text-[10px] sm:text-xs px-1.5 py-0.5 min-w-[2rem]"
+            className={`absolute z-10 flex items-center justify-center rounded-full bg-white/90 px-1.5 py-0.5 font-semibold text-nord-frostDark shadow-sm ring-1 ring-nord-polarLighter/20 ${
+              isMobile ? "min-w-[1.85rem] text-[9px]" : "min-w-[2rem] text-[10px] sm:text-xs"
+            }`}
             style={{ left: pct(x), top: pct(y), transform: "translate(-50%, -50%)" }}
             aria-hidden
           >
@@ -168,36 +195,64 @@ export function LeagueLogosCircle() {
       {/* Platform hint symbols (Predict, Score, Rank) – no text; design already has Predict • Score • Leaderboard below */}
       {SYMBOL_HINTS.map((h) => {
         const rad = (h.angleDeg * Math.PI) / 180;
-        const r = 24 / 50;
+        const r = innerHintRadius;
         const x = 50 + 50 * r * Math.cos(rad);
         const y = 50 + 50 * r * Math.sin(rad);
         const Icon = h.type === "predict" ? PredictIcon : h.type === "score" ? ScoreIcon : RankIcon;
         return (
           <div
             key={h.type}
-            className="absolute z-10 flex items-center justify-center rounded-full bg-white/90 shadow-sm ring-1 ring-nord-polarLighter/20 text-nord-frostDark w-8 h-8 sm:w-9 sm:h-9"
+            className={`absolute z-10 flex items-center justify-center rounded-full bg-white/90 text-nord-frostDark shadow-sm ring-1 ring-nord-polarLighter/20 ${
+              isMobile ? "h-7 w-7" : "h-8 w-8 sm:h-9 sm:w-9"
+            }`}
             style={{ left: pct(x), top: pct(y), transform: "translate(-50%, -50%)" }}
             aria-hidden
           >
-            <Icon className="w-4 h-4 sm:w-5 sm:h-5" />
+            <Icon className={isMobile ? "h-4 w-4" : "h-4 w-4 sm:h-5 sm:w-5"} />
           </div>
         );
       })}
 
       {/* Stars on each circle: more stars, clearly visible */}
-      {RADII.map((r, circleIndex) => {
-        const count = r < 12 ? 3 : r < 28 ? 4 : r < 42 ? 3 : 2;
+      {radii.map((r, circleIndex) => {
+        const count = isMobile
+          ? r < 16
+            ? 2
+            : r < 32
+              ? 2
+              : 1
+          : r < 12
+            ? 3
+            : r < 28
+              ? 4
+              : r < 42
+                ? 3
+                : 2;
         const angles = starAnglesForCircle(circleIndex, count);
         return angles.map((angleDeg, k) => {
           const rad = (angleDeg * Math.PI) / 180;
           const rNorm = r / 50;
           const x = 50 + 50 * rNorm * Math.cos(rad);
           const y = 50 + 50 * rNorm * Math.sin(rad);
-          const opacityNum = r < 18 ? 0.4 : r < 35 ? 0.28 : r < 45 ? 0.18 : 0.1;
+          const opacityNum = isMobile
+            ? r < 20
+              ? 0.24
+              : r < 38
+                ? 0.16
+                : 0.08
+            : r < 18
+              ? 0.4
+              : r < 35
+                ? 0.28
+                : r < 45
+                  ? 0.18
+                  : 0.1;
           return (
             <div
               key={`star-${r}-${k}`}
-              className="absolute z-[5] flex items-center justify-center text-nord-frostDark w-2.5 h-2.5 sm:w-3 sm:h-3"
+              className={`absolute z-[5] flex items-center justify-center text-nord-frostDark ${
+                isMobile ? "h-2.5 w-2.5" : "h-2.5 w-2.5 sm:h-3 sm:w-3"
+              }`}
               style={{
                 left: pct(x),
                 top: pct(y),
@@ -220,7 +275,9 @@ export function LeagueLogosCircle() {
         return (
           <div
             key={league.code}
-            className="absolute z-10 w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center rounded-full bg-white/95 shadow-md ring-1 ring-nord-polarLighter/15 overflow-hidden flex-shrink-0 league-logo-slot"
+            className={`absolute z-10 flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-white/95 shadow-md ring-1 ring-nord-polarLighter/15 league-logo-slot ${
+              isMobile ? "h-9 w-9" : "h-10 w-10 sm:h-12 sm:w-12"
+            }`}
             style={{
               left: pct(x),
               top: pct(y),
@@ -230,7 +287,9 @@ export function LeagueLogosCircle() {
             <img
               src={`${CREST_BASE}/${league.code}.png`}
               alt={league.name}
-              className="w-6 h-6 sm:w-7 sm:h-7 object-contain"
+              className={`object-contain ${
+                isMobile ? "h-5 w-5" : "h-6 w-6 sm:h-7 sm:w-7"
+              }`}
               width={28}
               height={28}
               loading="lazy"
