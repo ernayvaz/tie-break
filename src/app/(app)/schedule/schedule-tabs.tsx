@@ -743,7 +743,12 @@ export function ScheduleTabs({
         <ul className="divide-y-0">
           {list.map((m, index) => {
           const lockAt = new Date(m.lockAt).getTime();
-          const canPredict = (now.getTime() < lockAt || isAdmin) && !userPredictionByMatch[m.id]?.isFinal;
+          const teamsDetermined =
+            m.homeTeamName !== "TBD" && m.awayTeamName !== "TBD";
+          const canPredict =
+            teamsDetermined &&
+            (now.getTime() < lockAt || isAdmin) &&
+            !userPredictionByMatch[m.id]?.isFinal;
           const userPred = userPredictionByMatch[m.id];
           const others = localOthersByMatchId[m.id] ?? [];
           const displaySelection = optimisticSelections[m.id] ?? userPred?.selectedPrediction;
