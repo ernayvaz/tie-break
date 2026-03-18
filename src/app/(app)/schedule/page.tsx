@@ -2,6 +2,7 @@ import { prisma } from "@/lib/db";
 import { requireAuth } from "@/lib/auth/get-user";
 import { getOthersPredictionsBatch } from "@/lib/predictions";
 import { toDisplay } from "@/lib/prediction-values";
+import { getMatchStatisticsByMatchIds } from "@/lib/match-stats/cache";
 import { ScheduleTabs } from "./schedule-tabs";
 
 export default async function SchedulePage() {
@@ -77,6 +78,8 @@ export default async function SchedulePage() {
     finalizedAt: p.finalizedAt?.toISOString() ?? null,
   }));
 
+  const statsByMatchId = await getMatchStatisticsByMatchIds(matchIds);
+
   return (
     <div>
       <h1 className="text-xl font-semibold text-nord-polar">Match schedule</h1>
@@ -93,6 +96,7 @@ export default async function SchedulePage() {
             matches={serializedMatches}
             userPredictions={serializedUserPredictions}
             othersByMatchId={othersByMatchId}
+            statsByMatchId={statsByMatchId}
             isAdmin={user.role === "admin"}
           />
         </div>

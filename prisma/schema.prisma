@@ -104,11 +104,29 @@ model Match {
   updatedAt         DateTime  @updatedAt @map("updated_at")
 
   predictions Prediction[]
+  statsCache   MatchStatsCache?
 
   @@index([matchDatetime])
   @@index([externalApiId])
   @@index([competitionId])
   @@map("matches")
+}
+
+model MatchStatsCache {
+  matchId       String   @id @map("match_id")
+  status        String   @default("pending")
+  provider      String   @default("football-data.org")
+  payload       Json?
+  errorMessage  String?  @map("error_message")
+  syncedAt      DateTime? @map("synced_at")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  match Match @relation(fields: [matchId], references: [id], onDelete: Cascade)
+
+  @@index([status])
+  @@index([syncedAt])
+  @@map("match_stats_cache")
 }
 
 // ---------------------------------------------------------------------------

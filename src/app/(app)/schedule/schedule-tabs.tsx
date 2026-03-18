@@ -5,8 +5,11 @@ import { useRouter } from "next/navigation";
 import { toDisplay } from "@/lib/prediction-values";
 import type { PredictionValue } from "@prisma/client";
 import type { PredictionDisplay } from "@/lib/prediction-values";
+import type { MatchStatisticsPayload } from "@/lib/match-stats/types";
+import { createUnavailableMatchStatisticsPayload } from "@/lib/match-stats/types";
 import { Button, Modal } from "@/components/ui";
 import { PredictionPickDisplay } from "@/components/prediction-pick-display";
+import { StatisticsDrawer } from "./statistics-drawer";
 import {
   submitPredictionAction,
   finalizePredictionAction,
@@ -77,6 +80,7 @@ type Props = {
   matches: ScheduleMatch[];
   userPredictions: UserPrediction[];
   othersByMatchId: Record<string, OtherPrediction[]>;
+  statsByMatchId?: Record<string, MatchStatisticsPayload>;
   isAdmin?: boolean;
 };
 
@@ -96,6 +100,7 @@ export function ScheduleTabs({
   matches,
   userPredictions,
   othersByMatchId,
+  statsByMatchId = {},
   isAdmin = false,
 }: Props) {
   const [competitionTab, setCompetitionTab] = useState<"ucl" | "other">("ucl");
@@ -110,6 +115,7 @@ export function ScheduleTabs({
   const [pendingFinalizeMatchIds, setPendingFinalizeMatchIds] = useState<Record<string, true>>({});
   const [actionError, setActionError] = useState<string | null>(null);
   const [expandedOthers, setExpandedOthers] = useState<Set<string>>(new Set());
+  const [expandedStats, setExpandedStats] = useState<Set<string>>(new Set());
   const [optimisticSelections, setOptimisticSelections] = useState<Record<string, PredictionDisplay>>({});
   const [localPredictions, setLocalPredictions] = useState<Record<string, UserPrediction>>(
     () => buildPredictionMap(userPredictions)
@@ -380,6 +386,15 @@ export function ScheduleTabs({
     });
   };
 
+  const toggleStats = (matchId: string) => {
+    setExpandedStats((prev) => {
+      const next = new Set(prev);
+      if (next.has(matchId)) next.delete(matchId);
+      else next.add(matchId);
+      return next;
+    });
+  };
+
   const scheduleGrid =
     "grid grid-cols-1 sm:grid-cols-[7rem_minmax(12rem,1fr)_14rem_6rem_5rem] gap-4 px-4 py-3 items-center";
 
@@ -400,6 +415,7 @@ export function ScheduleTabs({
     canPredict,
     userPred,
     others,
+    stats,
     displaySelection,
     isUndoing,
     onUndo,
@@ -409,6 +425,7 @@ export function ScheduleTabs({
     canPredict: boolean;
     userPred: UserPrediction | undefined;
     others: OtherPrediction[];
+    stats: MatchStatisticsPayload;
     displaySelection: PredictionDisplay | undefined;
     isUndoing: boolean;
     onUndo: (matchId: string) => void;
@@ -421,6 +438,7 @@ export function ScheduleTabs({
 
     const showOthers = userPred?.isFinal && others.length > 0;
     const isExpanded = expandedOthers.has(m.id);
+    const isStatsExpanded = expandedStats.has(m.id);
     const matchDate = new Date(m.matchDatetime);
 
     const borderStyle =
@@ -711,6 +729,18 @@ export function ScheduleTabs({
           </div>
         </div>
 
+        {teamsDetermined && (
+          <StatisticsDrawer
+            open={isStatsExpanded}
+            onToggle={() => toggleStats(m.id)}
+            homeTeamName={m.homeTeamName}
+            homeTeamLogo={m.homeTeamLogo ?? null}
+            awayTeamName={m.awayTeamName}
+            awayTeamLogo={m.awayTeamLogo ?? null}
+            stats={stats}
+          />
+        )}
+
         {showOthers && (
           <div className="bg-nord-snow/50 px-4 pb-3 pt-1">
             <button
@@ -753,6 +783,14 @@ export function ScheduleTabs({
             !userPredictionByMatch[m.id]?.isFinal;
           const userPred = userPredictionByMatch[m.id];
           const others = localOthersByMatchId[m.id] ?? [];
+          const stats =
+            statsByMatchId[m.id] ??
+            createUnavailableMatchStatisticsPayload({
+              homeTeamName: m.homeTeamName,
+              homeTeamLogo: m.homeTeamLogo ?? null,
+              awayTeamName: m.awayTeamName,
+              awayTeamLogo: m.awayTeamLogo ?? null,
+            });
           const displaySelection = optimisticSelections[m.id] ?? userPred?.selectedPrediction;
           const isLast = index === list.length - 1;
           const nextMatch = list[index + 1];
@@ -766,6 +804,7 @@ export function ScheduleTabs({
               canPredict={canPredict}
               userPred={userPred}
               others={others}
+              stats={stats}
               displaySelection={displaySelection}
               isUndoing={undoingMatchId === m.id}
               onUndo={handleUndo}
