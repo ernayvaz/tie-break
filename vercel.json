@@ -1,4 +1,5 @@
 {
+  "buildCommand": "npm run db:generate && npm run build",
   "crons": [
     {
       "path": "/api/cron/sync-results",
