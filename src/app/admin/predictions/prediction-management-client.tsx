@@ -4,7 +4,12 @@ import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui";
-import { setPredictionPointsAction, adminResetUserPredictionAction, adminResetUserUpcomingPredictionsAction } from "./actions";
+import {
+  setPredictionPointsAction,
+  adminResetUserPredictionAction,
+  adminResetUserUpcomingPredictionsAction,
+  adminSetPredictionForUserAction,
+} from "./actions";
 
 export type PredictionRow = {
   id: string;
@@ -61,6 +66,12 @@ export function PredictionManagementClient({
   const [busyId, setBusyId] = useState<string | null>(null);
   const [resettingUserId, setResettingUserId] = useState<string | null>(null);
 
+  const [impUserId, setImpUserId] = useState("");
+  const [impMatchId, setImpMatchId] = useState("");
+  const [impPick, setImpPick] = useState<"1" | "X" | "2">("1");
+  const [impFinalize, setImpFinalize] = useState(true);
+  const [impBusy, setImpBusy] = useState(false);
+
   const filtered = useMemo(() => {
     return predictions.filter((p) => {
       if (leagueFilter === "CL" && p.match.competitionId !== "CL" && p.match.competitionId != null) return false;
@@ -104,6 +115,27 @@ export function PredictionManagementClient({
     } else setError(result.error);
   };
 
+  const runImpersonatePrediction = async () => {
+    if (!impUserId || !impMatchId) {
+      setError("Select both a user and a match.");
+      return;
+    }
+    setImpBusy(true);
+    setError(null);
+    setSuccess(null);
+    const result = await adminSetPredictionForUserAction(
+      impUserId,
+      impMatchId,
+      impPick,
+      impFinalize
+    );
+    setImpBusy(false);
+    if (result.ok) {
+      setSuccess(result.message ?? "Saved.");
+      router.refresh();
+    } else setError(result.error);
+  };
+
   const runResetAllUpcomingForUser = async (userId: string) => {
     setResettingUserId(userId);
     setError(null);
@@ -134,6 +166,77 @@ export function PredictionManagementClient({
           </button>
         </div>
       )}
+
+      <section className="mb-6 rounded-2xl border border-nord-frostDark/18 bg-[linear-gradient(180deg,rgba(255,255,255,0.95),rgba(241,245,252,0.92))] p-4 shadow-[0_16px_40px_rgba(46,52,64,0.06)] sm:p-5">
+        <h2 className="text-sm font-semibold text-nord-polar">Set prediction (any user, any match)</h2>
+        <p className="mt-1 text-xs leading-relaxed text-nord-polarLight">
+          Match lock time does not apply. Pick a user and match, choose <strong className="text-nord-polar">1</strong>,{" "}
+          <strong className="text-nord-polar">X</strong>, or <strong className="text-nord-polar">2</strong>, then save as
+          draft or finalize. If the match already has an official result and you finalize, points are recalculated for that
+          fixture and the leaderboard is refreshed.
+        </p>
+        <div className="mt-4 flex flex-col gap-4 lg:flex-row lg:flex-wrap lg:items-end">
+          <div className="flex min-w-[200px] flex-1 flex-col gap-1">
+            <label className="text-xs font-medium text-nord-polar">User</label>
+            <select
+              value={impUserId}
+              onChange={(e) => setImpUserId(e.target.value)}
+              className="rounded-lg border border-nord-polarLighter bg-white px-3 py-2 text-sm text-nord-polar"
+            >
+              <option value="">Select user…</option>
+              {userOptions.map((u) => (
+                <option key={u.id} value={u.id}>
+                  {u.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="flex min-w-[240px] flex-[1.2] flex-col gap-1">
+            <label className="text-xs font-medium text-nord-polar">Match</label>
+            <select
+              value={impMatchId}
+              onChange={(e) => setImpMatchId(e.target.value)}
+              className="rounded-lg border border-nord-polarLighter bg-white px-3 py-2 text-sm text-nord-polar"
+            >
+              <option value="">Select match…</option>
+              {matchOptions.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="flex flex-col gap-2">
+            <span className="text-xs font-medium text-nord-polar">Pick</span>
+            <div className="flex flex-wrap gap-3">
+              {(["1", "X", "2"] as const).map((v) => (
+                <label key={v} className="flex cursor-pointer items-center gap-2 text-sm text-nord-polar">
+                  <input
+                    type="radio"
+                    name="admin-pick"
+                    checked={impPick === v}
+                    onChange={() => setImpPick(v)}
+                    className="h-4 w-4 accent-nord-frostDark"
+                  />
+                  <span className="font-semibold">{v}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+          <label className="flex cursor-pointer items-center gap-2 text-sm text-nord-polar">
+            <input
+              type="checkbox"
+              checked={impFinalize}
+              onChange={(e) => setImpFinalize(e.target.checked)}
+              className="h-4 w-4 rounded border-nord-polarLighter accent-nord-frostDark"
+            />
+            Finalize (lock for this user)
+          </label>
+          <Button type="button" variant="primary" disabled={impBusy} onClick={() => void runImpersonatePrediction()}>
+            {impBusy ? "Saving…" : "Apply prediction"}
+          </Button>
+        </div>
+      </section>
 
       <div className="mb-4 flex flex-wrap items-center gap-4 border-b border-nord-polarLighter/50 pb-4">
         <div className="flex items-center gap-2">

@@ -3,9 +3,15 @@
 import { prisma } from "@/lib/db";
 import { createAdminLog } from "@/lib/admin-log";
 import { requireAdmin } from "@/lib/auth/get-user";
-import { rebuildLeaderboard } from "@/lib/scoring";
+import { rebuildLeaderboard, scoreMatch } from "@/lib/scoring";
 import { revalidatePath } from "next/cache";
-import { unfinalizePrediction, resetAllPredictionsUpcoming } from "@/lib/predictions";
+import {
+  createOrUpdatePrediction,
+  finalizePrediction,
+  unfinalizePrediction,
+  resetAllPredictionsUpcoming,
+} from "@/lib/predictions";
+import { isValidDisplay, type PredictionDisplay } from "@/lib/prediction-values";
 
 export type PredictionActionState = { ok: true; message?: string } | { ok: false; error: string };
 
@@ -73,4 +79,111 @@ export async function adminResetUserUpcomingPredictionsAction(
   await rebuildLeaderboard();
   revalidatePath("/admin/predictions");
   return { ok: true, message: `Reset ${result.count} upcoming prediction(s). Leaderboard refreshed.` };
+}
+
+/**
+ * Admin: create/update a prediction for any user and any match (bypasses lock).
+ * Optionally finalize; if the match already has an official result, points are recalculated for that match.
+ */
+export async function adminSetPredictionForUserAction(
+  targetUserId: string,
+  matchId: string,
+  pick: PredictionDisplay,
+  finalize: boolean
+): Promise<PredictionActionState> {
+  const admin = await requireAdmin();
+
+  if (!isValidDisplay(pick)) {
+    return { ok: false, error: "Pick must be 1, X, or 2." };
+  }
+
+  const user = await prisma.user.findUnique({
+    where: { id: targetUserId },
+    select: { id: true, status: true },
+  });
+  if (!user) return { ok: false, error: "User not found." };
+  if (user.status === "blocked") {
+    return { ok: false, error: "Cannot set prediction for a blocked user." };
+  }
+
+  const match = await prisma.match.findUnique({
+    where: { id: matchId },
+    select: { id: true, officialResultType: true },
+  });
+  if (!match) return { ok: false, error: "Match not found." };
+
+  const before = await prisma.prediction.findUnique({
+    where: { userId_matchId: { userId: targetUserId, matchId } },
+    select: {
+      id: true,
+      selectedPrediction: true,
+      isFinal: true,
+      awardedPoints: true,
+    },
+  });
+  const oldSummary = before
+    ? `${before.selectedPrediction}/${before.isFinal ? "final" : "draft"}/pts:${before.awardedPoints}`
+    : "(none)";
+
+  const upsert = await createOrUpdatePrediction(targetUserId, matchId, pick, {
+    isAdmin: true,
+  });
+  if (!upsert.ok) {
+    const msg =
+      upsert.error === "match_not_found"
+        ? "Match not found."
+        : upsert.error === "match_locked"
+          ? "Unexpected lock error."
+          : upsert.error === "already_finalized"
+            ? "Could not update prediction."
+            : upsert.error;
+    return { ok: false, error: msg };
+  }
+
+  if (finalize) {
+    const fin = await finalizePrediction(targetUserId, matchId, { isAdmin: true });
+    if (!fin.ok) {
+      return { ok: false, error: "Could not finalize prediction." };
+    }
+    if (match.officialResultType !== null) {
+      await scoreMatch(matchId);
+    }
+  } else {
+    await prisma.prediction.update({
+      where: { userId_matchId: { userId: targetUserId, matchId } },
+      data: {
+        isFinal: false,
+        finalizedAt: null,
+        awardedPoints: 0,
+      },
+    });
+  }
+
+  await rebuildLeaderboard();
+
+  const predictionRow = await prisma.prediction.findUnique({
+    where: { userId_matchId: { userId: targetUserId, matchId } },
+    select: { id: true },
+  });
+
+  await createAdminLog(
+    admin.id,
+    "admin_set_prediction",
+    "prediction",
+    predictionRow?.id ?? `${targetUserId}:${matchId}`,
+    oldSummary,
+    `${pick}/${finalize ? "final" : "draft"}`
+  );
+
+  revalidatePath("/admin/predictions");
+  revalidatePath("/schedule");
+  revalidatePath("/predictions");
+  revalidatePath("/leaderboard");
+
+  return {
+    ok: true,
+    message: finalize
+      ? "Prediction saved and finalized. Leaderboard refreshed."
+      : "Prediction saved as draft.",
+  };
 }
