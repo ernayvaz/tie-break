@@ -32,6 +32,8 @@ export type PredictionPickDisplayProps = {
   pick: string;
   /** When the prediction was finalized (ISO string) */
   finalizedAt?: string | null;
+  /** Draft only: when the pick was first saved (ISO string); shown as “Saved …” */
+  createdAt?: string | null;
   /** Show "Finalized" only when true */
   isFinal?: boolean;
   /** Optional undo button (e.g. for admin) */
@@ -41,10 +43,21 @@ export type PredictionPickDisplayProps = {
   compact?: boolean;
 };
 
+function formatEnteredLabel(iso: string): string {
+  return new Date(iso).toLocaleString("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 export function PredictionPickDisplay({
   lockAt,
   pick,
   finalizedAt,
+  createdAt,
   isFinal = true,
   onUndo,
   undoLoading = false,
@@ -56,14 +69,10 @@ export function PredictionPickDisplay({
     : null;
   const finalizedLabel =
     isFinal && finalizedAt
-      ? new Date(finalizedAt).toLocaleString("en-GB", {
-          day: "2-digit",
-          month: "short",
-          year: "numeric",
-          hour: "2-digit",
-          minute: "2-digit",
-        })
+      ? formatEnteredLabel(finalizedAt)
       : null;
+  const draftSavedLabel =
+    !isFinal && createdAt ? formatEnteredLabel(createdAt) : null;
   const isDraft = !isFinal;
 
   if (compact) {
@@ -88,7 +97,12 @@ export function PredictionPickDisplay({
           </span>
         )}
         {isDraft && (
-          <span className="text-[11px] text-nord-polarLight italic">Draft</span>
+          <span className="flex flex-wrap items-center gap-x-1.5 text-[11px] text-nord-polarLight italic">
+            <span>Draft</span>
+            {draftSavedLabel != null && (
+              <span className="not-italic text-nord-polarLight/90">· Saved {draftSavedLabel}</span>
+            )}
+          </span>
         )}
         {onUndo != null && (
           <Button type="button" variant="ghost" size="sm" className="h-7 text-xs -ml-1" disabled={undoLoading} onClick={onUndo}>
@@ -121,7 +135,12 @@ export function PredictionPickDisplay({
           </span>
         )}
         {isDraft && (
-          <span className="text-xs text-nord-polarLight italic">Draft</span>
+          <span className="flex flex-wrap items-center gap-x-1.5 text-xs text-nord-polarLight italic">
+            <span>Draft</span>
+            {draftSavedLabel != null && (
+              <span className="not-italic text-nord-polarLight/90">· Saved {draftSavedLabel}</span>
+            )}
+          </span>
         )}
       </div>
       {onUndo != null && (

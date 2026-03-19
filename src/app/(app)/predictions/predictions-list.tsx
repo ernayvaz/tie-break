@@ -36,6 +36,8 @@ export type PredictionRow = {
   selectedPrediction: string;
   isFinal: boolean;
   finalizedAt: string | null;
+  /** First saved time (draft “Saved …” line) */
+  createdAt: string;
   match: {
     id: string;
     competitionId: string | null;
@@ -250,6 +252,7 @@ export function PredictionsList({
                     <PredictionPickDisplay
                       pick={p.selectedPrediction}
                       finalizedAt={p.finalizedAt}
+                      createdAt={p.createdAt}
                       isFinal={p.isFinal}
                       compact
                       onUndo={isAdmin && canUnfinalize ? () => handleUnfinalize(p.matchId) : undefined}

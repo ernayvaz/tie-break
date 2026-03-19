@@ -49,6 +49,8 @@ export type UserPrediction = {
   selectedPrediction: PredictionDisplay;
   isFinal: boolean;
   finalizedAt: string | null;
+  /** First saved time (shown for drafts) */
+  createdAt: string | null;
 };
 
 export type OtherPrediction = {
@@ -371,6 +373,7 @@ export function ScheduleTabs({
           ...existing,
           isFinal: false,
           finalizedAt: null,
+          createdAt: existing.createdAt ?? null,
         };
       }
       return next;
@@ -403,6 +406,7 @@ export function ScheduleTabs({
         selectedPrediction: value,
         isFinal: prev[matchId]?.isFinal ?? false,
         finalizedAt: prev[matchId]?.finalizedAt ?? null,
+        createdAt: prev[matchId]?.createdAt ?? new Date().toISOString(),
       },
     }));
 
@@ -446,6 +450,7 @@ export function ScheduleTabs({
           selectedPrediction,
           isFinal: true,
           finalizedAt: optimisticFinalizedAt,
+          createdAt: prev[matchId]?.createdAt ?? optimisticFinalizedAt,
         },
       }));
     }
@@ -886,6 +891,7 @@ export function ScheduleTabs({
                   lockAt={m.lockAt}
                   pick={userPred.selectedPrediction}
                   finalizedAt={userPred.finalizedAt}
+                  createdAt={userPred.createdAt}
                   isFinal={userPred.isFinal}
                   compact
                   onUndo={
@@ -1022,6 +1028,7 @@ export function ScheduleTabs({
                 lockAt={m.lockAt}
                 pick={userPred.selectedPrediction}
                 finalizedAt={userPred.finalizedAt}
+                createdAt={userPred.createdAt}
                 isFinal={userPred.isFinal}
                 compact
                 onUndo={

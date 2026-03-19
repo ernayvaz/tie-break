@@ -9,7 +9,7 @@ export default async function MyPredictionsPage() {
 
   const predictions = await prisma.prediction.findMany({
     where: { userId: user.id },
-    orderBy: { createdAt: "desc" },
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
     include: {
       match: {
         select: {
@@ -31,6 +31,7 @@ export default async function MyPredictionsPage() {
     selectedPrediction: p.selectedPrediction,
     isFinal: p.isFinal,
     finalizedAt: p.finalizedAt?.toISOString() ?? null,
+    createdAt: p.createdAt.toISOString(),
     match: {
       id: p.match.id,
       competitionId: p.match.competitionId ?? null,

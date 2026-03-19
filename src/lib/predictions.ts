@@ -20,7 +20,13 @@ export function canPredict(match: Match, now: Date): boolean {
   return now < match.lockAt;
 }
 
-export type PredictionOptions = { isAdmin?: boolean };
+export type PredictionOptions = {
+  isAdmin?: boolean;
+  /** Admin only: first-saved time (draft list / “entered” display). */
+  createdAt?: Date;
+  /** Admin only: when finalizing, override lock time shown site-wide. */
+  finalizedAt?: Date;
+};
 
 /**
  * Create or update a draft prediction. Fails if match is locked or already finalized.
@@ -39,6 +45,7 @@ export async function createOrUpdatePrediction(
   if (!allowLocked && !canPredict(match, new Date())) return { ok: false, error: "match_locked" };
 
   const value = fromDisplay(displayValue);
+  const adminCreatedAt = allowLocked && options?.createdAt ? options.createdAt : undefined;
 
   const existing = await prisma.prediction.findUnique({
     where: { userId_matchId: { userId, matchId } },
@@ -50,8 +57,17 @@ export async function createOrUpdatePrediction(
 
   await prisma.prediction.upsert({
     where: { userId_matchId: { userId, matchId } },
-    create: { userId, matchId, selectedPrediction: value, isFinal: false },
-    update: { selectedPrediction: value },
+    create: {
+      userId,
+      matchId,
+      selectedPrediction: value,
+      isFinal: false,
+      ...(adminCreatedAt ? { createdAt: adminCreatedAt } : {}),
+    },
+    update: {
+      selectedPrediction: value,
+      ...(adminCreatedAt ? { createdAt: adminCreatedAt } : {}),
+    },
   });
   return { ok: true };
 }
@@ -77,9 +93,12 @@ export async function finalizePrediction(
   if (!existing) return { ok: false, error: "match_not_found" };
   if (existing.isFinal) return { ok: true };
 
+  const finalizedAt =
+    allowLocked && options?.finalizedAt ? options.finalizedAt : new Date();
+
   await prisma.prediction.update({
     where: { id: existing.id },
-    data: { isFinal: true, finalizedAt: new Date() },
+    data: { isFinal: true, finalizedAt },
   });
   return { ok: true };
 }

@@ -39,6 +39,7 @@ export default async function SchedulePage() {
         selectedPrediction: true,
         isFinal: true,
         finalizedAt: true,
+        createdAt: true,
       },
     }),
     getMatchStatisticsByMatchIds(matchIds),
@@ -82,6 +83,7 @@ export default async function SchedulePage() {
     selectedPrediction: toDisplay(p.selectedPrediction),
     isFinal: p.isFinal,
     finalizedAt: p.finalizedAt?.toISOString() ?? null,
+    createdAt: p.createdAt.toISOString(),
   }));
 
   return (

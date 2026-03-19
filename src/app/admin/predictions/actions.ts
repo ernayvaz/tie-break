@@ -89,12 +89,23 @@ export async function adminSetPredictionForUserAction(
   targetUserId: string,
   matchId: string,
   pick: PredictionDisplay,
-  finalize: boolean
+  finalize: boolean,
+  /** ISO 8601; omit or empty = now. Shown on site as finalized time (if final) or “entered” / created time (draft). */
+  enteredAtIso?: string | null
 ): Promise<PredictionActionState> {
   const admin = await requireAdmin();
 
   if (!isValidDisplay(pick)) {
     return { ok: false, error: "Pick must be 1, X, or 2." };
+  }
+
+  let effectiveEnteredAt = new Date();
+  if (enteredAtIso != null && String(enteredAtIso).trim() !== "") {
+    const parsed = new Date(enteredAtIso);
+    if (Number.isNaN(parsed.getTime())) {
+      return { ok: false, error: "Invalid date/time." };
+    }
+    effectiveEnteredAt = parsed;
   }
 
   const user = await prisma.user.findUnique({
@@ -127,6 +138,7 @@ export async function adminSetPredictionForUserAction(
 
   const upsert = await createOrUpdatePrediction(targetUserId, matchId, pick, {
     isAdmin: true,
+    createdAt: effectiveEnteredAt,
   });
   if (!upsert.ok) {
     const msg =
@@ -141,7 +153,10 @@ export async function adminSetPredictionForUserAction(
   }
 
   if (finalize) {
-    const fin = await finalizePrediction(targetUserId, matchId, { isAdmin: true });
+    const fin = await finalizePrediction(targetUserId, matchId, {
+      isAdmin: true,
+      finalizedAt: effectiveEnteredAt,
+    });
     if (!fin.ok) {
       return { ok: false, error: "Could not finalize prediction." };
     }
@@ -155,6 +170,7 @@ export async function adminSetPredictionForUserAction(
         isFinal: false,
         finalizedAt: null,
         awardedPoints: 0,
+        createdAt: effectiveEnteredAt,
       },
     });
   }
@@ -172,7 +188,7 @@ export async function adminSetPredictionForUserAction(
     "prediction",
     predictionRow?.id ?? `${targetUserId}:${matchId}`,
     oldSummary,
-    `${pick}/${finalize ? "final" : "draft"}`
+    `${pick}/${finalize ? "final" : "draft"}/at:${effectiveEnteredAt.toISOString()}`
   );
 
   revalidatePath("/admin/predictions");
