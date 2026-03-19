@@ -1,6 +1,7 @@
-import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
+import { getScoreAxisDomesticLeagueInfo } from "@/lib/scoreaxis";
 import {
+  STATS_H2H_MATCH_LIMIT,
   STATS_RECENT_MATCH_LIMIT,
   STATS_SYNC_LOOKAHEAD_DAYS,
   STATS_SYNC_LOOKBACK_DAYS,
@@ -8,32 +9,42 @@ import {
 } from "@/lib/config";
 import {
   fetchFootballDataCompetitionMatches,
+  fetchFootballDataCompetitionScorers,
   fetchFootballDataCompetitionStandings,
   fetchFootballDataMatchHeadToHead,
+  fetchFootballDataTeam,
+  fetchFootballDataTeamMatches,
   fetchFootballDataUclFixtures,
   getFootballDataOutcomeLabel,
   getFootballDataScore,
   type FootballDataMatch,
+  type FootballDataScorer,
   type FootballDataStandingRow,
   type FootballDataStandingsResponse,
+  type FootballDataTeamResponse,
 } from "./football-data-stats";
-import type { ApiFootballFixture } from "./api-football";
 import type {
   MatchStatisticsPayload,
   StatsFixtureSection,
+  StatsH2HSection,
+  StatsLeagueTableRow,
   StatsLeagueSnapshot,
   StatsMatchSummary,
+  StatsPlayerLeader,
+  StatsPlayerLeadersSection,
+  StatsProviderLinkMode,
   StatsSectionState,
+  StatsTeamInfoSection,
   StatsTeamRecord,
   StatsTeamSection,
 } from "@/lib/match-stats/types";
 import {
-  DEFAULT_STATS_NOTE,
   createUnavailableFixtureSection,
   createUnavailableLeagueSnapshot,
   createUnavailableMatchStatisticsPayload,
   createUnavailableTeamSection,
 } from "@/lib/match-stats/types";
+import { applyMatchCenterProviderFallbacks } from "@/lib/providers/resolve-match-center";
 
 type SyncResult =
   | {
@@ -71,7 +82,7 @@ type DomesticLeagueResolution = {
   standingsAvailable: boolean;
 };
 
-type MatchProviderFixture = ApiFootballFixture | FootballDataMatch;
+type MatchProviderFixture = FootballDataMatch;
 
 type FootballDataStandingRows = {
   overall: FootballDataStandingRow | null;
@@ -79,7 +90,20 @@ type FootballDataStandingRows = {
   away: FootballDataStandingRow | null;
 };
 
+type HeadToHeadResolution = {
+  matches: FootballDataMatch[];
+  knownTotalMeetings: number | null;
+  isTruncated: boolean;
+  error: string | null;
+};
+
+type MatchedFixtureResolution = {
+  fixture: FootballDataMatch;
+  linkMode: StatsProviderLinkMode;
+};
+
 const FOOTBALL_DATA_DELAY_MS = 6_300;
+const MATCH_CENTER_PROVIDER = "provider-priority-chain";
 
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -113,6 +137,11 @@ function normalizeTeamName(name: string): string {
     .trim();
 }
 
+function normalizeCompetitionCode(value: string | null | undefined): string | null {
+  const normalized = value?.trim().toUpperCase();
+  return normalized ? normalized : null;
+}
+
 function tokenSimilarity(a: string, b: string): number {
   if (!a || !b) return 0;
   if (a === b) return 1;
@@ -126,88 +155,50 @@ function tokenSimilarity(a: string, b: string): number {
   return intersection / union;
 }
 
-function formatStatusText(statusShort: string | undefined): string | null {
-  switch (statusShort) {
-    case "FT":
-      return "Full-time";
-    case "AET":
-      return "After extra time";
-    case "PEN":
-      return "Penalties";
-    default:
-      return statusShort ?? null;
-  }
-}
-
-function isFootballDataMatch(fixture: MatchProviderFixture): fixture is FootballDataMatch {
-  return "utcDate" in fixture;
-}
-
 function getFixtureKickoff(fixture: MatchProviderFixture): string {
-  return isFootballDataMatch(fixture) ? fixture.utcDate : fixture.fixture.date;
+  return fixture.utcDate;
 }
 
 function getFixtureCompetitionName(fixture: MatchProviderFixture): string | null {
-  return isFootballDataMatch(fixture)
-    ? fixture.competition.name ?? null
-    : fixture.league.name ?? null;
+  return fixture.competition.name ?? null;
 }
 
 function getFixtureCompetitionLogo(fixture: MatchProviderFixture): string | null {
-  return isFootballDataMatch(fixture)
-    ? fixture.competition.emblem ?? null
-    : fixture.league.logo ?? null;
+  return fixture.competition.emblem ?? null;
 }
 
 function getFixtureHomeTeamName(fixture: MatchProviderFixture): string {
-  return isFootballDataMatch(fixture)
-    ? fixture.homeTeam.name
-    : fixture.teams.home.name;
+  return fixture.homeTeam.name;
 }
 
 function getFixtureAwayTeamName(fixture: MatchProviderFixture): string {
-  return isFootballDataMatch(fixture)
-    ? fixture.awayTeam.name
-    : fixture.teams.away.name;
+  return fixture.awayTeam.name;
 }
 
 function getFixtureHomeTeamId(fixture: MatchProviderFixture): number {
-  return isFootballDataMatch(fixture) ? fixture.homeTeam.id : fixture.teams.home.id;
+  return fixture.homeTeam.id;
 }
 
 function getFixtureAwayTeamId(fixture: MatchProviderFixture): number {
-  return isFootballDataMatch(fixture) ? fixture.awayTeam.id : fixture.teams.away.id;
+  return fixture.awayTeam.id;
 }
 
 function getFixtureScore(
   fixture: MatchProviderFixture
 ): { home: number | null; away: number | null } {
-  if (isFootballDataMatch(fixture)) {
-    const score = getFootballDataScore(fixture.score);
-    return {
-      home: score?.home ?? null,
-      away: score?.away ?? null,
-    };
-  }
-
+  const score = getFootballDataScore(fixture.score);
   return {
-    home: fixture.goals.home,
-    away: fixture.goals.away,
+    home: score?.home ?? null,
+    away: score?.away ?? null,
   };
 }
 
 function getFixtureOutcomeLabel(fixture: MatchProviderFixture): string | null {
-  if (isFootballDataMatch(fixture)) {
-    return getFootballDataOutcomeLabel(fixture);
-  }
-
-  return formatStatusText(fixture.fixture.status.short);
+  return getFootballDataOutcomeLabel(fixture);
 }
 
 function isFinishedFixture(fixture: MatchProviderFixture): boolean {
-  return isFootballDataMatch(fixture)
-    ? fixture.status === "FINISHED"
-    : ["FT", "AET", "PEN"].includes(fixture.fixture.status.short);
+  return fixture.status === "FINISHED";
 }
 
 function normalizeFormString(form: string | null | undefined): string | null {
@@ -352,6 +343,7 @@ function buildComputedCompetitionSnapshot(input: {
 
   return {
     status: "available",
+    competitionCode: input.competition.competitionCode,
     leagueName: input.competition.leagueName,
     leagueLogo: input.competition.leagueLogo,
     countryName: input.competition.countryName,
@@ -374,7 +366,7 @@ function buildComputedCompetitionSnapshot(input: {
 function toMatchSummary(fixture: MatchProviderFixture): StatsMatchSummary {
   const score = getFixtureScore(fixture);
   return {
-    id: String(isFootballDataMatch(fixture) ? fixture.id : fixture.fixture.id),
+    id: String(fixture.id),
     kickoff: getFixtureKickoff(fixture),
     competitionName: getFixtureCompetitionName(fixture),
     competitionLogo: getFixtureCompetitionLogo(fixture),
@@ -431,6 +423,7 @@ function buildLeagueSnapshot(
   if (!standingRows?.overall) {
     return {
       status: "unavailable",
+      competitionCode: league.competitionCode,
       leagueName: league.leagueName,
       leagueLogo: league.leagueLogo,
       countryName: league.countryName,
@@ -444,6 +437,7 @@ function buildLeagueSnapshot(
 
   return {
     status: "available",
+    competitionCode: league.competitionCode,
     leagueName: league.leagueName,
     leagueLogo: league.leagueLogo,
     countryName: league.countryName,
@@ -459,6 +453,189 @@ function buildLeagueSnapshot(
         away: standingRows.away ? buildRecord(standingRows.away) : null,
       },
     },
+    message: null,
+  };
+}
+
+function buildLeagueTableSection(input: {
+  standingsResponse: FootballDataStandingsResponse | undefined;
+  highlightedTeamId: number;
+  leagueName: string | null;
+}) {
+  const overallTable =
+    input.standingsResponse?.standings.find((standing) => standing.type === "TOTAL")
+      ?.table ?? [];
+
+  if (overallTable.length === 0) {
+    return {
+      status: "unavailable" as const,
+      leagueName: input.leagueName,
+      rows: [] as StatsLeagueTableRow[],
+      message: "Domestic league table is not available right now.",
+    };
+  }
+
+  return {
+    status: "available" as const,
+    leagueName: input.leagueName,
+    rows: overallTable.map((row) => ({
+      rank: row.position,
+      teamId: row.team.id,
+      teamName: row.team.name,
+      teamLogo: row.team.crest ?? null,
+      played: row.playedGames,
+      wins: row.won,
+      draws: row.draw,
+      losses: row.lost,
+      goalsFor: row.goalsFor,
+      goalsAgainst: row.goalsAgainst,
+      goalDifference: row.goalDifference,
+      points: row.points,
+      form: normalizeFormString(row.form),
+      isHighlighted: row.team.id === input.highlightedTeamId,
+    })),
+    message: null,
+  };
+}
+
+function buildTeamInfoSection(
+  team: FootballDataTeamResponse | undefined,
+  fallback?: {
+    officialName: string;
+    shortName?: string | null;
+    tla?: string | null;
+    areaName?: string | null;
+  }
+): StatsTeamInfoSection {
+  if (!team) {
+    if (fallback) {
+      return {
+        status: "partial",
+        officialName: fallback.officialName,
+        shortName: fallback.shortName ?? null,
+        tla: fallback.tla ?? null,
+        founded: null,
+        venue: null,
+        website: null,
+        clubColors: null,
+        coachName: null,
+        squadSize: null,
+        areaName: fallback.areaName ?? null,
+        message:
+          "Detailed team profile fields are unavailable right now, but core club identity is still shown.",
+      };
+    }
+
+    return {
+      status: "unavailable",
+      officialName: null,
+      shortName: null,
+      tla: null,
+      founded: null,
+      venue: null,
+      website: null,
+      clubColors: null,
+      coachName: null,
+      squadSize: null,
+      areaName: null,
+      message: "Team profile data is not available for this club.",
+    };
+  }
+
+  return {
+    status: "available",
+    officialName: team.name,
+    shortName: team.shortName ?? null,
+    tla: team.tla ?? null,
+    founded: team.founded ?? null,
+    venue: team.venue ?? null,
+    website: team.website ?? null,
+    clubColors: team.clubColors ?? null,
+    coachName: team.coach?.name ?? null,
+    squadSize: team.squad?.length ?? null,
+    areaName: team.area?.name ?? null,
+    message: null,
+  };
+}
+
+function buildSquadFallbackLeaders(
+  team: FootballDataTeamResponse | undefined,
+  competitionName: string | null
+): StatsPlayerLeadersSection | null {
+  const players =
+    team?.squad
+      ?.filter((player) => Boolean(player.name))
+      .slice(0, 5)
+      .map((player) => ({
+        playerId: player.id ?? null,
+        playerName: player.name ?? "Player",
+        teamName: team?.name ?? null,
+        position: player.position ?? null,
+        playedMatches: null,
+        goals: null,
+        assists: null,
+        penalties: null,
+      })) ?? [];
+
+  if (players.length === 0) return null;
+
+  return {
+    status: "partial",
+    title: "Team top players",
+    competitionName,
+    players,
+    message:
+      "Competition scorer data is unavailable, so this panel falls back to the current squad list.",
+  };
+}
+
+function mapScorerToLeader(scorer: FootballDataScorer): StatsPlayerLeader | null {
+  if (!scorer.player?.name) return null;
+
+  return {
+    playerId: scorer.player.id ?? null,
+    playerName: scorer.player.name,
+    teamName: scorer.team?.name ?? null,
+    position: scorer.player.position ?? null,
+    playedMatches: scorer.playedMatches ?? null,
+    goals: scorer.goals ?? null,
+    assists: scorer.assists ?? null,
+    penalties: scorer.penalties ?? null,
+  };
+}
+
+function buildPlayerLeadersSection(input: {
+  scorers: FootballDataScorer[];
+  title: string;
+  competitionName: string | null;
+  teamId?: number;
+  message: string;
+  limit?: number;
+}): StatsPlayerLeadersSection {
+  const filteredScorers =
+    input.teamId == null
+      ? input.scorers
+      : input.scorers.filter((scorer) => scorer.team?.id === input.teamId);
+  const players = filteredScorers
+    .map(mapScorerToLeader)
+    .filter((player): player is StatsPlayerLeader => player !== null)
+    .slice(0, input.limit ?? 5);
+
+  if (players.length === 0) {
+    return {
+      status: "unavailable",
+      title: input.title,
+      competitionName: input.competitionName,
+      players: [],
+      message: input.message,
+    };
+  }
+
+  return {
+    status: "available",
+    title: input.title,
+    competitionName: input.competitionName,
+    players,
     message: null,
   };
 }
@@ -489,17 +666,24 @@ function buildTeamSection(input: {
   localTeamLogo: string | null;
   resolution: TeamResolution | null;
   league: DomesticLeagueResolution | null;
+  leagueStandingsResponse: FootballDataStandingsResponse | undefined;
   standingRows: FootballDataStandingRows | null;
   currentCompetition: DomesticLeagueResolution | null;
   currentCompetitionStandingRows: FootballDataStandingRows | null;
   currentCompetitionFixtures: MatchProviderFixture[];
   currentCompetitionDescription: string | null;
+  teamDetails: FootballDataTeamResponse | undefined;
+  topPlayers: FootballDataScorer[];
   recentDomestic: StatsMatchSummary[];
   recentUcl: StatsMatchSummary[];
 }): StatsTeamSection {
   if (!input.resolution) {
     return createUnavailableTeamSection(input.localTeamName, input.localTeamLogo);
   }
+
+  const fallbackDomesticLeagueInfo = getScoreAxisDomesticLeagueInfo(
+    input.localTeamName
+  );
 
   const domesticLeague = input.league
     ? buildLeagueSnapshot(
@@ -511,9 +695,29 @@ function buildTeamSection(input: {
             : "Domestic league standings are not available for this competition.",
         }
       )
-    : createUnavailableLeagueSnapshot(
-        "Domestic league data is not available for this team."
-      );
+    : {
+        ...createUnavailableLeagueSnapshot(
+          "Domestic league data is not available for this team."
+        ),
+        leagueName: fallbackDomesticLeagueInfo?.leagueName ?? null,
+      };
+  const domesticLeagueTable =
+    input.league && input.resolution
+      ? buildLeagueTableSection({
+          standingsResponse: input.leagueStandingsResponse,
+          highlightedTeamId: input.resolution.teamId,
+          leagueName:
+            domesticLeague.leagueName ??
+            input.league.leagueName ??
+            fallbackDomesticLeagueInfo?.leagueName ??
+            null,
+        })
+      : {
+          status: "unavailable" as const,
+          leagueName: fallbackDomesticLeagueInfo?.leagueName ?? null,
+          rows: [] as StatsLeagueTableRow[],
+          message: "Domestic league table is not available for this team.",
+        };
 
   const currentCompetition = input.currentCompetition
     ? input.currentCompetitionStandingRows?.overall
@@ -532,6 +736,28 @@ function buildTeamSection(input: {
     : createUnavailableLeagueSnapshot(
         "Current competition snapshot is not available for this team."
       );
+  const competitionNameForPlayers =
+    domesticLeague.leagueName ?? currentCompetition.leagueName ?? null;
+  const scorerTopPlayers = buildPlayerLeadersSection({
+    scorers: input.topPlayers,
+    teamId: input.resolution.teamId,
+    title: "Top players",
+    competitionName: competitionNameForPlayers,
+    message: "Top-player data is not available for this team right now.",
+  });
+  const topPlayers =
+    scorerTopPlayers.status === "available"
+      ? scorerTopPlayers
+      : buildSquadFallbackLeaders(input.teamDetails, competitionNameForPlayers) ??
+        scorerTopPlayers;
+  const teamInfo = buildTeamInfoSection(input.teamDetails, {
+    officialName: input.resolution.name || input.localTeamName,
+    shortName: input.localTeamName,
+    areaName:
+      input.league?.countryName ??
+      input.currentCompetition?.countryName ??
+      null,
+  });
 
   const recentDomesticMatches = buildFixtureSection(
     input.recentDomestic,
@@ -545,7 +771,10 @@ function buildTeamSection(input: {
   return {
     status: combineStatuses([
       domesticLeague.status,
+      domesticLeagueTable.status,
       currentCompetition.status,
+      topPlayers.status,
+      teamInfo.status,
       recentDomesticMatches.status,
       recentUclMatches.status,
     ]),
@@ -553,7 +782,10 @@ function buildTeamSection(input: {
     teamLogo: input.localTeamLogo ?? input.resolution.logo,
     providerTeamId: input.resolution.teamId,
     domesticLeague,
+    domesticLeagueTable,
     currentCompetition,
+    topPlayers,
+    teamInfo,
     recentDomesticMatches,
     recentUclMatches,
   };
@@ -587,7 +819,8 @@ type FootballDataTeamCandidate = {
 function summarizeHeadToHead(
   fixtures: MatchProviderFixture[],
   currentHomeTeamId: number,
-  currentAwayTeamId: number
+  currentAwayTeamId: number,
+  knownTotalMeetings: number | null
 ) {
   let homeTeamWins = 0;
   let awayTeamWins = 0;
@@ -624,7 +857,8 @@ function summarizeHeadToHead(
   }
 
   return {
-    totalMeetings: fixtures.length,
+    totalMeetings: knownTotalMeetings ?? fixtures.length,
+    analyzedMeetings: fixtures.length,
     homeTeamWins,
     draws,
     awayTeamWins,
@@ -745,6 +979,81 @@ function buildDomesticLeagueByTeamId(
   return domesticLeagueByTeamId;
 }
 
+function inferDomesticLeagueFromTeamDetails(
+  team: FootballDataTeamResponse | undefined
+): DomesticLeagueResolution | null {
+  const domesticCompetition = team?.runningCompetitions?.find(
+    (competition) => competition.type === "LEAGUE"
+  );
+  if (!domesticCompetition) return null;
+
+  return {
+    leagueId: domesticCompetition.id,
+    competitionCode: domesticCompetition.code,
+    leagueName: domesticCompetition.name,
+    leagueLogo: domesticCompetition.emblem ?? null,
+    countryName: team?.area?.name ?? null,
+    season: getSeasonYear(),
+    standingsAvailable: false,
+  };
+}
+
+function inferDomesticLeagueFromTeamMatches(
+  fixtures: MatchProviderFixture[],
+  excludedCompetitionCodes: Set<string>
+): DomesticLeagueResolution | null {
+  const competitionCandidates = new Map<
+    string,
+    {
+      count: number;
+      latestKickoffMs: number;
+      fixture: MatchProviderFixture;
+    }
+  >();
+
+  for (const fixture of fixtures) {
+    if (!isFinishedFixture(fixture)) continue;
+
+    const competitionCode = normalizeCompetitionCode(fixture.competition.code);
+    if (!competitionCode || excludedCompetitionCodes.has(competitionCode)) continue;
+    if (fixture.competition.type && fixture.competition.type !== "LEAGUE") continue;
+
+    const kickoffMs = new Date(getFixtureKickoff(fixture)).getTime();
+    const existing = competitionCandidates.get(competitionCode);
+    if (!existing) {
+      competitionCandidates.set(competitionCode, {
+        count: 1,
+        latestKickoffMs: kickoffMs,
+        fixture,
+      });
+      continue;
+    }
+
+    existing.count += 1;
+    if (kickoffMs > existing.latestKickoffMs) {
+      existing.latestKickoffMs = kickoffMs;
+      existing.fixture = fixture;
+    }
+  }
+
+  const bestCandidate = [...competitionCandidates.values()].sort((left, right) => {
+    if (right.count !== left.count) return right.count - left.count;
+    return right.latestKickoffMs - left.latestKickoffMs;
+  })[0];
+
+  if (!bestCandidate) return null;
+
+  return {
+    leagueId: bestCandidate.fixture.competition.id,
+    competitionCode: bestCandidate.fixture.competition.code,
+    leagueName: bestCandidate.fixture.competition.name,
+    leagueLogo: bestCandidate.fixture.competition.emblem ?? null,
+    countryName: bestCandidate.fixture.area?.name ?? null,
+    season: getSeasonStartYear(bestCandidate.fixture.season?.startDate),
+    standingsAvailable: false,
+  };
+}
+
 function findRecentUclMatches(
   fixtures: MatchProviderFixture[],
   teamId: number
@@ -778,7 +1087,7 @@ function findBestFixtureMatch(
   let best: { score: number; fixture: MatchProviderFixture } | null = null;
 
   for (const fixture of fixtures) {
-    const fixtureId = isFootballDataMatch(fixture) ? fixture.id : fixture.fixture.id;
+    const fixtureId = fixture.id;
     if (usedFixtureIds.has(fixtureId)) continue;
     const timeDiffHours =
       Math.abs(new Date(getFixtureKickoff(fixture)).getTime() - matchTime) / 36e5;
@@ -801,6 +1110,39 @@ function findBestFixtureMatch(
   }
 
   return best?.fixture ?? null;
+}
+
+function buildHeadToHeadFromTeamMatches(
+  fixtures: MatchProviderFixture[],
+  homeTeamId: number,
+  awayTeamId: number
+): HeadToHeadResolution {
+  const relevantMatches = fixtures
+    .filter((fixture) => {
+      if (!isFinishedFixture(fixture)) return false;
+
+      const fixtureHomeId = getFixtureHomeTeamId(fixture);
+      const fixtureAwayId = getFixtureAwayTeamId(fixture);
+
+      return (
+        (fixtureHomeId === homeTeamId && fixtureAwayId === awayTeamId) ||
+        (fixtureHomeId === awayTeamId && fixtureAwayId === homeTeamId)
+      );
+    })
+    .sort(
+      (a, b) =>
+        new Date(getFixtureKickoff(b)).getTime() -
+        new Date(getFixtureKickoff(a)).getTime()
+    );
+
+  const limitedMatches = relevantMatches.slice(0, STATS_H2H_MATCH_LIMIT);
+
+  return {
+    matches: limitedMatches,
+    knownTotalMeetings: relevantMatches.length,
+    isTruncated: relevantMatches.length > limitedMatches.length,
+    error: null,
+  };
 }
 
 function findBestTeamCandidate(
@@ -839,17 +1181,49 @@ function buildOverallStatus(
   return combineStatuses([h2hStatus, homeStatus, awayStatus]);
 }
 
-export async function syncMatchStatisticsCache(): Promise<SyncResult> {
+function buildProviderLinkMode(
+  linkMode: StatsProviderLinkMode
+): StatsProviderLinkMode {
+  return linkMode;
+}
+
+function buildStatsNote(input: {
+  providerMatchLinkMode: StatsProviderLinkMode;
+  isH2HTruncated: boolean;
+}): string | null {
+  const notes: string[] = [];
+
+  if (input.providerMatchLinkMode === "fuzzy") {
+    notes.push("This fixture is paired to provider data using team and kickoff matching.");
+  }
+
+  if (input.isH2HTruncated) {
+    notes.push(
+      `Historical meetings are limited to the provider response window of ${STATS_H2H_MATCH_LIMIT} matches.`
+    );
+  }
+
+  return notes.length > 0 ? notes.join(" ") : null;
+}
+
+export async function syncMatchStatisticsCache(options?: {
+  matchIds?: string[];
+}): Promise<SyncResult> {
   const now = new Date();
   const seasonYear = getSeasonYear();
   const { from, to } = getSyncWindow(now);
   const recentCompetitionWindow = getRecentCompetitionWindow(now);
+  const targetMatchIds =
+    options?.matchIds?.filter(Boolean).map((matchId) => matchId.trim()) ?? [];
+  const isTargetedRefresh = targetMatchIds.length > 0;
 
   const matches = await prisma.match.findMany({
     where: {
       homeTeamName: { not: "TBD" },
       awayTeamName: { not: "TBD" },
-      matchDatetime: { gte: from, lte: to },
+      ...(targetMatchIds.length > 0
+        ? { id: { in: targetMatchIds } }
+        : { matchDatetime: { gte: from, lte: to } }),
     },
     orderBy: { matchDatetime: "asc" },
     select: {
@@ -868,7 +1242,13 @@ export async function syncMatchStatisticsCache(): Promise<SyncResult> {
     return { ok: true, targetCount: 0, syncedCount: 0, unavailableCount: 0 };
   }
 
-  const rateLimitedApiCall = createRateLimitedCaller(FOOTBALL_DATA_DELAY_MS);
+  // Single-match interactive refreshes should complete quickly when a user opens
+  // Match Center, while broad background syncs stay conservative with provider limits.
+  const rateLimitedApiCall = createRateLimitedCaller(
+    isTargetedRefresh && targetMatchIds.length <= 2
+      ? 250
+      : FOOTBALL_DATA_DELAY_MS
+  );
 
   const uclFixturesResult = await rateLimitedApiCall(() =>
     fetchFootballDataUclFixtures()
@@ -886,40 +1266,97 @@ export async function syncMatchStatisticsCache(): Promise<SyncResult> {
   }
 
   const uclFixtures = uclFixturesResult.data;
-  const uclFixtureById = new Map(uclFixtures.map((fixture) => [String(fixture.id), fixture]));
+  const competitionFixturesByCode = new Map<string, FootballDataMatch[]>([
+    ["CL", uclFixtures],
+  ]);
+  const requestedCompetitionCodes = new Set<string>();
+  for (const match of matches) {
+    const competitionCode = normalizeCompetitionCode(match.competitionId);
+    if (competitionCode && competitionCode !== "CL") {
+      requestedCompetitionCodes.add(competitionCode);
+    }
+  }
+
+  for (const competitionCode of requestedCompetitionCodes) {
+    const fixturesResult = await rateLimitedApiCall(() =>
+      fetchFootballDataCompetitionMatches(competitionCode, {
+        season: seasonYear,
+      })
+    );
+    if (fixturesResult.ok) {
+      competitionFixturesByCode.set(competitionCode, fixturesResult.data);
+    }
+  }
+
+  const allFetchedFixtures = Array.from(
+    new Map(
+      [...competitionFixturesByCode.values()]
+        .flat()
+        .map((fixture) => [String(fixture.id), fixture])
+    ).values()
+  );
+  const allFetchedFixturesById = new Map(
+    allFetchedFixtures.map((fixture) => [String(fixture.id), fixture])
+  );
   const usedFixtureIds = new Set<number>();
-  const matchedFixtureByMatchId = new Map<string, FootballDataMatch>();
+  const matchedFixtureByMatchId = new Map<string, MatchedFixtureResolution>();
   const teamResolutionByName = new Map<string, TeamResolution>();
 
   for (const match of matches) {
+    const preferredCompetitionCode = normalizeCompetitionCode(match.competitionId);
+    const preferredFixtures = preferredCompetitionCode
+      ? competitionFixturesByCode.get(preferredCompetitionCode) ?? []
+      : [];
     const exactFixture = match.externalApiId
-      ? uclFixtureById.get(match.externalApiId) ?? null
+      ? preferredFixtures.find((fixture) => String(fixture.id) === match.externalApiId) ??
+        allFetchedFixturesById.get(match.externalApiId) ??
+        null
       : null;
-    const matchedFixture =
-      exactFixture ??
-      (findBestFixtureMatch(match, uclFixtures, usedFixtureIds) as FootballDataMatch | null);
+    const fuzzyFixture = exactFixture
+      ? null
+      : findBestFixtureMatch(
+          match,
+          preferredFixtures.length > 0 ? preferredFixtures : allFetchedFixtures,
+          usedFixtureIds
+        );
+    const resolvedFixture = exactFixture ?? fuzzyFixture;
+    const linkMode: StatsProviderLinkMode = exactFixture
+      ? "exact"
+      : fuzzyFixture
+        ? "fuzzy"
+        : "none";
 
-    if (!matchedFixture) {
+    if (!resolvedFixture) {
       continue;
     }
 
-    usedFixtureIds.add(matchedFixture.id);
-    matchedFixtureByMatchId.set(match.id, matchedFixture);
+    usedFixtureIds.add(resolvedFixture.id);
+    matchedFixtureByMatchId.set(match.id, {
+      fixture: resolvedFixture,
+      linkMode,
+    });
     teamResolutionByName.set(match.homeTeamName, {
-      teamId: matchedFixture.homeTeam.id,
-      name: matchedFixture.homeTeam.name,
-      logo: match.homeTeamLogo ?? matchedFixture.homeTeam.crest ?? null,
+      teamId: resolvedFixture.homeTeam.id,
+      name: resolvedFixture.homeTeam.name,
+      logo: match.homeTeamLogo ?? resolvedFixture.homeTeam.crest ?? null,
     });
     teamResolutionByName.set(match.awayTeamName, {
-      teamId: matchedFixture.awayTeam.id,
-      name: matchedFixture.awayTeam.name,
-      logo: match.awayTeamLogo ?? matchedFixture.awayTeam.crest ?? null,
+      teamId: resolvedFixture.awayTeam.id,
+      name: resolvedFixture.awayTeam.name,
+      logo: match.awayTeamLogo ?? resolvedFixture.awayTeam.crest ?? null,
     });
   }
 
   const usedCurrentCompetitionCodes = new Set<string>();
-  for (const fixture of matchedFixtureByMatchId.values()) {
-    usedCurrentCompetitionCodes.add(fixture.competition.code);
+  const currentCompetitionCodesByTeamId = new Map<number, Set<string>>();
+  for (const resolution of matchedFixtureByMatchId.values()) {
+    usedCurrentCompetitionCodes.add(resolution.fixture.competition.code);
+    const teamIds = [resolution.fixture.homeTeam.id, resolution.fixture.awayTeam.id];
+    for (const teamId of teamIds) {
+      const codes = currentCompetitionCodesByTeamId.get(teamId) ?? new Set<string>();
+      codes.add(resolution.fixture.competition.code);
+      currentCompetitionCodesByTeamId.set(teamId, codes);
+    }
   }
 
   const currentCompetitionStandingsByCode = new Map<
@@ -936,17 +1373,19 @@ export async function syncMatchStatisticsCache(): Promise<SyncResult> {
   }
 
   const standingsByCompetitionCode = new Map<string, FootballDataStandingsResponse>();
-  for (const competitionCode of SUPPORTED_DOMESTIC_COMPETITIONS) {
-    const standingsResult = await rateLimitedApiCall(() =>
-      fetchFootballDataCompetitionStandings(competitionCode, seasonYear)
-    );
-    if (standingsResult.ok) {
-      standingsByCompetitionCode.set(competitionCode, standingsResult.data);
+  if (!isTargetedRefresh) {
+    for (const competitionCode of SUPPORTED_DOMESTIC_COMPETITIONS) {
+      const standingsResult = await rateLimitedApiCall(() =>
+        fetchFootballDataCompetitionStandings(competitionCode, seasonYear)
+      );
+      if (standingsResult.ok) {
+        standingsByCompetitionCode.set(competitionCode, standingsResult.data);
+      }
     }
   }
 
-  const domesticCandidates = buildDomesticTeamCandidates(standingsByCompetitionCode);
-  const domesticLeagueByTeamId = buildDomesticLeagueByTeamId(domesticCandidates);
+  let domesticCandidates = buildDomesticTeamCandidates(standingsByCompetitionCode);
+  let domesticLeagueByTeamId = buildDomesticLeagueByTeamId(domesticCandidates);
 
   const unresolvedTeamNames = new Set<string>();
   for (const match of matches) {
@@ -956,6 +1395,20 @@ export async function syncMatchStatisticsCache(): Promise<SyncResult> {
     if (!teamResolutionByName.has(match.awayTeamName)) {
       unresolvedTeamNames.add(match.awayTeamName);
     }
+  }
+
+  if (isTargetedRefresh && unresolvedTeamNames.size > 0 && standingsByCompetitionCode.size === 0) {
+    for (const competitionCode of SUPPORTED_DOMESTIC_COMPETITIONS) {
+      const standingsResult = await rateLimitedApiCall(() =>
+        fetchFootballDataCompetitionStandings(competitionCode, seasonYear)
+      );
+      if (standingsResult.ok) {
+        standingsByCompetitionCode.set(competitionCode, standingsResult.data);
+      }
+    }
+
+    domesticCandidates = buildDomesticTeamCandidates(standingsByCompetitionCode);
+    domesticLeagueByTeamId = buildDomesticLeagueByTeamId(domesticCandidates);
   }
 
   for (const teamName of unresolvedTeamNames) {
@@ -972,14 +1425,81 @@ export async function syncMatchStatisticsCache(): Promise<SyncResult> {
     }
   }
 
+  const usedTeamIds = new Set<number>();
+  for (const resolution of teamResolutionByName.values()) {
+    usedTeamIds.add(resolution.teamId);
+  }
+
+  const teamDetailsByTeamId = new Map<number, FootballDataTeamResponse>();
+  for (const teamId of usedTeamIds) {
+    const teamResult = await rateLimitedApiCall(() => fetchFootballDataTeam(teamId));
+    if (teamResult.ok) {
+      teamDetailsByTeamId.set(teamId, teamResult.data);
+    }
+  }
+
+  const inferredDomesticLeagueByTeamId = new Map<number, DomesticLeagueResolution>();
+  for (const [teamId, teamDetails] of teamDetailsByTeamId.entries()) {
+    const inferredLeague = inferDomesticLeagueFromTeamDetails(teamDetails);
+    if (!inferredLeague) continue;
+
+    inferredDomesticLeagueByTeamId.set(teamId, inferredLeague);
+    usedDomesticCompetitionCodes.add(inferredLeague.competitionCode);
+
+    if (!standingsByCompetitionCode.has(inferredLeague.competitionCode)) {
+      const standingsResult = await rateLimitedApiCall(() =>
+        fetchFootballDataCompetitionStandings(
+          inferredLeague.competitionCode,
+          seasonYear
+        )
+      );
+      if (standingsResult.ok) {
+        standingsByCompetitionCode.set(
+          inferredLeague.competitionCode,
+          standingsResult.data
+        );
+      }
+    }
+
+    if (!domesticLeagueByTeamId.has(teamId)) {
+      const hasStandings = standingsByCompetitionCode.has(
+        inferredLeague.competitionCode
+      );
+      domesticLeagueByTeamId.set(teamId, {
+        ...inferredLeague,
+        standingsAvailable: hasStandings,
+      });
+    }
+  }
+
+  const competitionScorersByCode = new Map<string, FootballDataScorer[]>();
+  for (const competitionCode of new Set([
+    ...usedDomesticCompetitionCodes,
+    ...usedCurrentCompetitionCodes,
+  ])) {
+    const scorersResult = await rateLimitedApiCall(() =>
+      fetchFootballDataCompetitionScorers(competitionCode, { limit: 40 })
+    );
+    if (scorersResult.ok) {
+      competitionScorersByCode.set(
+        competitionCode,
+        scorersResult.data.scorers ?? []
+      );
+    }
+  }
+
   const domesticFixturesByCompetitionCode = new Map<string, FootballDataMatch[]>();
   for (const competitionCode of usedDomesticCompetitionCodes) {
     const fixturesResult = await rateLimitedApiCall(() =>
       fetchFootballDataCompetitionMatches(competitionCode, {
         season: seasonYear,
         status: "FINISHED",
-        dateFrom: recentCompetitionWindow.dateFrom,
-        dateTo: recentCompetitionWindow.dateTo,
+        ...(targetMatchIds.length > 0 && targetMatchIds.length <= 2
+          ? {}
+          : {
+              dateFrom: recentCompetitionWindow.dateFrom,
+              dateTo: recentCompetitionWindow.dateTo,
+            }),
       })
     );
     if (fixturesResult.ok) {
@@ -989,15 +1509,15 @@ export async function syncMatchStatisticsCache(): Promise<SyncResult> {
 
   const currentCompetitionFixturesByCode = new Map<string, FootballDataMatch[]>();
   for (const competitionCode of usedCurrentCompetitionCodes) {
-    if (competitionCode === "CL") {
-      currentCompetitionFixturesByCode.set(competitionCode, uclFixtures);
+    const existingFixtures = competitionFixturesByCode.get(competitionCode);
+    if (existingFixtures) {
+      currentCompetitionFixturesByCode.set(competitionCode, existingFixtures);
       continue;
     }
 
     const fixturesResult = await rateLimitedApiCall(() =>
       fetchFootballDataCompetitionMatches(competitionCode, {
         season: seasonYear,
-        status: "FINISHED",
       })
     );
     if (fixturesResult.ok) {
@@ -1005,15 +1525,27 @@ export async function syncMatchStatisticsCache(): Promise<SyncResult> {
     }
   }
 
-  const h2hBySourceMatchId = new Map<string, FootballDataMatch[]>();
-  const h2hCacheByApiMatchId = new Map<string, FootballDataMatch[]>();
+  const h2hBySourceMatchId = new Map<string, HeadToHeadResolution>();
+  const h2hCacheByApiMatchId = new Map<string, HeadToHeadResolution>();
   for (const match of matches) {
+    const matchedFixtureResolution = matchedFixtureByMatchId.get(match.id) ?? null;
     const sourceMatchId =
-      match.externalApiId ?? String(matchedFixtureByMatchId.get(match.id)?.id ?? "");
+      matchedFixtureResolution?.linkMode === "exact"
+        ? match.externalApiId ??
+          String(matchedFixtureResolution.fixture.id)
+        : String(matchedFixtureResolution?.fixture.id ?? "");
     if (!sourceMatchId) continue;
 
     if (h2hCacheByApiMatchId.has(sourceMatchId)) {
-      h2hBySourceMatchId.set(match.id, h2hCacheByApiMatchId.get(sourceMatchId) ?? []);
+      h2hBySourceMatchId.set(
+        match.id,
+        h2hCacheByApiMatchId.get(sourceMatchId) ?? {
+          matches: [],
+          knownTotalMeetings: null,
+          isTruncated: false,
+          error: null,
+        }
+      );
       continue;
     }
 
@@ -1021,11 +1553,98 @@ export async function syncMatchStatisticsCache(): Promise<SyncResult> {
     if (!Number.isFinite(numericMatchId)) continue;
 
     const h2hResult = await rateLimitedApiCall(() =>
-      fetchFootballDataMatchHeadToHead(numericMatchId, STATS_RECENT_MATCH_LIMIT)
+      fetchFootballDataMatchHeadToHead(numericMatchId, STATS_H2H_MATCH_LIMIT)
     );
-    const h2hMatches = h2hResult.ok ? h2hResult.data.matches ?? [] : [];
-    h2hCacheByApiMatchId.set(sourceMatchId, h2hMatches);
-    h2hBySourceMatchId.set(match.id, h2hMatches);
+    const resolution: HeadToHeadResolution = h2hResult.ok
+      ? {
+          matches: h2hResult.data.matches ?? [],
+          knownTotalMeetings:
+            h2hResult.data.aggregates?.numberOfMatches ??
+            h2hResult.data.resultSet?.count ??
+            (h2hResult.data.matches ?? []).length,
+          isTruncated:
+            (h2hResult.data.aggregates?.numberOfMatches ??
+              h2hResult.data.resultSet?.count ??
+              (h2hResult.data.matches ?? []).length) >
+            (h2hResult.data.matches ?? []).length,
+          error: null,
+        }
+      : {
+          matches: [],
+          knownTotalMeetings: null,
+          isTruncated: false,
+          error: h2hResult.error,
+        };
+
+    h2hCacheByApiMatchId.set(sourceMatchId, resolution);
+    h2hBySourceMatchId.set(match.id, resolution);
+  }
+
+  const allowTeamLevelFallbacks =
+    targetMatchIds.length > 0 && targetMatchIds.length <= 4;
+  const teamMatchesCacheByKey = new Map<string, FootballDataMatch[]>();
+  const getTeamMatches = async (
+    teamId: number,
+    options: { competitions?: string | string[] } = {}
+  ) => {
+    const competitionsKey = Array.isArray(options.competitions)
+      ? options.competitions.join(",")
+      : options.competitions ?? "all";
+    const cacheKey = `${teamId}:${competitionsKey}`;
+
+    if (teamMatchesCacheByKey.has(cacheKey)) {
+      return teamMatchesCacheByKey.get(cacheKey) ?? [];
+    }
+
+    const result = await rateLimitedApiCall(() =>
+      fetchFootballDataTeamMatches(teamId, {
+        competitions: options.competitions,
+        status: "FINISHED",
+        limit: Math.max(STATS_H2H_MATCH_LIMIT, STATS_RECENT_MATCH_LIMIT * 4),
+      })
+    );
+    const fixtures = result.ok ? result.data : [];
+    teamMatchesCacheByKey.set(cacheKey, fixtures);
+    return fixtures;
+  };
+
+  for (const teamId of usedTeamIds) {
+    if (domesticLeagueByTeamId.has(teamId) || inferredDomesticLeagueByTeamId.has(teamId)) {
+      continue;
+    }
+
+    const inferredLeague = inferDomesticLeagueFromTeamMatches(
+      await getTeamMatches(teamId),
+      currentCompetitionCodesByTeamId.get(teamId) ?? new Set(["CL"])
+    );
+    if (!inferredLeague) continue;
+
+    inferredDomesticLeagueByTeamId.set(teamId, inferredLeague);
+    usedDomesticCompetitionCodes.add(inferredLeague.competitionCode);
+
+    if (!standingsByCompetitionCode.has(inferredLeague.competitionCode)) {
+      const standingsResult = await rateLimitedApiCall(() =>
+        fetchFootballDataCompetitionStandings(
+          inferredLeague.competitionCode,
+          seasonYear
+        )
+      );
+      if (standingsResult.ok) {
+        standingsByCompetitionCode.set(
+          inferredLeague.competitionCode,
+          standingsResult.data
+        );
+      }
+    }
+
+    if (!domesticLeagueByTeamId.has(teamId)) {
+      domesticLeagueByTeamId.set(teamId, {
+        ...inferredLeague,
+        standingsAvailable: standingsByCompetitionCode.has(
+          inferredLeague.competitionCode
+        ),
+      });
+    }
   }
 
   let syncedCount = 0;
@@ -1036,7 +1655,8 @@ export async function syncMatchStatisticsCache(): Promise<SyncResult> {
 
     const homeResolution = teamResolutionByName.get(match.homeTeamName) ?? null;
     const awayResolution = teamResolutionByName.get(match.awayTeamName) ?? null;
-    const matchedFixture = matchedFixtureByMatchId.get(match.id) ?? null;
+    const matchedFixtureResolution = matchedFixtureByMatchId.get(match.id) ?? null;
+    const matchedFixture = matchedFixtureResolution?.fixture ?? null;
     const currentCompetition = matchedFixture
       ? {
           leagueId: matchedFixture.competition.id,
@@ -1057,11 +1677,41 @@ export async function syncMatchStatisticsCache(): Promise<SyncResult> {
       : [];
 
     const homeLeague = homeResolution
-      ? domesticLeagueByTeamId.get(homeResolution.teamId) ?? null
+      ? domesticLeagueByTeamId.get(homeResolution.teamId) ??
+        inferredDomesticLeagueByTeamId.get(homeResolution.teamId) ??
+        null
       : null;
     const awayLeague = awayResolution
-      ? domesticLeagueByTeamId.get(awayResolution.teamId) ?? null
+      ? domesticLeagueByTeamId.get(awayResolution.teamId) ??
+        inferredDomesticLeagueByTeamId.get(awayResolution.teamId) ??
+        null
       : null;
+    const homeTeamDetails = homeResolution
+      ? teamDetailsByTeamId.get(homeResolution.teamId)
+      : undefined;
+    const awayTeamDetails = awayResolution
+      ? teamDetailsByTeamId.get(awayResolution.teamId)
+      : undefined;
+    const homeTopPlayersScorers = homeLeague
+      ? competitionScorersByCode.get(homeLeague.competitionCode) ?? []
+      : currentCompetition
+        ? competitionScorersByCode.get(currentCompetition.competitionCode) ?? []
+        : [];
+    const awayTopPlayersScorers = awayLeague
+      ? competitionScorersByCode.get(awayLeague.competitionCode) ?? []
+      : currentCompetition
+        ? competitionScorersByCode.get(currentCompetition.competitionCode) ?? []
+        : [];
+    const competitionLeaders = buildPlayerLeadersSection({
+      scorers:
+        currentCompetition
+          ? competitionScorersByCode.get(currentCompetition.competitionCode) ?? []
+          : [],
+      title: "Competition leaders",
+      competitionName: currentCompetition?.leagueName ?? null,
+      message: "Competition leaders are not available right now.",
+      limit: 10,
+    });
 
     const homeStandingRows = homeResolution && homeLeague
       ? getStandingRowsForTeam(
@@ -1088,21 +1738,63 @@ export async function syncMatchStatisticsCache(): Promise<SyncResult> {
         )
       : null;
 
-    const homeDomesticMatches =
+    let homeDomesticMatches =
       homeResolution && homeLeague
         ? findRecentUclMatches(
             domesticFixturesByCompetitionCode.get(homeLeague.competitionCode) ?? [],
             homeResolution.teamId
           )
         : [];
+    if (
+      allowTeamLevelFallbacks &&
+      homeDomesticMatches.length === 0 &&
+      homeResolution &&
+      homeLeague
+    ) {
+      homeDomesticMatches = findRecentUclMatches(
+        await getTeamMatches(homeResolution.teamId, {
+          competitions: homeLeague.competitionCode,
+        }),
+        homeResolution.teamId
+      );
+      if (homeDomesticMatches.length === 0) {
+        homeDomesticMatches = findRecentUclMatches(
+          (await getTeamMatches(homeResolution.teamId)).filter(
+            (fixture) => fixture.competition.code === homeLeague.competitionCode
+          ),
+          homeResolution.teamId
+        );
+      }
+    }
 
-    const awayDomesticMatches =
+    let awayDomesticMatches =
       awayResolution && awayLeague
         ? findRecentUclMatches(
             domesticFixturesByCompetitionCode.get(awayLeague.competitionCode) ?? [],
             awayResolution.teamId
           )
         : [];
+    if (
+      allowTeamLevelFallbacks &&
+      awayDomesticMatches.length === 0 &&
+      awayResolution &&
+      awayLeague
+    ) {
+      awayDomesticMatches = findRecentUclMatches(
+        await getTeamMatches(awayResolution.teamId, {
+          competitions: awayLeague.competitionCode,
+        }),
+        awayResolution.teamId
+      );
+      if (awayDomesticMatches.length === 0) {
+        awayDomesticMatches = findRecentUclMatches(
+          (await getTeamMatches(awayResolution.teamId)).filter(
+            (fixture) => fixture.competition.code === awayLeague.competitionCode
+          ),
+          awayResolution.teamId
+        );
+      }
+    }
 
     const homeUclMatches = homeResolution
       ? findRecentUclMatches(uclFixtures, homeResolution.teamId)
@@ -1111,24 +1803,65 @@ export async function syncMatchStatisticsCache(): Promise<SyncResult> {
       ? findRecentUclMatches(uclFixtures, awayResolution.teamId)
       : [];
 
-    const h2hFixtures = h2hBySourceMatchId.get(match.id) ?? [];
+    const providerMatchLinkMode = buildProviderLinkMode(
+      matchedFixtureResolution?.linkMode ?? "none"
+    );
+    let h2hResolution = h2hBySourceMatchId.get(match.id) ?? {
+      matches: [],
+      knownTotalMeetings: null,
+      isTruncated: false,
+      error: null,
+    };
+    if (
+      allowTeamLevelFallbacks &&
+      homeResolution &&
+      awayResolution &&
+      (h2hResolution.error || h2hResolution.matches.length === 0)
+    ) {
+      const fallbackH2HResolution = buildHeadToHeadFromTeamMatches(
+        await getTeamMatches(homeResolution.teamId),
+        homeResolution.teamId,
+        awayResolution.teamId
+      );
+      if (fallbackH2HResolution.matches.length > 0) {
+        h2hResolution = fallbackH2HResolution;
+      }
+    }
+    const h2hFixtures = h2hResolution.matches;
     const h2hSummaries = h2hFixtures.map(toMatchSummary);
-    const h2hSection =
-      (matchedFixture || (homeResolution && awayResolution)) && h2hFixtures.length > 0
+    const canBuildH2H = Boolean(matchedFixture || (homeResolution && awayResolution));
+    const h2hSection: StatsH2HSection = h2hResolution.error
+      ? {
+          status: "partial",
+          summary: null,
+          matches: [],
+          knownTotalMeetings: null,
+          isTruncated: false,
+          message:
+            "Historical meetings could not be refreshed from the provider right now.",
+        }
+      : canBuildH2H && h2hFixtures.length > 0
         ? {
-            status: "available" as const,
+            status: h2hResolution.isTruncated ? "partial" : "available",
             summary: summarizeHeadToHead(
               h2hFixtures,
               matchedFixture?.homeTeam.id ?? homeResolution?.teamId ?? -1,
-              matchedFixture?.awayTeam.id ?? awayResolution?.teamId ?? -1
+              matchedFixture?.awayTeam.id ?? awayResolution?.teamId ?? -1,
+              h2hResolution.knownTotalMeetings
             ),
             matches: h2hSummaries,
-            message: null,
+            knownTotalMeetings: h2hResolution.knownTotalMeetings,
+            isTruncated: h2hResolution.isTruncated,
+            message: h2hResolution.isTruncated
+              ? `Showing ${h2hFixtures.length} of ${h2hResolution.knownTotalMeetings ?? h2hFixtures.length} known meetings from the provider.`
+              : null,
           }
         : {
-            status: "unavailable" as const,
+            status: "unavailable",
             summary: null,
             matches: [],
+            knownTotalMeetings: null,
+            isTruncated: false,
             message: "No previous meetings data available.",
           };
 
@@ -1137,11 +1870,16 @@ export async function syncMatchStatisticsCache(): Promise<SyncResult> {
       localTeamLogo: match.homeTeamLogo,
       resolution: homeResolution,
       league: homeLeague,
+      leagueStandingsResponse: homeLeague
+        ? standingsByCompetitionCode.get(homeLeague.competitionCode)
+        : undefined,
       standingRows: homeStandingRows,
       currentCompetition,
       currentCompetitionStandingRows: homeCurrentCompetitionStandingRows,
       currentCompetitionFixtures,
       currentCompetitionDescription,
+      teamDetails: homeTeamDetails,
+      topPlayers: homeTopPlayersScorers,
       recentDomestic: homeDomesticMatches,
       recentUcl: homeUclMatches,
     });
@@ -1151,26 +1889,44 @@ export async function syncMatchStatisticsCache(): Promise<SyncResult> {
       localTeamLogo: match.awayTeamLogo,
       resolution: awayResolution,
       league: awayLeague,
+      leagueStandingsResponse: awayLeague
+        ? standingsByCompetitionCode.get(awayLeague.competitionCode)
+        : undefined,
       standingRows: awayStandingRows,
       currentCompetition,
       currentCompetitionStandingRows: awayCurrentCompetitionStandingRows,
       currentCompetitionFixtures,
       currentCompetitionDescription,
+      teamDetails: awayTeamDetails,
+      topPlayers: awayTopPlayersScorers,
       recentDomestic: awayDomesticMatches,
       recentUcl: awayUclMatches,
     });
 
-    const payload: MatchStatisticsPayload = {
+    const payload = applyMatchCenterProviderFallbacks({
       status: buildOverallStatus(h2hSection.status, homeTeam.status, awayTeam.status),
       syncedAt: now.toISOString(),
-      note: DEFAULT_STATS_NOTE,
+      note: buildStatsNote({
+        providerMatchLinkMode,
+        isH2HTruncated: h2hSection.isTruncated,
+      }),
+      freshness: {
+        status: "fresh",
+        syncedAt: now.toISOString(),
+        ageMinutes: 0,
+      },
+      providerMatchLinkMode,
       h2h: h2hSection,
+      competitionLeaders,
       homeTeam,
       awayTeam,
-    };
+    });
 
     const finalPayload =
-      payload.status === "unavailable" ? fallbackPayload : payload;
+      payload.status === "unavailable"
+        ? applyMatchCenterProviderFallbacks(fallbackPayload)
+        : payload;
+    const jsonPayload = JSON.parse(JSON.stringify(finalPayload));
 
     if (finalPayload.status === "unavailable") unavailableCount++;
     else syncedCount++;
@@ -1179,16 +1935,16 @@ export async function syncMatchStatisticsCache(): Promise<SyncResult> {
       where: { matchId: match.id },
       update: {
         status: finalPayload.status,
-        provider: FOOTBALL_DATA_PROVIDER,
-        payload: finalPayload as Prisma.InputJsonValue,
+        provider: MATCH_CENTER_PROVIDER,
+        payload: jsonPayload,
         errorMessage: null,
         syncedAt: now,
       },
       create: {
         matchId: match.id,
         status: finalPayload.status,
-        provider: FOOTBALL_DATA_PROVIDER,
-        payload: finalPayload as Prisma.InputJsonValue,
+        provider: MATCH_CENTER_PROVIDER,
+        payload: jsonPayload,
         errorMessage: null,
         syncedAt: now,
       },

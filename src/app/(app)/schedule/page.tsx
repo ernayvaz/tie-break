@@ -3,6 +3,7 @@ import { requireAuth } from "@/lib/auth/get-user";
 import { getOthersPredictionsBatch } from "@/lib/predictions";
 import { toDisplay } from "@/lib/prediction-values";
 import { getMatchStatisticsByMatchIds } from "@/lib/match-stats/cache";
+import { PageHeroBand } from "@/components/page-hero-band";
 import { ScheduleTabs } from "./schedule-tabs";
 
 export default async function SchedulePage() {
@@ -14,6 +15,7 @@ export default async function SchedulePage() {
     select: {
       id: true,
       competitionId: true,
+      externalApiId: true,
       matchDatetime: true,
       lockAt: true,
       stage: true,
@@ -29,15 +31,18 @@ export default async function SchedulePage() {
 
   const matchIds = matches.map((m) => m.id);
 
-  const userPredictions = await prisma.prediction.findMany({
-    where: { userId: user.id, matchId: { in: matchIds } },
-    select: {
-      matchId: true,
-      selectedPrediction: true,
-      isFinal: true,
-      finalizedAt: true,
-    },
-  });
+  const [userPredictions, statsByMatchId] = await Promise.all([
+    prisma.prediction.findMany({
+      where: { userId: user.id, matchId: { in: matchIds } },
+      select: {
+        matchId: true,
+        selectedPrediction: true,
+        isFinal: true,
+        finalizedAt: true,
+      },
+    }),
+    getMatchStatisticsByMatchIds(matchIds),
+  ]);
 
   // Others' predictions: only for matches where current user (including admin) has finalized.
   // Admin can see others the same way for testing; admin can still undo their predictions anytime.
@@ -59,6 +64,7 @@ export default async function SchedulePage() {
   const serializedMatches = matches.map((m) => ({
     id: m.id,
     competitionId: m.competitionId ?? null,
+    externalApiId: m.externalApiId ?? null,
     matchDatetime: m.matchDatetime.toISOString(),
     lockAt: m.lockAt.toISOString(),
     stage: m.stage,
@@ -78,28 +84,40 @@ export default async function SchedulePage() {
     finalizedAt: p.finalizedAt?.toISOString() ?? null,
   }));
 
-  const statsByMatchId = await getMatchStatisticsByMatchIds(matchIds);
-
   return (
-    <div>
-      <h1 className="text-xl font-semibold text-nord-polar">Match schedule</h1>
-      <p className="mt-1 text-sm text-nord-polarLight">
-        The &quot;Result&quot; column shows the official match outcome (1 / X / 2) after the match has finished. Switch between <strong>Upcoming matches</strong> and <strong>Past matches</strong> using the tabs below.
-      </p>
+    <div className="space-y-5">
+      <PageHeroBand
+        eyebrow="Premium Match Center"
+        title="Match schedule"
+        description="A tighter premium schedule view with a refined Match Center, last-five H2H context and a separate live rail."
+        highlights={[
+          {
+            label: "Previous meetings",
+            value: "Only the latest 5 meetings are shown for faster scanning.",
+          },
+          {
+            label: "Live Match",
+            value: "A dedicated live sheet keeps score and match flow separate from Match Center.",
+          },
+        ]}
+      />
       {matches.length === 0 ? (
         <p className="mt-6 text-nord-polarLight text-sm">
           No matches yet. Sync from API in the admin panel.
         </p>
       ) : (
-        <div className="overflow-x-auto">
-          <ScheduleTabs
-            matches={serializedMatches}
-            userPredictions={serializedUserPredictions}
-            othersByMatchId={othersByMatchId}
-            statsByMatchId={statsByMatchId}
-            isAdmin={user.role === "admin"}
-          />
-        </div>
+        <section className="overflow-hidden rounded-[2rem] border border-white/55 bg-[linear-gradient(180deg,rgba(255,255,255,0.9),rgba(236,239,244,0.8))] shadow-[0_28px_75px_rgba(46,52,64,0.08)]">
+          <div className="overflow-x-auto">
+            <ScheduleTabs
+              matches={serializedMatches}
+              userPredictions={serializedUserPredictions}
+              othersByMatchId={othersByMatchId}
+              statsByMatchId={statsByMatchId}
+              liveByMatchId={{}}
+              isAdmin={user.role === "admin"}
+            />
+          </div>
+        </section>
       )}
     </div>
   );

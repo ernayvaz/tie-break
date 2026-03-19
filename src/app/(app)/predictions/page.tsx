@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
 import { requireAuth } from "@/lib/auth/get-user";
+import { PageHeroBand } from "@/components/page-hero-band";
 import { PredictionsList } from "./predictions-list";
 import type { PredictionRow } from "./predictions-list";
 
@@ -42,11 +43,22 @@ export default async function MyPredictionsPage() {
   }));
 
   return (
-    <div>
-      <h1 className="text-xl font-semibold text-nord-polar">My predictions</h1>
-      <p className="mt-1 text-sm text-nord-polarLight">
-        Your prediction history. Once you finalize a prediction, it cannot be changed.
-      </p>
+    <div className="space-y-6">
+      <PageHeroBand
+        eyebrow="Premium Tracking"
+        title="My predictions"
+        description="Review your prediction history in a cleaner premium layout with finalized picks and status changes easy to scan."
+        highlights={[
+          {
+            label: "Lock window",
+            value: "Predictions lock 5 minutes before kickoff.",
+          },
+          {
+            label: "Finalized picks",
+            value: "Once confirmed, a prediction stays locked in your history.",
+          },
+        ]}
+      />
       <PredictionsList predictions={rows} isAdmin={user.role === "admin"} />
     </div>
   );

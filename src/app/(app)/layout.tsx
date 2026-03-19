@@ -1,8 +1,8 @@
-import Link from "next/link";
 import { requireAuth } from "@/lib/auth/get-user";
 import { logoutAction } from "@/app/logout/actions";
 import { Button } from "@/components/ui";
 import { IconSchedule, IconLeaderboard, IconPredictions, IconRules, IconAdmin } from "@/components/icons/nav-icons";
+import { AppHeaderOffset } from "@/components/app-header-offset";
 
 export default async function AppLayout({
   children,
@@ -15,16 +15,20 @@ export default async function AppLayout({
 
   return (
     <div className="min-h-screen bg-[var(--background)]">
-      <header className="sticky top-0 z-20 border-b border-nord-polarLighter/25 bg-white/95 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-white/85">
+      <AppHeaderOffset />
+      <header
+        id="app-header"
+        className="sticky top-0 z-40 border-b border-nord-polarLighter/25 bg-white/95 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-white/85"
+      >
         <div className="mx-auto max-w-7xl px-3 py-2.5 sm:px-4 md:flex md:h-14 md:items-center md:justify-between md:py-0">
           <div className="md:flex md:items-center md:gap-8">
             <div className="flex items-center justify-between gap-4 md:block">
-              <Link
+              <a
                 href="/schedule"
                 className="text-lg font-light tracking-[0.18em] text-nord-polar uppercase hover:text-nord-frostDark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] focus-visible:ring-offset-2 rounded sm:text-xl sm:tracking-[0.22em]"
               >
                 TIE-BREAK
-              </Link>
+              </a>
               <div className="flex min-w-0 items-center gap-2 text-xs md:hidden">
                 <span className="truncate text-nord-polarLight">
                   {user.name} {user.surname}
@@ -37,42 +41,42 @@ export default async function AppLayout({
               </div>
             </div>
             <nav className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4 md:mt-0 md:flex md:items-center md:gap-6">
-              <Link
+              <a
                 href="/schedule"
                 className={navLinkClass}
               >
                 <IconSchedule />
                 Schedule
-              </Link>
-              <Link
+              </a>
+              <a
                 href="/leaderboard"
                 className={`${navLinkClass} text-nord-polarLight hover:text-nord-polar`}
               >
                 <IconLeaderboard />
                 Leaderboard
-              </Link>
-              <Link
+              </a>
+              <a
                 href="/predictions"
                 className={`${navLinkClass} text-nord-polarLight hover:text-nord-polar`}
               >
                 <IconPredictions />
                 My predictions
-              </Link>
-              <Link
+              </a>
+              <a
                 href="/rules"
                 className={`${navLinkClass} text-nord-polarLight hover:text-nord-polar`}
               >
                 <IconRules />
                 Rules & prizes
-              </Link>
+              </a>
               {user.role === "admin" && (
-                <Link
+                <a
                   href="/admin"
                   className={`${navLinkClass} col-span-2 text-nord-frostDark sm:col-span-4 md:col-auto`}
                 >
                   <IconAdmin />
                   Admin
-                </Link>
+                </a>
               )}
             </nav>
           </div>

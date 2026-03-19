@@ -1,15 +1,20 @@
 "use client";
 
-import { useState, useMemo, useCallback, useEffect, useTransition } from "react";
+import { useState, useMemo, useCallback, useEffect, useTransition, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { toDisplay } from "@/lib/prediction-values";
 import type { PredictionValue } from "@prisma/client";
 import type { PredictionDisplay } from "@/lib/prediction-values";
 import type { MatchStatisticsPayload } from "@/lib/match-stats/types";
 import { createUnavailableMatchStatisticsPayload } from "@/lib/match-stats/types";
+import {
+  shouldPollLiveMatch,
+  type LiveMatchState,
+} from "@/lib/live-match";
 import { Button, Modal } from "@/components/ui";
 import { PredictionPickDisplay } from "@/components/prediction-pick-display";
-import { StatisticsDrawer } from "./statistics-drawer";
+import { MatchCenter, type CenterTab } from "./match-center";
+import { LiveMatchSheet } from "./live-match-sheet";
 import {
   submitPredictionAction,
   finalizePredictionAction,
@@ -21,10 +26,12 @@ import {
 } from "./actions";
 
 const UCL_ID = "CL";
+const MATCH_CENTER_TAB_STORAGE_KEY = "tie-break-match-center-tabs";
 
 export type ScheduleMatch = {
   id: string;
   competitionId?: string | null;
+  externalApiId?: string | null;
   matchDatetime: string;
   lockAt: string;
   stage: string;
@@ -81,6 +88,7 @@ type Props = {
   userPredictions: UserPrediction[];
   othersByMatchId: Record<string, OtherPrediction[]>;
   statsByMatchId?: Record<string, MatchStatisticsPayload>;
+  liveByMatchId?: Record<string, LiveMatchState>;
   isAdmin?: boolean;
 };
 
@@ -96,18 +104,44 @@ function buildOthersMap(othersByMatchId: Record<string, OtherPrediction[]>) {
   ) as Record<string, OtherPrediction[]>;
 }
 
+function shouldRefreshMatchStats(stats?: MatchStatisticsPayload): boolean {
+  if (!stats) return true;
+  if (stats.status === "unavailable") return true;
+  if (stats.status === "partial") return true;
+  return (
+    stats.freshness.status === "stale" ||
+    stats.freshness.status === "partial" ||
+    stats.freshness.status === "unavailable"
+  );
+}
+
+function hasVisibleMatchCenterDataGap(stats?: MatchStatisticsPayload): boolean {
+  if (!stats) return true;
+
+  return (
+    stats.h2h.matches.length === 0 ||
+    stats.homeTeam.domesticLeague.status !== "available" ||
+    stats.awayTeam.domesticLeague.status !== "available" ||
+    stats.homeTeam.domesticLeagueTable.rows.length === 0 ||
+    stats.awayTeam.domesticLeagueTable.rows.length === 0 ||
+    stats.homeTeam.recentDomesticMatches.status !== "available" ||
+    stats.awayTeam.recentDomesticMatches.status !== "available"
+  );
+}
+
 export function ScheduleTabs({
   matches,
   userPredictions,
   othersByMatchId,
   statsByMatchId = {},
+  liveByMatchId = {},
   isAdmin = false,
 }: Props) {
   const [competitionTab, setCompetitionTab] = useState<"ucl" | "other">("ucl");
   const [activeTab, setActiveTab] = useState<"upcoming" | "past">("upcoming");
   const [filterStage, setFilterStage] = useState<string>("");
   const [filterTeam, setFilterTeam] = useState<string>("");
-  const [now] = useState(() => new Date());
+  const [now, setNow] = useState(() => new Date());
   const [finalizeModal, setFinalizeModal] = useState<{
     matchId: string;
     matchLabel: string;
@@ -116,6 +150,18 @@ export function ScheduleTabs({
   const [actionError, setActionError] = useState<string | null>(null);
   const [expandedOthers, setExpandedOthers] = useState<Set<string>>(new Set());
   const [expandedStats, setExpandedStats] = useState<Set<string>>(new Set());
+  const [matchCenterTabByMatchId, setMatchCenterTabByMatchId] = useState<
+    Record<string, CenterTab>
+  >(() => {
+    if (typeof window === "undefined") return {};
+    try {
+      const raw = window.sessionStorage.getItem(MATCH_CENTER_TAB_STORAGE_KEY);
+      if (!raw) return {};
+      return JSON.parse(raw) as Record<string, CenterTab>;
+    } catch {
+      return {};
+    }
+  });
   const [optimisticSelections, setOptimisticSelections] = useState<Record<string, PredictionDisplay>>({});
   const [localPredictions, setLocalPredictions] = useState<Record<string, UserPrediction>>(
     () => buildPredictionMap(userPredictions)
@@ -123,11 +169,20 @@ export function ScheduleTabs({
   const [localOthersByMatchId, setLocalOthersByMatchId] = useState<Record<string, OtherPrediction[]>>(
     () => buildOthersMap(othersByMatchId)
   );
+  const [localStatsByMatchId, setLocalStatsByMatchId] = useState<
+    Record<string, MatchStatisticsPayload>
+  >(() => ({ ...statsByMatchId }));
   const [undoingMatchId, setUndoingMatchId] = useState<string | null>(null);
   const [pendingResetUpcoming, setPendingResetUpcoming] = useState(false);
   const [pendingResetPast, setPendingResetPast] = useState(false);
+  const [pendingStatsRefreshMatchIds, setPendingStatsRefreshMatchIds] =
+    useState<Record<string, true>>({});
   const [resetMessage, setResetMessage] = useState<string | null>(null);
+  const [liveSheetMatchId, setLiveSheetMatchId] = useState<string | null>(null);
+  const [liveStateByMatchId, setLiveStateByMatchId] =
+    useState<Record<string, LiveMatchState>>(liveByMatchId);
   const [, startRefreshTransition] = useTransition();
+  const autoRefreshedStatsMatchIdsRef = useRef<Set<string>>(new Set());
   const router = useRouter();
   const modalIsFinalizing = finalizeModal
     ? !!pendingFinalizeMatchIds[finalizeModal.matchId]
@@ -138,16 +193,46 @@ export function ScheduleTabs({
   }, [userPredictions]);
 
   useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      setNow(new Date());
+    }, 60_000);
+
+    return () => window.clearInterval(intervalId);
+  }, []);
+
+  useEffect(() => {
     setLocalOthersByMatchId(buildOthersMap(othersByMatchId));
   }, [othersByMatchId]);
+
+  useEffect(() => {
+    setLocalStatsByMatchId((current) => ({
+      ...current,
+      ...statsByMatchId,
+    }));
+  }, [statsByMatchId]);
+
+  useEffect(() => {
+    setLiveStateByMatchId(liveByMatchId);
+  }, [liveByMatchId]);
+
+  useEffect(() => {
+    try {
+      window.sessionStorage.setItem(
+        MATCH_CENTER_TAB_STORAGE_KEY,
+        JSON.stringify(matchCenterTabByMatchId)
+      );
+    } catch {
+      // Persisting tab choice is best-effort.
+    }
+  }, [matchCenterTabByMatchId]);
 
   const userPredictionByMatch = localPredictions;
 
   const matchesByCompetition = useMemo(() => {
     if (competitionTab === "ucl") {
-      return matches.filter((m) => m.competitionId === UCL_ID || m.competitionId == null);
+      return matches.filter((m) => m.competitionId === UCL_ID);
     }
-    return matches.filter((m) => m.competitionId != null && m.competitionId !== UCL_ID);
+    return matches.filter((m) => m.competitionId !== UCL_ID);
   }, [matches, competitionTab]);
 
   /** Aynı tarihli maçlarda sıra sabit kalsın diye önce matchDatetime sonra id ile sırala. */
@@ -210,6 +295,63 @@ export function ScheduleTabs({
       ? list.sort(sortByDatetimeAsc)
       : list.sort(sortByDatetimeDesc);
   }, [filteredList, activeTab, sortByDatetimeAsc, sortByDatetimeDesc]);
+
+  const livePollCandidates = useMemo(
+    () =>
+      matches
+        .filter((match) => {
+          if (!match.externalApiId) return false;
+          if (liveStateByMatchId[match.id]?.isLive) return true;
+          if (liveSheetMatchId === match.id) return true;
+          return shouldPollLiveMatch(match.matchDatetime, now);
+        })
+        .map((match) => ({
+          id: match.id,
+          competitionId: match.competitionId ?? null,
+          externalApiId: match.externalApiId ?? null,
+        })),
+    [liveSheetMatchId, liveStateByMatchId, matches, now]
+  );
+
+  useEffect(() => {
+    if (livePollCandidates.length === 0) return;
+
+    let cancelled = false;
+
+    const refreshLiveStates = async () => {
+      try {
+        const response = await fetch("/api/live-states", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ matches: livePollCandidates }),
+        });
+        if (!response.ok) return;
+
+        const data = (await response.json()) as {
+          ok?: boolean;
+          liveByMatchId?: Record<string, LiveMatchState>;
+        };
+        if (!data.ok || cancelled || !data.liveByMatchId) return;
+
+        setLiveStateByMatchId((current) => ({
+          ...current,
+          ...data.liveByMatchId,
+        }));
+      } catch {
+        // Live polling is best-effort and should not interrupt predictions UI.
+      }
+    };
+
+    void refreshLiveStates();
+    const intervalId = window.setInterval(() => {
+      void refreshLiveStates();
+    }, 45_000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+    };
+  }, [livePollCandidates]);
 
   const resetFilters = () => {
     setFilterStage("");
@@ -386,17 +528,129 @@ export function ScheduleTabs({
     });
   };
 
+  const refreshMatchStatsBatch = useCallback(
+    async (matchIds: string[]) => {
+      const ids = Array.from(
+        new Set(matchIds.filter((matchId) => matchId && !pendingStatsRefreshMatchIds[matchId]))
+      ).slice(0, 25);
+      if (ids.length === 0) return;
+
+      setPendingStatsRefreshMatchIds((prev) => {
+        const next = { ...prev };
+        ids.forEach((matchId) => {
+          next[matchId] = true;
+        });
+        return next;
+      });
+
+      try {
+        const response = await fetch("/api/match-stats", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ matchIds: ids }),
+        });
+        const data = (await response.json()) as {
+          ok?: boolean;
+          error?: string;
+          refreshError?: string | null;
+          statsByMatchId?: Record<string, MatchStatisticsPayload>;
+        };
+
+        if (!response.ok || !data.ok) {
+          ids.forEach((matchId) => {
+            autoRefreshedStatsMatchIdsRef.current.delete(matchId);
+          });
+          setActionError(
+            data.error ?? "Match Center data could not be refreshed right now."
+          );
+          return;
+        }
+
+        if (data.statsByMatchId) {
+          setLocalStatsByMatchId((current) => ({
+            ...current,
+            ...data.statsByMatchId,
+          }));
+        }
+
+        if (data.refreshError) {
+          ids.forEach((matchId) => {
+            autoRefreshedStatsMatchIdsRef.current.delete(matchId);
+          });
+          setActionError(data.refreshError);
+        }
+      } catch {
+        ids.forEach((matchId) => {
+          autoRefreshedStatsMatchIdsRef.current.delete(matchId);
+        });
+        setActionError("Match Center data could not be refreshed right now.");
+      } finally {
+        setPendingStatsRefreshMatchIds((prev) => {
+          const next = { ...prev };
+          ids.forEach((matchId) => {
+            delete next[matchId];
+          });
+          return next;
+        });
+      }
+    },
+    [pendingStatsRefreshMatchIds]
+  );
+
+  const refreshMatchStats = useCallback(
+    async (matchId: string) => {
+      await refreshMatchStatsBatch([matchId]);
+    },
+    [refreshMatchStatsBatch]
+  );
+
+  useEffect(() => {
+    const repairCandidates = sortedList
+      .filter((match) => hasVisibleMatchCenterDataGap(localStatsByMatchId[match.id]))
+      .map((match) => match.id)
+      .filter((matchId) => !autoRefreshedStatsMatchIdsRef.current.has(matchId))
+      .slice(0, 6);
+
+    const matchIdsToRefresh =
+      repairCandidates.length > 0
+        ? repairCandidates
+        : sortedList
+            .filter((match) => shouldRefreshMatchStats(localStatsByMatchId[match.id]))
+            .map((match) => match.id)
+            .filter((matchId) => !autoRefreshedStatsMatchIdsRef.current.has(matchId))
+            .slice(0, 6);
+
+    if (matchIdsToRefresh.length === 0) return;
+
+    matchIdsToRefresh.forEach((matchId) => {
+      autoRefreshedStatsMatchIdsRef.current.add(matchId);
+    });
+
+    void refreshMatchStatsBatch(matchIdsToRefresh);
+  }, [localStatsByMatchId, refreshMatchStatsBatch, sortedList]);
+
   const toggleStats = (matchId: string) => {
+    const willOpen = !expandedStats.has(matchId);
     setExpandedStats((prev) => {
       const next = new Set(prev);
       if (next.has(matchId)) next.delete(matchId);
       else next.add(matchId);
       return next;
     });
+
+    if (willOpen && shouldRefreshMatchStats(localStatsByMatchId[matchId])) {
+      void refreshMatchStats(matchId);
+    }
   };
 
+  const setMatchCenterTab = useCallback((matchId: string, tab: CenterTab) => {
+    setMatchCenterTabByMatchId((prev) =>
+      prev[matchId] === tab ? prev : { ...prev, [matchId]: tab }
+    );
+  }, []);
+
   const scheduleGrid =
-    "grid grid-cols-1 sm:grid-cols-[7rem_minmax(12rem,1fr)_14rem_6rem_5rem] gap-4 px-4 py-3 items-center";
+    "grid grid-cols-1 gap-4 px-4 py-3 items-center sm:grid-cols-[7rem_minmax(12rem,1fr)_14rem_6rem_5rem] sm:pl-[6.1rem]";
 
   const ScheduleTableHeader = () => (
     <div
@@ -416,9 +670,11 @@ export function ScheduleTabs({
     userPred,
     others,
     stats,
+    liveState,
     displaySelection,
     isUndoing,
     onUndo,
+    onOpenLive,
     separatorVariant,
   }: {
     m: ScheduleMatch;
@@ -426,9 +682,11 @@ export function ScheduleTabs({
     userPred: UserPrediction | undefined;
     others: OtherPrediction[];
     stats: MatchStatisticsPayload;
+    liveState: LiveMatchState | null;
     displaySelection: PredictionDisplay | undefined;
     isUndoing: boolean;
     onUndo: (matchId: string) => void;
+    onOpenLive: (matchId: string) => void;
     /** Same day = thin line; new day = slightly thicker line; none = last item */
     separatorVariant: "same-day" | "new-day" | "none";
   }) {
@@ -439,6 +697,7 @@ export function ScheduleTabs({
     const showOthers = userPred?.isFinal && others.length > 0;
     const isExpanded = expandedOthers.has(m.id);
     const isStatsExpanded = expandedStats.has(m.id);
+    const isLive = !!liveState?.isLive;
     const matchDate = new Date(m.matchDatetime);
 
     const borderStyle =
@@ -450,10 +709,78 @@ export function ScheduleTabs({
 
     return (
       <li
-        className="bg-white/60 hover:bg-white/80 transition-colors"
+        className={`relative bg-white/60 transition-colors hover:bg-white/80 ${
+          isLive ? "ring-1 ring-rose-300/30" : ""
+        }`}
         style={borderStyle}
       >
+        {isLive ? (
+          <button
+            type="button"
+            onClick={() => onOpenLive(m.id)}
+            className="absolute left-2 top-1/2 z-10 hidden w-[4.35rem] -translate-y-1/2 flex-col items-center gap-2 rounded-[1.5rem] border border-white/10 bg-[linear-gradient(180deg,rgba(46,52,64,0.98),rgba(59,66,82,0.94))] px-2 py-3 text-white shadow-[0_22px_55px_rgba(46,52,64,0.26)] transition-transform hover:-translate-y-[52%] sm:flex"
+            aria-label={`Open live match for ${m.homeTeamName} versus ${m.awayTeamName}`}
+          >
+            <span className="flex h-6 w-6 items-center justify-center rounded-full border border-white/10 bg-white/10 text-white/80">
+              <svg viewBox="0 0 20 20" fill="none" aria-hidden className="h-3.5 w-3.5">
+                <path
+                  d="M7 5l6 5-6 5"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </span>
+            <span className="text-[9px] font-semibold uppercase tracking-[0.18em] text-white/75">
+              Open
+            </span>
+            <span className="relative flex h-2.5 w-2.5">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-rose-400/70" />
+              <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-rose-500 shadow-[0_0_16px_rgba(244,63,94,0.7)]" />
+            </span>
+            <span className="text-[9px] font-semibold uppercase tracking-[0.18em] text-white/90">
+              Live
+            </span>
+            <span className="text-[10px] font-medium text-white/80">
+              {liveState.homeScore != null && liveState.awayScore != null
+                ? `${liveState.homeScore}-${liveState.awayScore}`
+                : "Now"}
+            </span>
+          </button>
+        ) : null}
+
         <div className="px-4 py-4 sm:hidden">
+          {isLive ? (
+            <button
+              type="button"
+              onClick={() => onOpenLive(m.id)}
+              className="mb-4 inline-flex items-center gap-2 rounded-full border border-rose-300/35 bg-[linear-gradient(180deg,rgba(46,52,64,0.96),rgba(46,52,64,0.9))] px-3 py-2 text-xs font-semibold uppercase tracking-[0.14em] text-white shadow-[0_18px_44px_rgba(46,52,64,0.22)]"
+            >
+              <span className="flex h-5 w-5 items-center justify-center rounded-full border border-white/10 bg-white/10 text-white/80">
+                <svg viewBox="0 0 20 20" fill="none" aria-hidden className="h-3 w-3">
+                  <path
+                    d="M7 5l6 5-6 5"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              </span>
+              <span className="relative flex h-2.5 w-2.5">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-rose-400/70" />
+                <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-rose-500 shadow-[0_0_16px_rgba(244,63,94,0.7)]" />
+              </span>
+              Open Live Match
+              <span className="rounded-full bg-white/12 px-2 py-0.5 text-[10px] tracking-[0.08em] text-white/85">
+                {liveState.homeScore != null && liveState.awayScore != null
+                  ? `${liveState.homeScore}-${liveState.awayScore}`
+                  : liveState.label}
+              </span>
+            </button>
+          ) : null}
+
           <div className="flex items-start gap-4">
             <div className="min-w-[5.5rem] text-nord-polarLight">
               <span className="block text-[11px] font-medium uppercase tracking-[0.12em]">
@@ -463,7 +790,7 @@ export function ScheduleTabs({
                 {matchDate.toLocaleDateString("en-GB", {
                   day: "2-digit",
                   month: "2-digit",
-                  year: "2-digit",
+                  year: "numeric",
                 })}
               </span>
               <span className="mt-0.5 block text-sm">
@@ -604,7 +931,7 @@ export function ScheduleTabs({
               {matchDate.toLocaleDateString("en-GB", {
                 day: "2-digit",
                 month: "2-digit",
-                year: "2-digit",
+                year: "numeric",
               })}
             </span>
             <span className="mt-0.5">
@@ -730,14 +1057,19 @@ export function ScheduleTabs({
         </div>
 
         {teamsDetermined && (
-          <StatisticsDrawer
+          <MatchCenter
             open={isStatsExpanded}
             onToggle={() => toggleStats(m.id)}
+            competitionId={m.competitionId ?? null}
             homeTeamName={m.homeTeamName}
             homeTeamLogo={m.homeTeamLogo ?? null}
             awayTeamName={m.awayTeamName}
             awayTeamLogo={m.awayTeamLogo ?? null}
             stats={stats}
+            isRefreshing={!!pendingStatsRefreshMatchIds[m.id]}
+            isAdmin={isAdmin}
+            activeTab={matchCenterTabByMatchId[m.id] ?? "overview"}
+            onActiveTabChange={(tab) => setMatchCenterTab(m.id, tab)}
           />
         )}
 
@@ -784,13 +1116,14 @@ export function ScheduleTabs({
           const userPred = userPredictionByMatch[m.id];
           const others = localOthersByMatchId[m.id] ?? [];
           const stats =
-            statsByMatchId[m.id] ??
+            localStatsByMatchId[m.id] ??
             createUnavailableMatchStatisticsPayload({
               homeTeamName: m.homeTeamName,
               homeTeamLogo: m.homeTeamLogo ?? null,
               awayTeamName: m.awayTeamName,
               awayTeamLogo: m.awayTeamLogo ?? null,
             });
+          const liveState = liveStateByMatchId[m.id] ?? null;
           const displaySelection = optimisticSelections[m.id] ?? userPred?.selectedPrediction;
           const isLast = index === list.length - 1;
           const nextMatch = list[index + 1];
@@ -805,9 +1138,11 @@ export function ScheduleTabs({
               userPred={userPred}
               others={others}
               stats={stats}
+              liveState={liveState}
               displaySelection={displaySelection}
               isUndoing={undoingMatchId === m.id}
               onUndo={handleUndo}
+              onOpenLive={setLiveSheetMatchId}
               separatorVariant={separatorVariant}
             />
           );
@@ -863,7 +1198,7 @@ export function ScheduleTabs({
             </svg>
           </span>
           <span className="sm:hidden">Other</span>
-          <span className="hidden sm:inline">Diğer</span>
+          <span className="hidden sm:inline">Other competitions</span>
         </button>
       </div>
       <div className="mt-3 mb-0 grid grid-cols-2 gap-1 rounded-xl border border-nord-polarLighter/30 bg-nord-snow/40 p-1 sm:mt-0 sm:flex sm:gap-0 sm:rounded-none sm:border-0 sm:bg-transparent sm:p-0 sm:border-b sm:border-nord-polarLighter/50">
@@ -1028,6 +1363,14 @@ export function ScheduleTabs({
           </p>
         )}
       </Modal>
+      <LiveMatchSheet
+        open={!!liveSheetMatchId}
+        onClose={() => setLiveSheetMatchId(null)}
+        match={matches.find((match) => match.id === liveSheetMatchId) ?? null}
+        liveState={
+          liveSheetMatchId ? liveStateByMatchId[liveSheetMatchId] ?? null : null
+        }
+      />
     </div>
   );
 }

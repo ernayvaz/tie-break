@@ -60,7 +60,7 @@ function displayResult(v: string | null): string {
 export function MatchManagementClient({ matches }: { matches: MatchRow[] }) {
   const router = useRouter();
   const now = useMemo(() => new Date(), []);
-  const [leagueFilter, setLeagueFilter] = useState<string>(""); // "" = all, "CL" = UCL, "other" = Diğer
+  const [leagueFilter, setLeagueFilter] = useState<string>(""); // "" = all, "CL" = UCL, "other" = Other competitions
   const [stageFilter, setStageFilter] = useState<string>("");
   const [timeFilter, setTimeFilter] = useState<"all" | "upcoming" | "past">("all");
   const [error, setError] = useState<string | null>(null);
@@ -221,7 +221,7 @@ export function MatchManagementClient({ matches }: { matches: MatchRow[] }) {
           >
             <option value="">All leagues</option>
             <option value="CL">UEFA Champions League</option>
-            <option value="other">Diğer</option>
+            <option value="other">Other competitions</option>
           </select>
         </div>
         <div className="flex items-center gap-2">

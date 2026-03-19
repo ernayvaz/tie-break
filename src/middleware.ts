@@ -50,6 +50,7 @@ export const config = {
     "/schedule/:path*",
     "/leaderboard/:path*",
     "/predictions/:path*",
+    "/rules",
     "/rules/:path*",
     "/admin/:path*",
     "/login",

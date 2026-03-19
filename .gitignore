@@ -24,12 +24,16 @@ yarn-error.log*
 # IDE
 .idea
 .vscode
+.cursor
 *.swp
 *.swo
 
 # Misc
 .DS_Store
 *.pem
+
+# Playwright / local test output
+test-results
 
 # Prisma
 prisma/migrations/**/migration_lock.toml

@@ -3,12 +3,53 @@
 import { prisma } from "@/lib/db";
 import { createAdminLog } from "@/lib/admin-log";
 import { requireAdmin } from "@/lib/auth/get-user";
+import { syncMatchStatisticsCache } from "@/lib/api/sync-match-stats";
+import { resolveUclFixtureLink } from "@/lib/api/ucl-match-linking";
 import { scoreMatch, rebuildLeaderboard } from "@/lib/scoring";
 import { fromDisplay, isValidDisplay } from "@/lib/prediction-values";
 import type { PredictionDisplay } from "@/lib/prediction-values";
 import { revalidatePath } from "next/cache";
 
 export type MatchActionState = { ok: true; message?: string } | { ok: false; error: string };
+
+async function syncStatsForMatch(matchId: string) {
+  const result = await syncMatchStatisticsCache({ matchIds: [matchId] });
+  return result.ok;
+}
+
+async function linkManualUclMatch(matchId: string) {
+  const match = await prisma.match.findUnique({
+    where: { id: matchId },
+    select: {
+      id: true,
+      competitionId: true,
+      externalApiId: true,
+      matchDatetime: true,
+      homeTeamName: true,
+      awayTeamName: true,
+      homeTeamLogo: true,
+      awayTeamLogo: true,
+    },
+  });
+  if (!match || (match.competitionId ?? "CL") !== "CL") return;
+
+  const resolved = await resolveUclFixtureLink({
+    matchDatetime: match.matchDatetime,
+    homeTeamName: match.homeTeamName,
+    awayTeamName: match.awayTeamName,
+    externalApiId: match.externalApiId ?? null,
+  });
+  if (!resolved) return;
+
+  await prisma.match.update({
+    where: { id: match.id },
+    data: {
+      externalApiId: resolved.externalApiId,
+      homeTeamLogo: match.homeTeamLogo ?? resolved.homeTeamLogo,
+      awayTeamLogo: match.awayTeamLogo ?? resolved.awayTeamLogo,
+    },
+  });
+}
 
 export async function setMatchResultAction(
   matchId: string,
@@ -46,6 +87,7 @@ export async function setMatchResultAction(
   await rebuildLeaderboard();
   await createAdminLog(admin.id, "match_result_manual", "match", matchId, oldVal, newVal);
   revalidatePath("/admin/matches");
+  revalidatePath("/schedule");
   return { ok: true, message: "Result saved. Predictions and leaderboard updated." };
 }
 
@@ -80,8 +122,11 @@ export async function createMatchAction(data: {
     },
   });
   await createAdminLog(admin.id, "match_created", "match", match.id, null, `${stage} ${homeTeamName} vs ${awayTeamName}`);
+  await linkManualUclMatch(match.id);
+  await syncStatsForMatch(match.id);
   revalidatePath("/admin/matches");
-  return { ok: true, message: "Match created." };
+  revalidatePath("/schedule");
+  return { ok: true, message: "Match created and Match Center data refreshed." };
 }
 
 export async function updateMatchAction(
@@ -150,8 +195,11 @@ export async function updateMatchAction(
     await rebuildLeaderboard();
   }
   await createAdminLog(admin.id, "match_updated", "match", matchId, null, null);
+  await linkManualUclMatch(matchId);
+  await syncStatsForMatch(matchId);
   revalidatePath("/admin/matches");
-  return { ok: true, message: "Match updated." };
+  revalidatePath("/schedule");
+  return { ok: true, message: "Match updated and Match Center data refreshed." };
 }
 
 export async function deleteMatchAction(matchId: string): Promise<MatchActionState> {
@@ -165,5 +213,6 @@ export async function deleteMatchAction(matchId: string): Promise<MatchActionSta
   await prisma.match.delete({ where: { id: matchId } });
   await createAdminLog(admin.id, "match_deleted", "match", matchId, `${match.homeTeamName} vs ${match.awayTeamName}`, null);
   revalidatePath("/admin/matches");
+  revalidatePath("/schedule");
   return { ok: true, message: "Match deleted." };
 }

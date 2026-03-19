@@ -1,5 +1,6 @@
 import {
   FOOTBALL_DATA_API_KEY,
+  STATS_H2H_MATCH_LIMIT,
   STATS_RECENT_MATCH_LIMIT,
   UCL_COMPETITION_ID,
   UCL_SEASON,
@@ -38,6 +39,12 @@ export type FootballDataTeamRef = {
   shortName?: string | null;
   tla?: string | null;
   crest?: string | null;
+};
+
+export type FootballDataCoach = {
+  id?: number;
+  name?: string | null;
+  nationality?: string | null;
 };
 
 type FootballDataScoreLine = {
@@ -141,6 +148,48 @@ export type FootballDataHeadToHeadResponse = FootballDataErrorResponse & {
   matches?: FootballDataMatch[];
 };
 
+export type FootballDataScorer = {
+  player?: {
+    id?: number;
+    name?: string | null;
+    position?: string | null;
+    dateOfBirth?: string | null;
+    nationality?: string | null;
+  };
+  team?: FootballDataTeamRef;
+  playedMatches?: number | null;
+  goals?: number | null;
+  assists?: number | null;
+  penalties?: number | null;
+};
+
+export type FootballDataScorersResponse = FootballDataErrorResponse & {
+  competition: FootballDataCompetition;
+  scorers?: FootballDataScorer[];
+};
+
+export type FootballDataTeamResponse = FootballDataErrorResponse & {
+  area?: FootballDataArea;
+  id: number;
+  name: string;
+  shortName?: string | null;
+  tla?: string | null;
+  crest?: string | null;
+  founded?: number | null;
+  venue?: string | null;
+  website?: string | null;
+  clubColors?: string | null;
+  runningCompetitions?: FootballDataCompetition[];
+  coach?: FootballDataCoach | null;
+  squad?: Array<{
+    id?: number;
+    name?: string | null;
+    position?: string | null;
+    dateOfBirth?: string | null;
+    nationality?: string | null;
+  }>;
+};
+
 type FootballDataMatchesEnvelope = FootballDataErrorResponse & {
   matches?: FootballDataMatch[];
 };
@@ -154,6 +203,15 @@ type FootballDataTeamMatchesEnvelope = FootballDataErrorResponse & {
 type FootballDataRequestOptions = {
   fallbackWithoutSeason?: boolean;
 };
+
+function parseRateLimitDelayMs(message: string | undefined): number | null {
+  if (!message) return null;
+  const match = message.match(/wait\s+(\d+)\s+seconds?/i);
+  if (!match) return null;
+  const seconds = Number(match[1]);
+  if (!Number.isFinite(seconds)) return null;
+  return seconds * 1000 + 1000;
+}
 
 function buildUrl(
   path: string,
@@ -186,7 +244,8 @@ async function footballDataRequest<T extends FootballDataErrorResponse>(
   };
 
   const run = async (
-    requestParams: Record<string, string | number | undefined>
+    requestParams: Record<string, string | number | undefined>,
+    allowRetry = true
   ): Promise<FootballDataResult<T>> => {
     const response = await fetch(buildUrl(path, requestParams), {
       headers,
@@ -195,9 +254,19 @@ async function footballDataRequest<T extends FootballDataErrorResponse>(
 
     const data = (await response.json()) as T;
     if (!response.ok) {
+      const errorMessage =
+        data.message || data.error?.toString() || `HTTP ${response.status}`;
+      const retryDelayMs = allowRetry
+        ? parseRateLimitDelayMs(errorMessage)
+        : null;
+      if (retryDelayMs) {
+        await new Promise((resolve) => setTimeout(resolve, retryDelayMs));
+        return run(requestParams, false);
+      }
+
       return {
         ok: false,
-        error: data.message || data.error?.toString() || `HTTP ${response.status}`,
+        error: errorMessage,
       };
     }
 
@@ -273,7 +342,7 @@ export async function fetchFootballDataCompetitionStandings(
 
 export async function fetchFootballDataMatchHeadToHead(
   matchId: number,
-  limit: number = STATS_RECENT_MATCH_LIMIT
+  limit: number = STATS_H2H_MATCH_LIMIT
 ): Promise<FootballDataResult<FootballDataHeadToHeadResponse>> {
   return footballDataRequest<FootballDataHeadToHeadResponse>(
     `/matches/${matchId}/head2head`,
@@ -312,6 +381,26 @@ export async function fetchFootballDataTeamMatches(
 
   if (!response.ok) return response;
   return { ok: true, data: response.data.matches ?? [] };
+}
+
+export async function fetchFootballDataCompetitionScorers(
+  competitionCode: string,
+  options: {
+    limit?: number;
+  } = {}
+): Promise<FootballDataResult<FootballDataScorersResponse>> {
+  return footballDataRequest<FootballDataScorersResponse>(
+    `/competitions/${competitionCode}/scorers`,
+    {
+      limit: options.limit,
+    }
+  );
+}
+
+export async function fetchFootballDataTeam(
+  teamId: number
+): Promise<FootballDataResult<FootballDataTeamResponse>> {
+  return footballDataRequest<FootballDataTeamResponse>(`/teams/${teamId}`, {});
 }
 
 function readScoreLine(

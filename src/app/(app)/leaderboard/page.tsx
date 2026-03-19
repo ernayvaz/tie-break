@@ -3,6 +3,7 @@ import { requireAuth } from "@/lib/auth/get-user";
 import { getLeaderboardStatsForUser } from "@/lib/scoring";
 import { Card, CardContent } from "@/components/ui";
 import { CompetitionTabs } from "@/components/competition-tabs";
+import { PageHeroBand } from "@/components/page-hero-band";
 import { UCL_COMPETITION_ID, OTHER_COMPETITION_ID } from "@/lib/config";
 import { toDisplay } from "@/lib/prediction-values";
 
@@ -319,27 +320,41 @@ export default async function LeaderboardPage({
   });
 
   return (
-    <div>
-      <h1 className="text-xl font-semibold text-nord-polar">Leaderboard</h1>
-      <p className="mt-1 text-sm text-nord-polarLight">
-        Ranked by total points, then accuracy. Username is never shown. Last 5 reads left to
-        right from oldest to newest.
+    <div className="space-y-6">
+      <PageHeroBand
+        eyebrow="Premium Ranking"
+        title="Leaderboard"
+        description="Track the board with a cleaner premium overview ranked by points first and accuracy second."
+        highlights={[
+          {
+            label: "Ranking logic",
+            value: "Total points decide the order, with accuracy used as the tie-break.",
+          },
+          {
+            label: "Recent form",
+            value: "The latest 5 prediction reads stay visible for every row.",
+          },
+        ]}
+      />
+
+      <p className="text-sm text-nord-polarLight">
+        Username is never shown. Last 5 reads left to right from oldest to newest.
         {isAdmin && adminEntries.length > 0 && (
           <> Admin entries are shown at the bottom for testing only; other users do not see them.</>
         )}
         {adminHasLiveRow && (
-          <span className="block mt-1">
+          <span className="mt-1 block">
             Your row is computed from your predictions. Run <strong>Recalculate scores & leaderboard</strong> in Admin → Scoring to update the stored board.
           </span>
         )}
       </p>
 
-      <div className="mt-6">
+      <div>
         <CompetitionTabs currentCompetitionId={competitionId} basePath="/leaderboard" />
       </div>
 
       {prizes.length > 0 && (
-        <div className="mt-6 grid gap-4 sm:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-3">
           {prizes.map((p) => (
             <Card key={p.id}>
               <CardContent className="py-4">
@@ -356,7 +371,7 @@ export default async function LeaderboardPage({
         </div>
       )}
 
-      <div className="mt-6">
+      <div>
         {entries.length === 0 ? (
           <p className="text-nord-polarLight text-sm">
             No leaderboard data yet. Make predictions and run &quot;Recalculate scores & leaderboard&quot; in the admin panel.
