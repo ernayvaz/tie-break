@@ -166,6 +166,8 @@ model LeaderboardEntry {
   semifinalFinalPoints     Int      @default(0) @map("semifinal_final_points")
   finalizedPredictionCount Int      @default(0) @map("finalized_prediction_count")
   completedMatchCount      Int      @default(0) @map("completed_match_count")
+  /// Finalized predictions that matched the official result (1/X/2), i.e. scoring hits.
+  correctPredictionCount   Int      @default(0) @map("correct_prediction_count")
   accuracyRate             Float    @default(0) @map("accuracy_rate")
   averageFinalizedTimeMetric Float? @map("average_finalized_time_metric")
   currentRank              Int      @map("current_rank")

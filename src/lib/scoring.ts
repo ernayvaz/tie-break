@@ -55,6 +55,7 @@ export async function getLeaderboardStatsForUser(
   totalPoints: number;
   finalizedPredictionCount: number;
   completedMatchCount: number;
+  correctPredictionCount: number;
   accuracyRate: number;
 } | null> {
   const matchWhere = matchCompetitionFilter(competitionId);
@@ -82,6 +83,7 @@ export async function getLeaderboardStatsForUser(
     totalPoints,
     finalizedPredictionCount: predictions.length,
     completedMatchCount,
+    correctPredictionCount: correctCount,
     accuracyRate,
   };
 }
@@ -182,6 +184,7 @@ export async function rebuildLeaderboardForCompetition(
         semifinalFinalPoints: r.semifinalFinalPoints,
         finalizedPredictionCount: r.finalizedCount,
         completedMatchCount: r.completedMatchCount,
+        correctPredictionCount: r.correctCount,
         accuracyRate,
         currentRank: rank,
       },
@@ -191,6 +194,7 @@ export async function rebuildLeaderboardForCompetition(
         semifinalFinalPoints: r.semifinalFinalPoints,
         finalizedPredictionCount: r.finalizedCount,
         completedMatchCount: r.completedMatchCount,
+        correctPredictionCount: r.correctCount,
         accuracyRate,
         currentRank: rank,
       },

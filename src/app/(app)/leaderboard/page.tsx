@@ -219,6 +219,7 @@ export default async function LeaderboardPage({
           totalPoints: liveStats.totalPoints,
           finalizedPredictionCount: liveStats.finalizedPredictionCount,
           completedMatchCount: liveStats.completedMatchCount,
+          correctPredictionCount: liveStats.correctPredictionCount,
           accuracyRate: liveStats.accuracyRate,
           averageFinalizedTimeMetric: null,
           currentRank: 0,
@@ -439,38 +440,46 @@ export default async function LeaderboardPage({
                       </div>
                     </div>
 
-                    <div className="mt-3 grid grid-cols-4 gap-1.5 border-t border-nord-polarLighter/20 pt-3 text-center sm:gap-2">
+                    <div className="mt-3 grid grid-cols-5 gap-1 border-t border-nord-polarLighter/20 pt-3 text-center">
                       <div>
-                        <div className="text-[10px] uppercase tracking-wide text-nord-polarLight">
+                        <div className="text-[9px] uppercase tracking-wide text-nord-polarLight">
                           Pred.
                         </div>
-                        <div className="mt-1 text-sm font-medium text-nord-polar">
+                        <div className="mt-0.5 text-xs font-medium tabular-nums text-nord-polar sm:text-sm">
                           {e.finalizedPredictionCount}
                         </div>
                       </div>
                       <div>
-                        <div className="text-[10px] uppercase tracking-wide text-nord-polarLight">
+                        <div className="text-[9px] uppercase tracking-wide text-nord-polarLight">
                           Done
                         </div>
-                        <div className="mt-1 text-sm font-medium text-nord-polar">
+                        <div className="mt-0.5 text-xs font-medium tabular-nums text-nord-polar sm:text-sm">
                           {e.completedMatchCount}
                         </div>
                       </div>
+                      <div title="Correct calls — right 1/X/2 picks on finished matches">
+                        <div className="text-[9px] font-semibold uppercase tracking-wide text-nord-frostDark/80">
+                          Hits
+                        </div>
+                        <div className="mt-0.5 text-xs font-semibold tabular-nums text-nord-frostDark sm:text-sm">
+                          {e.correctPredictionCount}
+                        </div>
+                      </div>
                       <div>
-                        <div className="text-[10px] uppercase tracking-wide text-nord-polarLight">
+                        <div className="text-[9px] uppercase tracking-wide text-nord-polarLight">
                           Acc.
                         </div>
-                        <div className="mt-1 text-sm font-medium text-nord-polar">
+                        <div className="mt-0.5 text-xs font-medium tabular-nums text-nord-polar sm:text-sm">
                           {e.finalizedPredictionCount > 0
                             ? `${Math.round(e.accuracyRate * 100)}%`
                             : "–"}
                         </div>
                       </div>
-                      <div className="rounded-md bg-nord-frostDark/8 px-1 py-0.5">
-                        <div className="text-[10px] uppercase tracking-wide text-nord-polarLight">
+                      <div className="rounded-md bg-nord-frostDark/8 px-0.5 py-0.5">
+                        <div className="text-[9px] uppercase tracking-wide text-nord-polarLight">
                           Pts
                         </div>
-                        <div className="mt-0.5 text-sm font-semibold text-nord-frostDark">
+                        <div className="mt-0.5 text-xs font-semibold tabular-nums text-nord-frostDark sm:text-sm">
                           {e.totalPoints}
                         </div>
                       </div>
@@ -499,6 +508,12 @@ export default async function LeaderboardPage({
                     <th className="pb-2 pr-4">Name</th>
                     <th className="pb-2 pr-4">Predictions</th>
                     <th className="pb-2 pr-4">Matches completed</th>
+                    <th
+                      className="pb-2 pr-4 font-medium text-nord-polar/90"
+                      title="Number of finalized picks that matched the official result (1 / X / 2)."
+                    >
+                      Correct calls
+                    </th>
                     <th className="pb-2 pr-4">Accuracy</th>
                     <th className="pb-2 pr-4">Points</th>
                     <th className="pb-2">Last 5</th>
@@ -533,6 +548,9 @@ export default async function LeaderboardPage({
                         </td>
                         <td className="py-3 pr-4 text-nord-polarLight">
                           {e.completedMatchCount}
+                        </td>
+                        <td className="py-3 pr-4 font-medium tabular-nums text-nord-polar">
+                          {e.correctPredictionCount}
                         </td>
                         <td className="py-3 pr-4 text-nord-polar">
                           {e.finalizedPredictionCount > 0
