@@ -477,11 +477,11 @@ export default async function LeaderboardPage({
                           {e.completedMatchCount}
                         </div>
                       </div>
-                      <div title="Correct calls — right 1/X/2 picks on finished matches">
-                        <div className="text-[9px] font-semibold uppercase tracking-wide text-nord-frostDark/80">
-                          Hits
+                      <div title="Correct picks — finalized 1/X/2 choices that matched the official result">
+                        <div className="text-[9px] uppercase tracking-wide text-nord-polarLight">
+                          Correct
                         </div>
-                        <div className="mt-0.5 text-xs font-semibold tabular-nums text-nord-frostDark sm:text-sm">
+                        <div className="mt-0.5 text-xs font-medium tabular-nums text-nord-polar sm:text-sm">
                           {correctCalls}
                         </div>
                       </div>
@@ -529,10 +529,10 @@ export default async function LeaderboardPage({
                     <th className="pb-2 pr-4">Predictions</th>
                     <th className="pb-2 pr-4">Matches completed</th>
                     <th
-                      className="pb-2 pr-4 font-medium text-nord-polar/90"
+                      className="pb-2 pr-4"
                       title="Number of finalized picks that matched the official result (1 / X / 2)."
                     >
-                      Correct calls
+                      Correct picks
                     </th>
                     <th className="pb-2 pr-4">Accuracy</th>
                     <th className="pb-2 pr-4">Points</th>
@@ -570,7 +570,7 @@ export default async function LeaderboardPage({
                         <td className="py-3 pr-4 text-nord-polarLight">
                           {e.completedMatchCount}
                         </td>
-                        <td className="py-3 pr-4 font-medium tabular-nums text-nord-polar">
+                        <td className="py-3 pr-4 tabular-nums text-nord-polarLight">
                           {correctCalls}
                         </td>
                         <td className="py-3 pr-4 text-nord-polar">
