@@ -44,7 +44,7 @@ export default async function MyPredictionsPage() {
   }));
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-3 sm:space-y-6">
       <PageHeroBand
         eyebrow="Premium Tracking"
         title="My predictions"

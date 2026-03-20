@@ -87,7 +87,7 @@ export default async function SchedulePage() {
   }));
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-3 sm:space-y-5">
       <PageHeroBand
         eyebrow="Premium Match Center"
         title="Match schedule"
