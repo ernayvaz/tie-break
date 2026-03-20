@@ -418,6 +418,10 @@ function buildLeagueSnapshot(
   options: {
     unavailableMessage?: string | null;
     description?: string | null;
+    computedRecordFallback?: {
+      fixtures: MatchProviderFixture[];
+      teamId: number;
+    } | null;
   } = {}
 ): StatsLeagueSnapshot {
   if (!standingRows?.overall) {
@@ -449,8 +453,26 @@ function buildLeagueSnapshot(
       description: options.description ?? null,
       records: {
         overall: buildRecord(standingRows.overall),
-        home: standingRows.home ? buildRecord(standingRows.home) : null,
-        away: standingRows.away ? buildRecord(standingRows.away) : null,
+        home:
+          standingRows.home
+            ? buildRecord(standingRows.home)
+            : options.computedRecordFallback
+              ? buildComputedRecordFromMatches(
+                  options.computedRecordFallback.fixtures,
+                  options.computedRecordFallback.teamId,
+                  "home"
+                )
+              : null,
+        away:
+          standingRows.away
+            ? buildRecord(standingRows.away)
+            : options.computedRecordFallback
+              ? buildComputedRecordFromMatches(
+                  options.computedRecordFallback.fixtures,
+                  options.computedRecordFallback.teamId,
+                  "away"
+                )
+              : null,
       },
     },
     message: null,
@@ -724,6 +746,10 @@ function buildTeamSection(input: {
       ? buildLeagueSnapshot(input.currentCompetition, input.currentCompetitionStandingRows, {
           unavailableMessage: "Current competition snapshot is not available for this team.",
           description: input.currentCompetitionDescription,
+          computedRecordFallback: {
+            fixtures: input.currentCompetitionFixtures,
+            teamId: input.resolution.teamId,
+          },
         })
       : buildComputedCompetitionSnapshot({
           competition: input.currentCompetition,

@@ -846,7 +846,9 @@ function TeamInsightPanel({ team }: { team: StatsTeamSection }) {
   const selectedSnapshot =
     snapshotKey === "domestic" ? team.domesticLeague : team.currentCompetition;
   const selectedRecord: StatsTeamRecord | null =
-    selectedSnapshot.standing?.records[recordKey] ?? null;
+    selectedSnapshot.standing?.records[recordKey] ??
+    selectedSnapshot.standing?.records.overall ??
+    null;
   const selectedForm =
     selectedSnapshot.standing?.form ??
     (snapshotKey === "domestic"
@@ -855,6 +857,10 @@ function TeamInsightPanel({ team }: { team: StatsTeamSection }) {
   const contextLabel =
     selectedSnapshot.standing?.description ??
     (snapshotKey === "domestic" ? "League" : "Competition");
+  const isUsingOverallFallback =
+    recordKey !== "overall" &&
+    selectedSnapshot.standing?.records[recordKey] == null &&
+    selectedSnapshot.standing?.records.overall != null;
 
   return (
     <div className="space-y-4">
@@ -937,21 +943,30 @@ function TeamInsightPanel({ team }: { team: StatsTeamSection }) {
               </div>
 
               {selectedRecord ? (
-                <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
-                  <RecordCard
-                    label="W-D-L"
-                    value={`${selectedRecord.wins}-${selectedRecord.draws}-${selectedRecord.losses}`}
-                  />
-                  <RecordCard label="Played" value={selectedRecord.played} />
-                  <RecordCard
-                    label="GF-GA"
-                    value={`${selectedRecord.goalsFor}-${selectedRecord.goalsAgainst}`}
-                  />
-                  <RecordCard
-                    label="Goal diff"
-                    value={selectedRecord.goalDifference}
-                  />
-                </div>
+                <>
+                  {isUsingOverallFallback ? (
+                    <div className="mt-3 rounded-[1rem] border border-nord-polarLighter/12 bg-white/70 px-3 py-2 text-[11px] leading-5 text-nord-polarLight">
+                      {recordKey === "home"
+                        ? "Home-only split is not available from the provider yet, so Match Center is showing the overall competition record."
+                        : "Away-only split is not available from the provider yet, so Match Center is showing the overall competition record."}
+                    </div>
+                  ) : null}
+                  <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                    <RecordCard
+                      label="W-D-L"
+                      value={`${selectedRecord.wins}-${selectedRecord.draws}-${selectedRecord.losses}`}
+                    />
+                    <RecordCard label="Played" value={selectedRecord.played} />
+                    <RecordCard
+                      label="GF-GA"
+                      value={`${selectedRecord.goalsFor}-${selectedRecord.goalsAgainst}`}
+                    />
+                    <RecordCard
+                      label="Goal diff"
+                      value={selectedRecord.goalDifference}
+                    />
+                  </div>
+                </>
               ) : (
                 <div className="mt-3">
                   <EmptySection message={selectedSnapshot.message} />
