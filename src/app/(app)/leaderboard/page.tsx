@@ -188,6 +188,26 @@ function RecentPredictionsStrip({
   );
 }
 
+function getCorrectCalls(entry: {
+  totalPoints: number;
+  finalizedPredictionCount: number;
+  accuracyRate: number;
+}) {
+  if (entry.finalizedPredictionCount <= 0 || !Number.isFinite(entry.accuracyRate)) {
+    return Math.max(0, entry.totalPoints);
+  }
+
+  // Accuracy is stored as correct / finalized, so we can recover the integer hit count
+  // without requiring an extra DB column.
+  return Math.max(
+    0,
+    Math.min(
+      entry.finalizedPredictionCount,
+      Math.round(entry.accuracyRate * entry.finalizedPredictionCount)
+    )
+  );
+}
+
 export default async function LeaderboardPage({
   searchParams,
 }: {
@@ -219,7 +239,6 @@ export default async function LeaderboardPage({
           totalPoints: liveStats.totalPoints,
           finalizedPredictionCount: liveStats.finalizedPredictionCount,
           completedMatchCount: liveStats.completedMatchCount,
-          correctPredictionCount: liveStats.correctPredictionCount,
           accuracyRate: liveStats.accuracyRate,
           averageFinalizedTimeMetric: null,
           currentRank: 0,
@@ -414,6 +433,7 @@ export default async function LeaderboardPage({
             <ul className="space-y-3 sm:hidden">
               {entries.map((e) => {
                 const isAdminRow = e.user.role === "admin";
+                const correctCalls = getCorrectCalls(e);
                 return (
                   <li
                     key={`${e.userId}-${e.competitionId}-mobile`}
@@ -462,7 +482,7 @@ export default async function LeaderboardPage({
                           Hits
                         </div>
                         <div className="mt-0.5 text-xs font-semibold tabular-nums text-nord-frostDark sm:text-sm">
-                          {e.correctPredictionCount}
+                          {correctCalls}
                         </div>
                       </div>
                       <div>
@@ -522,6 +542,7 @@ export default async function LeaderboardPage({
                 <tbody>
                   {entries.map((e) => {
                     const isAdminRow = e.user.role === "admin";
+                    const correctCalls = getCorrectCalls(e);
                     return (
                       <tr
                         key={`${e.userId}-${e.competitionId}`}
@@ -550,7 +571,7 @@ export default async function LeaderboardPage({
                           {e.completedMatchCount}
                         </td>
                         <td className="py-3 pr-4 font-medium tabular-nums text-nord-polar">
-                          {e.correctPredictionCount}
+                          {correctCalls}
                         </td>
                         <td className="py-3 pr-4 text-nord-polar">
                           {e.finalizedPredictionCount > 0
