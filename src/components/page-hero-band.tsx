@@ -13,6 +13,8 @@ type Props = {
   highlights?: PageHeroBandHighlight[];
   /** When set, renders below the hero row inside the same premium surface (e.g. long-form page body). */
   children?: ReactNode;
+  /** Compact informational strip at the bottom of the band (inside the card). */
+  footerNote?: ReactNode;
   /**
    * `document` — one tall premium card (rules-style): stronger shadow and vertical gradient so body text
    * is clearly on the same surface as the header, not the page background.
@@ -26,6 +28,7 @@ export function PageHeroBand({
   description,
   highlights = [],
   children,
+  footerNote,
   variant = "default",
 }: Props) {
   const isDocument = variant === "document";
@@ -80,6 +83,20 @@ export function PageHeroBand({
             </div>
           ) : null}
         </div>
+
+        {footerNote ? (
+          <div
+            className={`mt-2 border-t border-nord-frostDark/[0.08] pt-2 sm:mt-3 sm:border-white/50 sm:pt-2.5 ${
+              isDocument ? "shadow-[inset_0_1px_0_rgba(255,255,255,0.65)]" : ""
+            }`}
+          >
+            <div className="rounded-lg border border-white/50 bg-white/45 px-2 py-1.5 sm:bg-white/55 sm:px-3 sm:py-2">
+              <div className="text-[9px] font-medium leading-[1.45] tracking-[0.01em] text-nord-polarLight sm:text-[11px] sm:leading-relaxed [&_strong]:font-semibold [&_strong]:text-nord-polar/90">
+                {footerNote}
+              </div>
+            </div>
+          </div>
+        ) : null}
 
         {children ? (
           <div

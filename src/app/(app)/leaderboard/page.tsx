@@ -335,19 +335,23 @@ export default async function LeaderboardPage({
             value: "The latest 5 prediction reads stay visible for every row.",
           },
         ]}
+        footerNote={
+          <>
+            Username is never shown. Last 5 reads left to right from oldest to newest.
+            {isAdmin && adminEntries.length > 0 && (
+              <span className="mt-1 block text-nord-polarLight/95">
+                Admin entries are shown at the bottom for testing only; other users do not see them.
+              </span>
+            )}
+            {adminHasLiveRow && (
+              <span className="mt-1 block text-nord-polarLight/95">
+                Your row is computed from your predictions. Run{" "}
+                <strong>Recalculate scores & leaderboard</strong> in Admin → Scoring to update the stored board.
+              </span>
+            )}
+          </>
+        }
       />
-
-      <p className="text-sm text-nord-polarLight">
-        Username is never shown. Last 5 reads left to right from oldest to newest.
-        {isAdmin && adminEntries.length > 0 && (
-          <> Admin entries are shown at the bottom for testing only; other users do not see them.</>
-        )}
-        {adminHasLiveRow && (
-          <span className="mt-1 block">
-            Your row is computed from your predictions. Run <strong>Recalculate scores & leaderboard</strong> in Admin → Scoring to update the stored board.
-          </span>
-        )}
-      </p>
 
       <div>
         <CompetitionTabs currentCompetitionId={competitionId} basePath="/leaderboard" />
