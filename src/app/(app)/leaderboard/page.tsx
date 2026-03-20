@@ -1,7 +1,6 @@
 import { prisma } from "@/lib/db";
 import { requireAuth } from "@/lib/auth/get-user";
 import { getLeaderboardStatsForUser } from "@/lib/scoring";
-import { Card, CardContent } from "@/components/ui";
 import { CompetitionTabs } from "@/components/competition-tabs";
 import { PageHeroBand } from "@/components/page-hero-band";
 import { UCL_COMPETITION_ID, OTHER_COMPETITION_ID } from "@/lib/config";
@@ -358,20 +357,49 @@ export default async function LeaderboardPage({
       </div>
 
       {prizes.length > 0 && (
-        <div className="grid gap-4 sm:grid-cols-3">
-          {prizes.map((p) => (
-            <Card key={p.id}>
-              <CardContent className="py-4">
-                <div className="text-sm font-medium text-nord-frostDark">
-                  Place {p.place}
+        <div
+          className="grid grid-cols-3 gap-2 sm:gap-3"
+          role="list"
+          aria-label="Prizes for leaderboard places"
+        >
+          {prizes.map((p) => {
+            const placeSurface =
+              p.place === 1
+                ? "border-amber-200/75 bg-[linear-gradient(168deg,rgba(255,251,235,0.97),rgba(255,255,255,0.93),rgba(254,243,199,0.2))] shadow-[0_14px_40px_rgba(180,130,40,0.09)] ring-1 ring-amber-100/70"
+                : p.place === 2
+                  ? "border-slate-200/85 bg-[linear-gradient(168deg,rgba(248,250,252,0.98),rgba(255,255,255,0.95),rgba(226,232,240,0.35))] shadow-[0_12px_36px_rgba(46,52,64,0.07)] ring-1 ring-slate-200/50"
+                  : p.place === 3
+                    ? "border-orange-100/90 bg-[linear-gradient(168deg,rgba(255,247,237,0.97),rgba(255,255,255,0.93),rgba(255,237,213,0.45))] shadow-[0_12px_36px_rgba(180,90,40,0.07)] ring-1 ring-orange-100/55"
+                    : "border-nord-polarLighter/45 bg-[linear-gradient(168deg,rgba(255,255,255,0.96),rgba(241,245,252,0.9))] shadow-[0_10px_28px_rgba(46,52,64,0.05)] ring-1 ring-white/80";
+
+            return (
+              <article
+                key={p.id}
+                role="listitem"
+                className={`group relative min-w-0 overflow-hidden rounded-[0.85rem] sm:rounded-2xl border ${placeSurface}`}
+              >
+                <div
+                  className="pointer-events-none absolute inset-0 opacity-50 bg-[radial-gradient(ellipse_at_35%_-10%,rgba(255,255,255,0.95),transparent_58%)]"
+                  aria-hidden
+                />
+                <div className="relative flex min-h-[4.5rem] flex-col justify-between px-2 py-2 sm:min-h-0 sm:px-4 sm:py-3.5">
+                  <div>
+                    <div className="text-[7.5px] font-semibold uppercase tracking-[0.14em] text-nord-frostDark sm:text-[10px] sm:tracking-[0.18em]">
+                      Place {p.place}
+                    </div>
+                    <h3 className="mt-1 line-clamp-3 text-[10.5px] font-semibold leading-[1.3] tracking-tight text-nord-polar sm:mt-1.5 sm:line-clamp-none sm:text-base sm:leading-snug">
+                      {p.title}
+                    </h3>
+                  </div>
+                  {p.description ? (
+                    <p className="mt-1 line-clamp-2 text-[8.5px] leading-[1.35] text-nord-polarLight sm:mt-2 sm:line-clamp-4 sm:text-[13px] sm:leading-relaxed">
+                      {p.description}
+                    </p>
+                  ) : null}
                 </div>
-                <div className="font-semibold text-nord-polar">{p.title}</div>
-                {p.description && (
-                  <p className="mt-1 text-sm text-nord-polarLight">{p.description}</p>
-                )}
-              </CardContent>
-            </Card>
-          ))}
+              </article>
+            );
+          })}
         </div>
       )}
 
