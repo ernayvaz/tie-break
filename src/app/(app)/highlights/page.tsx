@@ -393,11 +393,12 @@ export default async function HighlightsPage({ searchParams }: Props) {
                     {isUclView ? "Historical screenings" : "Extended competition library"}
                   </h2>
                 </div>
-                <p className="max-w-2xl text-sm leading-6 text-nord-polarLight">
-                  {isUclView
-                    ? "Every additional stored replay stays accessible here without turning the page into a generic thumbnail wall."
-                    : "Everything that sits outside the lead salons still remains accessible here, so the Others lane can grow without becoming noisy."}
-                </p>
+                {!isUclView ? (
+                  <p className="max-w-2xl text-sm leading-6 text-nord-polarLight">
+                    Everything that sits outside the lead salons still remains accessible here, so
+                    the Others lane can grow without becoming noisy.
+                  </p>
+                ) : null}
               </div>
               <div className="overflow-hidden rounded-[1.5rem] border border-white/70 bg-white/78 shadow-[0_22px_65px_rgba(46,52,64,0.06)]">
                 <ul className="divide-y divide-nord-polarLighter/18">
