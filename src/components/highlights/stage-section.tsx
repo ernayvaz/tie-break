@@ -2,10 +2,12 @@ import { MatchEditionCard } from "./match-edition-card";
 import type { HighlightCardModel } from "./types";
 
 export function StageSection({
+  eyebrowLabel = "Stage room",
   title,
   description,
   items,
 }: {
+  eyebrowLabel?: string;
   title: string;
   description: string;
   items: HighlightCardModel[];
@@ -19,7 +21,7 @@ export function StageSection({
       <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <span className="inline-flex rounded-full border border-nord-frostDark/12 bg-white/75 px-3 py-1 text-[10px] font-medium uppercase tracking-[0.18em] text-nord-frostDark">
-            Stage room
+            {eyebrowLabel}
           </span>
           <h2 className="mt-3 text-2xl font-semibold tracking-tight text-nord-polar">
             {title}

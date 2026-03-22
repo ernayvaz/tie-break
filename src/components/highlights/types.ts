@@ -2,6 +2,8 @@ export type HighlightStatus = "available" | "stale" | "unavailable";
 
 export type HighlightCardModel = {
   matchId: string;
+  competitionId: string | null;
+  competitionLabel: string;
   href: string;
   title: string;
   stageLabel: string;

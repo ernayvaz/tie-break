@@ -30,6 +30,8 @@ export function FeaturedHighlightCard({
               <span className="rounded-full border border-white/12 bg-white/8 px-2.5 py-1">
                 Featured premiere
               </span>
+              <span>{highlight.competitionLabel}</span>
+              <span aria-hidden>•</span>
               <span>{highlight.stageLabel}</span>
               <span aria-hidden>•</span>
               <span>{highlight.seasonLabel}</span>

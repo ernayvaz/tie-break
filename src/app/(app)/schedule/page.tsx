@@ -86,7 +86,11 @@ export default async function SchedulePage() {
       m.highlight &&
       (m.officialResultType != null ||
         (m.homeScore != null && m.awayScore != null))
-        ? `/highlights/${m.id}`
+        ? `/highlights/${m.id}${
+            m.competitionId != null && m.competitionId !== "CL"
+              ? "?competition=OTHER"
+              : "?competition=CL"
+          }`
         : null,
   }));
 

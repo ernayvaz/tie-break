@@ -39,7 +39,7 @@ export function MatchEditionCard({
         <div className="space-y-3 px-4 py-4">
           <div>
             <div className="text-[10px] uppercase tracking-[0.16em] text-nord-polarLight">
-              {highlight.seasonLabel} • {highlight.publishedLabel}
+              {highlight.competitionLabel} • {highlight.seasonLabel} • {highlight.publishedLabel}
             </div>
             <h3 className="mt-2 text-lg font-semibold tracking-tight text-nord-polar">
               {highlight.title}
