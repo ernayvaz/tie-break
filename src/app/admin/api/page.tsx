@@ -2,6 +2,7 @@ import { prisma } from "@/lib/db";
 import Link from "next/link";
 import { Card, CardContent } from "@/components/ui";
 import { SyncMatchesButton } from "../sync-matches-button";
+import { SyncHighlightsButton } from "../sync-highlights-button";
 
 const API_LOG_TAKE = 50;
 
@@ -15,7 +16,7 @@ export default async function AdminApiPage() {
     <div>
       <h1 className="text-xl font-semibold text-nord-polar">API & Sync</h1>
       <p className="mt-2 text-sm text-nord-polarLight">
-        Resync matches and results from football-data.org (UEFA Champions League). After sync, scores and leaderboard are recalculated automatically. Manual result entry is in{" "}
+        Resync matches/results from football-data.org and Champions League highlight reels from ScoreBat. After match sync, scores and leaderboard are recalculated automatically. Manual result entry is in{" "}
         <Link href="/admin/matches" className="text-nord-frostDark hover:underline">
           Match Management
         </Link>
@@ -29,6 +30,15 @@ export default async function AdminApiPage() {
               Fetch the latest matches and results from football-data.org. Existing matches are updated; new matches are added. Leaderboard is rebuilt after sync.
             </p>
             <SyncMatchesButton />
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="py-6">
+            <h2 className="text-sm font-semibold text-nord-polar mb-2">Highlights sync</h2>
+            <p className="text-sm text-nord-polarLight mb-4">
+              Fetch the latest Champions League video highlights from ScoreBat, resolve them to local fixtures, and refresh the stored `European Nights` archive.
+            </p>
+            <SyncHighlightsButton />
           </CardContent>
         </Card>
         <Card>

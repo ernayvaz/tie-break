@@ -1,7 +1,15 @@
 import { requireAuth } from "@/lib/auth/get-user";
 import { logoutAction } from "@/app/logout/actions";
+import Link from "next/link";
 import { Button } from "@/components/ui";
-import { IconSchedule, IconLeaderboard, IconPredictions, IconRules, IconAdmin } from "@/components/icons/nav-icons";
+import {
+  IconSchedule,
+  IconLeaderboard,
+  IconHighlights,
+  IconPredictions,
+  IconRules,
+  IconAdmin,
+} from "@/components/icons/nav-icons";
 import { AppHeaderOffset } from "@/components/app-header-offset";
 
 export default async function AppLayout({
@@ -23,12 +31,12 @@ export default async function AppLayout({
         <div className="mx-auto max-w-7xl px-3 py-2.5 sm:px-4 md:flex md:h-14 md:items-center md:justify-between md:py-0">
           <div className="md:flex md:items-center md:gap-8">
             <div className="flex items-center justify-between gap-4 md:block">
-              <a
+              <Link
                 href="/schedule"
                 className="text-lg font-light tracking-[0.18em] text-nord-polar uppercase hover:text-nord-frostDark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] focus-visible:ring-offset-2 rounded sm:text-xl sm:tracking-[0.22em]"
               >
                 TIE-BREAK
-              </a>
+              </Link>
               <div className="flex min-w-0 items-center gap-2 text-xs md:hidden">
                 <span className="truncate text-nord-polarLight">
                   {user.name} {user.surname}
@@ -40,43 +48,50 @@ export default async function AppLayout({
                 </form>
               </div>
             </div>
-            <nav className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4 md:mt-0 md:flex md:items-center md:gap-6">
-              <a
+            <nav className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-5 md:mt-0 md:flex md:items-center md:gap-6">
+              <Link
                 href="/schedule"
                 className={navLinkClass}
               >
                 <IconSchedule />
                 Schedule
-              </a>
-              <a
+              </Link>
+              <Link
                 href="/leaderboard"
                 className={`${navLinkClass} text-nord-polarLight hover:text-nord-polar`}
               >
                 <IconLeaderboard />
                 Leaderboard
-              </a>
-              <a
+              </Link>
+              <Link
                 href="/predictions"
                 className={`${navLinkClass} text-nord-polarLight hover:text-nord-polar`}
               >
                 <IconPredictions />
                 My predictions
-              </a>
-              <a
+              </Link>
+              <Link
+                href="/highlights"
+                className={`${navLinkClass} text-nord-polarLight hover:text-nord-polar`}
+              >
+                <IconHighlights />
+                Highlights
+              </Link>
+              <Link
                 href="/rules"
                 className={`${navLinkClass} text-nord-polarLight hover:text-nord-polar`}
               >
                 <IconRules />
                 Rules & prizes
-              </a>
+              </Link>
               {user.role === "admin" && (
-                <a
+                <Link
                   href="/admin"
-                  className={`${navLinkClass} col-span-2 text-nord-frostDark sm:col-span-4 md:col-auto`}
+                  className={`${navLinkClass} col-span-2 text-nord-frostDark sm:col-span-5 md:col-auto`}
                 >
                   <IconAdmin />
                   Admin
-                </a>
+                </Link>
               )}
             </nav>
           </div>

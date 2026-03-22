@@ -39,6 +39,12 @@ enum MatchSourceStatus {
   mixed
 }
 
+enum HighlightSyncStatus {
+  available
+  stale
+  unavailable
+}
+
 // ---------------------------------------------------------------------------
 // User & Auth
 // ---------------------------------------------------------------------------
@@ -105,6 +111,7 @@ model Match {
 
   predictions Prediction[]
   statsCache   MatchStatsCache?
+  highlight    MatchHighlight?
 
   @@index([matchDatetime])
   @@index([externalApiId])
@@ -127,6 +134,62 @@ model MatchStatsCache {
   @@index([status])
   @@index([syncedAt])
   @@map("match_stats_cache")
+}
+
+model MatchHighlight {
+  id               String              @id @default(cuid())
+  matchId          String              @unique @map("match_id")
+  competitionId    String              @default("CL") @map("competition_id")
+  provider         String              @default("scorebat.com")
+  providerMatchId  String?             @map("provider_match_id")
+  title            String
+  competitionLabel String              @map("competition_label")
+  competitionUrl   String?             @map("competition_url")
+  matchviewUrl     String?             @map("matchview_url")
+  thumbnailUrl     String?             @map("thumbnail_url")
+  publishedAt      DateTime            @map("published_at")
+  homeTeamName     String              @map("home_team_name")
+  awayTeamName     String              @map("away_team_name")
+  homeScore        Int?                @map("home_score")
+  awayScore        Int?                @map("away_score")
+  stage            String
+  season           String
+  programNote      String?             @map("program_note")
+  isFeatured       Boolean             @default(false) @map("is_featured")
+  syncStatus       HighlightSyncStatus @default(available) @map("sync_status")
+  providerPayload  Json?               @map("provider_payload")
+  syncedAt         DateTime?           @map("synced_at")
+  createdAt        DateTime            @default(now()) @map("created_at")
+  updatedAt        DateTime            @updatedAt @map("updated_at")
+
+  match  Match                @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  clips  MatchHighlightClip[]
+
+  @@index([competitionId, publishedAt])
+  @@index([competitionId, stage, publishedAt])
+  @@index([provider, providerMatchId])
+  @@index([syncStatus])
+  @@index([isFeatured, publishedAt])
+  @@map("match_highlights")
+}
+
+model MatchHighlightClip {
+  id              String   @id @default(cuid())
+  highlightId     String   @map("highlight_id")
+  provider        String   @default("scorebat.com")
+  externalVideoId String   @map("external_video_id")
+  title           String
+  embedUrl        String?  @map("embed_url")
+  pageUrl         String?  @map("page_url")
+  sortOrder       Int      @default(0) @map("sort_order")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  highlight MatchHighlight @relation(fields: [highlightId], references: [id], onDelete: Cascade)
+
+  @@unique([highlightId, externalVideoId])
+  @@index([highlightId, sortOrder])
+  @@map("match_highlight_clips")
 }
 
 // ---------------------------------------------------------------------------

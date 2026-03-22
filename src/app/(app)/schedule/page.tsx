@@ -26,6 +26,12 @@ export default async function SchedulePage() {
       officialResultType: true,
       homeScore: true,
       awayScore: true,
+      highlight: {
+        select: {
+          matchId: true,
+          syncStatus: true,
+        },
+      },
     },
   });
 
@@ -76,6 +82,12 @@ export default async function SchedulePage() {
     officialResultType: m.officialResultType,
     homeScore: m.homeScore,
     awayScore: m.awayScore,
+    highlightHref:
+      m.highlight &&
+      (m.officialResultType != null ||
+        (m.homeScore != null && m.awayScore != null))
+        ? `/highlights/${m.id}`
+        : null,
   }));
 
   const serializedUserPredictions = userPredictions.map((p) => ({

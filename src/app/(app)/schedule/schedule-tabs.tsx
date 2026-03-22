@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo, useCallback, useEffect, useTransition, useRef } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toDisplay } from "@/lib/prediction-values";
 import type { PredictionValue } from "@prisma/client";
@@ -42,6 +43,7 @@ export type ScheduleMatch = {
   officialResultType: PredictionValue | null;
   homeScore?: number | null;
   awayScore?: number | null;
+  highlightHref?: string | null;
 };
 
 export type UserPrediction = {
@@ -1062,6 +1064,20 @@ export function ScheduleTabs({
             </span>
           </div>
         </div>
+
+        {m.highlightHref ? (
+          <div className="border-t border-nord-polarLighter/15 bg-[linear-gradient(180deg,rgba(236,239,244,0.42),rgba(255,255,255,0.72))] px-4 py-3 sm:px-5">
+            <Link
+              href={m.highlightHref}
+              className="inline-flex items-center gap-2 rounded-full border border-nord-frostDark/15 bg-white/82 px-3 py-1.5 text-xs font-medium uppercase tracking-[0.16em] text-nord-frostDark shadow-[0_8px_22px_rgba(46,52,64,0.05)] transition-colors hover:border-nord-frostDark/30 hover:text-nord-polar"
+            >
+              <span className="flex h-5 w-5 items-center justify-center rounded-full bg-nord-frostDark text-[10px] text-white">
+                &gt;
+              </span>
+              Watch highlights
+            </Link>
+          </div>
+        ) : null}
 
         {teamsDetermined && (
           <MatchCenter

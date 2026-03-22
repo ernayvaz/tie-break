@@ -5,6 +5,9 @@
 
 export const FOOTBALL_DATA_API_KEY =
   process.env.FOOTBALL_DATA_ORG_API_KEY?.trim() || "";
+export const SCOREBAT_HIGHLIGHTS_API_URL =
+  process.env.SCOREBAT_HIGHLIGHTS_API_URL?.trim() ||
+  "https://www.scorebat.com/video-api/v3/";
 
 export const UCL_COMPETITION_ID = "CL";
 /** Competition id for "Diğer" (other leagues) tab; used in leaderboard and predictions. */
