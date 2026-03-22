@@ -240,34 +240,34 @@ export default async function HighlightsPage({ searchParams }: Props) {
         {
           label: "Curator lane",
           value: "European Nights",
-          note: "Champions League lives in a dedicated premium lane.",
+          note: "Dedicated premium lane.",
         },
         {
           label: "Structure",
           value: `${stageSections.length} stage room${stageSections.length === 1 ? "" : "s"}`,
-          note: "Knockout chapters are grouped by stage, not buried in a generic feed.",
+          note: "Grouped by knockout stage.",
         },
         {
           label: "Library",
           value: `${highlights.length} stored replay${highlights.length === 1 ? "" : "s"}`,
-          note: "Featured premiere, stage rooms, then a quiet archive.",
+          note: "Featured, rooms, archive.",
         },
       ]
     : [
         {
           label: "Curator lane",
           value: "Open Archive",
-          note: "Every non-Champions-League tournament lands here.",
+          note: "All non-CL tournaments land here.",
         },
         {
           label: "Competition salons",
           value: `${competitionSections.length} active salon${competitionSections.length === 1 ? "" : "s"}`,
-          note: "Each tournament earns its own room as soon as highlights exist.",
+          note: "Each tournament gets its own salon.",
         },
         {
           label: "Library",
           value: `${highlights.length} stored replay${highlights.length === 1 ? "" : "s"}`,
-          note: "Ready for domestic cups, Europa nights and future additions.",
+          note: "Ready for future additions.",
         },
       ];
   const heroConfig = isUclView
@@ -321,31 +321,25 @@ export default async function HighlightsPage({ searchParams }: Props) {
         title={heroConfig.title}
         description={heroConfig.description}
         highlights={heroConfig.highlightCards}
-        footerNote={
-          <>
-            Highlights now live in two editorial lanes: <strong>European Nights</strong> for
-            Champions League and <strong>Open Archive</strong> for every other tournament. As
-            new competitions are synced, they slot into the <strong>Others</strong> lane
-            automatically without changing the core page structure.
-          </>
-        }
       />
 
-      <section className="space-y-3">
+      <section className="space-y-2">
         <CompetitionTabs currentCompetitionId={currentCompetitionId} basePath="/highlights" />
-        <div className="grid gap-2 md:grid-cols-3">
+        <div className="grid gap-1 md:grid-cols-3">
           {curationCards.map((card) => (
             <div
               key={card.label}
-              className="rounded-[1.2rem] border border-white/65 bg-[linear-gradient(180deg,rgba(255,255,255,0.88),rgba(236,239,244,0.76))] px-4 py-3 shadow-[0_16px_42px_rgba(46,52,64,0.05)]"
+              className="rounded-lg border border-white/60 bg-[linear-gradient(180deg,rgba(255,255,255,0.94),rgba(236,239,244,0.8))] px-2 py-1 shadow-[0_6px_18px_rgba(46,52,64,0.04)]"
             >
-              <div className="text-[10px] uppercase tracking-[0.18em] text-nord-frostDark">
-                {card.label}
+              <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0">
+                <span className="shrink-0 text-[7.5px] font-medium uppercase leading-none tracking-[0.14em] text-nord-frostDark">
+                  {card.label}
+                </span>
+                <span className="min-w-0 truncate text-sm font-semibold leading-none tracking-tight text-nord-polar">
+                  {card.value}
+                </span>
               </div>
-              <div className="mt-2 text-lg font-semibold tracking-tight text-nord-polar">
-                {card.value}
-              </div>
-              <p className="mt-1 text-sm leading-6 text-nord-polarLight">
+              <p className="mt-0.5 truncate text-[10px] leading-none text-nord-polarLight/90">
                 {card.note}
               </p>
             </div>
