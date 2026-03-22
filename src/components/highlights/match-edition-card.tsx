@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { ProviderAttribution } from "./provider-attribution";
 import type { HighlightCardModel } from "./types";
 
 export function MatchEditionCard({
@@ -48,11 +47,8 @@ export function MatchEditionCard({
               {highlight.programNote ?? "Champions League screening room replay."}
             </p>
           </div>
-          <div className="flex items-center justify-between gap-3">
-            <ProviderAttribution status={highlight.status} compact />
-            <span className="shrink-0 text-sm font-medium text-nord-frostDark">
-              Open
-            </span>
+          <div className="flex justify-end">
+            <span className="shrink-0 text-sm font-medium text-nord-frostDark">Open</span>
           </div>
         </div>
       </Link>

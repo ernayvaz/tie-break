@@ -184,7 +184,6 @@ export default async function HighlightDetailPage({
         stageLabel={formatHighlightStage(highlight.stage)}
         programNote={highlight.programNote}
         thumbnailUrl={highlight.thumbnailUrl}
-        status={highlight.syncStatus}
         clips={clips}
       />
 

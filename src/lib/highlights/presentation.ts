@@ -58,14 +58,3 @@ export function buildProgramNote(input: {
 
   return `${stageLabel} screening: ${input.homeTeamName} vs ${input.awayTeamName}.`;
 }
-
-export function describeHighlightStatus(status: "available" | "stale" | "unavailable"): string {
-  switch (status) {
-    case "stale":
-      return "Stored from the last successful provider sync.";
-    case "unavailable":
-      return "Provider embed is unavailable right now. Use the source link.";
-    default:
-      return "Provider embed available.";
-  }
-}
