@@ -235,41 +235,6 @@ export default async function HighlightsPage({ searchParams }: Props) {
       ? !stageArchiveIds.has(item.matchId)
       : !otherArchiveIds.has(item.matchId)
   );
-  const curationCards = isUclView
-    ? [
-        {
-          label: "Curator lane",
-          value: "European Nights",
-          note: "Dedicated premium lane.",
-        },
-        {
-          label: "Structure",
-          value: `${stageSections.length} stage room${stageSections.length === 1 ? "" : "s"}`,
-          note: "Grouped by knockout stage.",
-        },
-        {
-          label: "Library",
-          value: `${highlights.length} stored replay${highlights.length === 1 ? "" : "s"}`,
-          note: "Featured, rooms, archive.",
-        },
-      ]
-    : [
-        {
-          label: "Curator lane",
-          value: "Open Archive",
-          note: "All non-CL tournaments land here.",
-        },
-        {
-          label: "Competition salons",
-          value: `${competitionSections.length} active salon${competitionSections.length === 1 ? "" : "s"}`,
-          note: "Each tournament gets its own salon.",
-        },
-        {
-          label: "Library",
-          value: `${highlights.length} stored replay${highlights.length === 1 ? "" : "s"}`,
-          note: "Ready for future additions.",
-        },
-      ];
   const heroConfig = isUclView
     ? {
         eyebrow: "European Nights",
@@ -323,28 +288,8 @@ export default async function HighlightsPage({ searchParams }: Props) {
         highlights={heroConfig.highlightCards}
       />
 
-      <section className="space-y-2">
+      <section>
         <CompetitionTabs currentCompetitionId={currentCompetitionId} basePath="/highlights" />
-        <div className="grid gap-1 md:grid-cols-3">
-          {curationCards.map((card) => (
-            <div
-              key={card.label}
-              className="rounded-lg border border-white/60 bg-[linear-gradient(180deg,rgba(255,255,255,0.94),rgba(236,239,244,0.8))] px-2 py-1 shadow-[0_6px_18px_rgba(46,52,64,0.04)]"
-            >
-              <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0">
-                <span className="shrink-0 text-[7.5px] font-medium uppercase leading-none tracking-[0.14em] text-nord-frostDark">
-                  {card.label}
-                </span>
-                <span className="min-w-0 truncate text-sm font-semibold leading-none tracking-tight text-nord-polar">
-                  {card.value}
-                </span>
-              </div>
-              <p className="mt-0.5 truncate text-[10px] leading-none text-nord-polarLight/90">
-                {card.note}
-              </p>
-            </div>
-          ))}
-        </div>
       </section>
 
       {highlights.length === 0 ? (

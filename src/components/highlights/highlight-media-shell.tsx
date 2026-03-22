@@ -1,6 +1,5 @@
 import Link from "next/link";
-import { ProviderAttribution } from "./provider-attribution";
-import type { HighlightClipModel, HighlightStatus } from "./types";
+import type { HighlightClipModel } from "./types";
 
 export function HighlightMediaShell({
   title,
@@ -8,7 +7,6 @@ export function HighlightMediaShell({
   stageLabel,
   programNote,
   thumbnailUrl,
-  status,
   clips,
 }: {
   title: string;
@@ -16,14 +14,13 @@ export function HighlightMediaShell({
   stageLabel: string;
   programNote: string | null;
   thumbnailUrl: string | null;
-  status: HighlightStatus;
   clips: HighlightClipModel[];
 }) {
   const activeClip = clips.find((clip) => clip.isActive) ?? clips[0] ?? null;
 
   return (
     <section className="overflow-hidden rounded-[1.9rem] border border-white/10 bg-[linear-gradient(180deg,rgba(46,52,64,0.99),rgba(59,66,82,0.97),rgba(67,76,94,0.96))] text-white shadow-[0_34px_95px_rgba(46,52,64,0.2)]">
-      <div className="grid gap-0 xl:grid-cols-[minmax(0,1fr)_21rem]">
+      <div className="grid gap-0 xl:grid-cols-[minmax(0,1.35fr)_minmax(14rem,17rem)]">
         <div className="border-b border-white/8 xl:border-b-0 xl:border-r xl:border-r-white/8">
           <div className="flex items-center justify-between gap-3 px-5 py-4 sm:px-6">
             <div>
@@ -69,11 +66,11 @@ export function HighlightMediaShell({
                   Screening room fallback
                 </div>
                 <h3 className="mt-3 text-2xl font-semibold tracking-tight text-white">
-                  Provider embed unavailable
+                  Replay unavailable
                 </h3>
                 <p className="mt-3 text-sm leading-6 text-white/72">
                   {programNote ??
-                    "The stored recap is not playable in the screening room right now, but the match edition remains archived."}
+                    "This recap cannot be played in the screening room right now. The match edition stays in your archive."}
                 </p>
               </div>
             </div>
@@ -82,7 +79,6 @@ export function HighlightMediaShell({
             <p className="text-sm leading-6 text-white/72">
               {programNote ?? "A premium Champions League screening room replay."}
             </p>
-            <ProviderAttribution status={status} />
           </div>
         </div>
         <aside className="space-y-3 px-5 py-4 sm:px-6 xl:px-5">
