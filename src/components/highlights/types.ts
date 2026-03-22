@@ -14,7 +14,6 @@ export type HighlightCardModel = {
   scoreline: string;
   thumbnailUrl: string | null;
   programNote: string | null;
-  providerHref: string | null;
   status: HighlightStatus;
   clipCount: number;
 };

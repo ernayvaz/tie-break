@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { Button } from "@/components/ui";
 import { ProviderAttribution } from "./provider-attribution";
 import type { HighlightClipModel, HighlightStatus } from "./types";
 
@@ -9,7 +8,6 @@ export function HighlightMediaShell({
   stageLabel,
   programNote,
   thumbnailUrl,
-  providerHref,
   status,
   clips,
 }: {
@@ -18,7 +16,6 @@ export function HighlightMediaShell({
   stageLabel: string;
   programNote: string | null;
   thumbnailUrl: string | null;
-  providerHref: string | null;
   status: HighlightStatus;
   clips: HighlightClipModel[];
 }) {
@@ -46,8 +43,9 @@ export function HighlightMediaShell({
               <iframe
                 src={activeClip.embedUrl}
                 title={activeClip.title}
-                allow="autoplay; fullscreen"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen"
                 allowFullScreen
+                referrerPolicy="strict-origin-when-cross-origin"
                 className="h-full w-full border-0"
               />
             </div>
@@ -75,17 +73,8 @@ export function HighlightMediaShell({
                 </h3>
                 <p className="mt-3 text-sm leading-6 text-white/72">
                   {programNote ??
-                    "The stored recap is still linked, but the provider embed could not be restored in this view."}
+                    "The stored recap is not playable in the screening room right now, but the match edition remains archived."}
                 </p>
-                {providerHref ? (
-                  <div className="mt-5">
-                    <Button asChild>
-                      <Link href={providerHref} target="_blank" rel="noreferrer">
-                        Open provider page
-                      </Link>
-                    </Button>
-                  </div>
-                ) : null}
               </div>
             </div>
           )}
@@ -93,7 +82,7 @@ export function HighlightMediaShell({
             <p className="text-sm leading-6 text-white/72">
               {programNote ?? "A premium Champions League screening room replay."}
             </p>
-            <ProviderAttribution status={status} href={providerHref} />
+            <ProviderAttribution status={status} />
           </div>
         </div>
         <aside className="space-y-3 px-5 py-4 sm:px-6 xl:px-5">
@@ -119,15 +108,16 @@ export function HighlightMediaShell({
                     {clip.title}
                   </div>
                   <div className="mt-2 text-xs text-white/58">
-                    {clip.embedUrl ? "Play inside European Nights" : "Open on provider"}
+                    {clip.embedUrl
+                      ? "Play inside European Nights"
+                      : "Stored replay unavailable"}
                   </div>
                 </Link>
               ))}
             </div>
           ) : (
             <div className="rounded-[1.1rem] border border-white/8 bg-white/4 px-4 py-4 text-sm text-white/66">
-              No embedded clips were stored for this match. Use the provider page
-              fallback if available.
+              No playable clips were stored for this match yet.
             </div>
           )}
         </aside>

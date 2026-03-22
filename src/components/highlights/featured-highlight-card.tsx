@@ -63,25 +63,11 @@ export function FeaturedHighlightCard({
             </p>
           </div>
           <div className="mt-8 space-y-4">
-            <ProviderAttribution
-              status={highlight.status}
-              href={highlight.providerHref}
-            />
+            <ProviderAttribution status={highlight.status} />
             <div className="flex flex-wrap gap-3">
               <Button asChild>
                 <Link href={highlight.href}>Enter screening room</Link>
               </Button>
-              {highlight.providerHref ? (
-                <Button variant="secondary" asChild>
-                  <Link
-                    href={highlight.providerHref}
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    Open provider
-                  </Link>
-                </Button>
-              ) : null}
             </div>
           </div>
         </div>

@@ -71,11 +71,6 @@ function toHighlightCardModel(input: Awaited<ReturnType<typeof fetchHighlights>>
     scoreline: toScoreline(homeScore, awayScore),
     thumbnailUrl: input.thumbnailUrl ?? null,
     programNote: input.programNote ?? null,
-    providerHref:
-      input.matchviewUrl ??
-      input.clips[0]?.pageUrl ??
-      input.competitionUrl ??
-      null,
     status: input.syncStatus,
     clipCount: input.clips.length,
     stageKey: input.stage,

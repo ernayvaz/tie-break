@@ -9,6 +9,7 @@ import {
 import { resolveHighlightMatch } from "@/lib/highlights/match-resolution";
 import {
   fetchScoreBatHighlights,
+  resolveScoreBatPlayableClip,
   type ScoreBatHighlightEntry,
 } from "@/lib/providers/scorebat-highlights";
 
@@ -46,6 +47,27 @@ function chooseBetterMatch(current: MatchedHighlight, next: MatchedHighlight) {
   }
 
   return next.entry.publishedAt > current.entry.publishedAt ? next : current;
+}
+
+async function hydratePlayableVideos(
+  entry: ScoreBatHighlightEntry
+): Promise<ScoreBatHighlightEntry> {
+  const videos = await Promise.all(
+    entry.videos.map(async (video) => {
+      const playable = await resolveScoreBatPlayableClip(video.embedUrl);
+
+      return {
+        ...video,
+        embedUrl: playable.embedUrl,
+        pageUrl: playable.pageUrl ?? video.pageUrl,
+      };
+    })
+  );
+
+  return {
+    ...entry,
+    videos,
+  };
 }
 
 export async function syncHighlightsFromApi(options?: {
@@ -86,9 +108,12 @@ export async function syncHighlightsFromApi(options?: {
       take: 500,
     });
 
+    const hydratedEntries = await Promise.all(
+      providerResult.entries.map(hydratePlayableVideos)
+    );
     const bestByMatchId = new Map<string, MatchedHighlight>();
 
-    for (const entry of providerResult.entries) {
+    for (const entry of hydratedEntries) {
       const resolution = resolveHighlightMatch({
         title: entry.title,
         competition: entry.competition,
@@ -246,7 +271,7 @@ export async function syncHighlightsFromApi(options?: {
 
     const unmatchedCount = Math.max(
       0,
-      providerResult.entries.length - matchedHighlights.length
+      hydratedEntries.length - matchedHighlights.length
     );
 
     await prisma.apiSyncLog.create({
@@ -260,7 +285,7 @@ export async function syncHighlightsFromApi(options?: {
 
     return {
       ok: true,
-      fetchedCount: providerResult.entries.length,
+      fetchedCount: hydratedEntries.length,
       matchedCount: matchedHighlights.length,
       storedCount,
       staleCount,

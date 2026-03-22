@@ -49,11 +49,7 @@ export function MatchEditionCard({
             </p>
           </div>
           <div className="flex items-center justify-between gap-3">
-            <ProviderAttribution
-              status={highlight.status}
-              href={highlight.providerHref}
-              compact
-            />
+            <ProviderAttribution status={highlight.status} compact />
             <span className="shrink-0 text-sm font-medium text-nord-frostDark">
               Open
             </span>

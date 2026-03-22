@@ -91,7 +91,7 @@ export default async function HighlightDetailPage({
       <PageHeroBand
         eyebrow="European Nights"
         title={highlight.title}
-        description="A focused screening room for a single Champions League recap, with the player, fixture note and provider fallback kept on one premium surface."
+        description="A focused screening room for a single Champions League recap, with the player, fixture note and archive details kept on one premium surface."
         highlights={[
           {
             label: "Fixture",
@@ -121,12 +121,6 @@ export default async function HighlightDetailPage({
         stageLabel={formatHighlightStage(highlight.stage)}
         programNote={highlight.programNote}
         thumbnailUrl={highlight.thumbnailUrl}
-        providerHref={
-          highlight.matchviewUrl ??
-          highlight.clips[0]?.pageUrl ??
-          highlight.competitionUrl ??
-          null
-        }
         status={highlight.syncStatus}
         clips={clips}
       />
@@ -141,7 +135,7 @@ export default async function HighlightDetailPage({
           </h2>
           <p className="mt-4 text-sm leading-7 text-nord-polarLight">
             {highlight.programNote ??
-              `${highlight.homeTeamName} and ${highlight.awayTeamName} are presented here as a stored Champions League screening. Use the clip rail above to switch angles or open the provider fallback.`}
+              `${highlight.homeTeamName} and ${highlight.awayTeamName} are presented here as a stored Champions League screening. Use the clip rail above to switch between stored replay options.`}
           </p>
           <div className="mt-5 flex flex-wrap gap-3 text-sm text-nord-polarLight">
             <span className="rounded-full border border-nord-polarLighter/30 bg-nord-snow/70 px-3 py-1.5">
