@@ -243,10 +243,6 @@ export default async function HighlightsPage({ searchParams }: Props) {
           "A separate premium screening room for stored Champions League recaps, curated into featured premieres, stage rooms and a growing archive.",
         highlightCards: [
           {
-            label: "Featured premiere",
-            value: featured ? featured.title : "Waiting for the first synced recap.",
-          },
-          {
             label: "Stage rooms",
             value: `${stageSections.length} curated section${stageSections.length === 1 ? "" : "s"}`,
           },
@@ -262,12 +258,6 @@ export default async function HighlightsPage({ searchParams }: Props) {
         description:
           "A second premium lane reserved for every non-Champions-League tournament, organized into competition salons so new tournaments can slot in without breaking the editorial rhythm.",
         highlightCards: [
-          {
-            label: "Lead screening",
-            value: featured
-              ? `${featured.competitionLabel}: ${featured.title}`
-              : "Waiting for the first non-CL recap.",
-          },
           {
             label: "Competition salons",
             value: `${competitionSections.length} tournament group${competitionSections.length === 1 ? "" : "s"}`,
