@@ -19,7 +19,7 @@ export default async function AppLayout({
 }) {
   const user = await requireAuth();
   const navLinkClass =
-    "flex items-center gap-2 rounded-lg border border-nord-polarLighter/20 bg-white/70 px-3 py-2 text-xs font-medium text-nord-polar transition-colors hover:border-nord-frostDark/35 hover:text-nord-frostDark md:rounded-none md:border-0 md:bg-transparent md:px-0 md:py-0 md:text-sm";
+    "flex shrink-0 snap-start items-center gap-2 whitespace-nowrap rounded-[0.95rem] border border-nord-polarLighter/20 bg-white/78 px-3 py-1.5 text-[12px] font-medium text-nord-polar shadow-[0_5px_16px_rgba(46,52,64,0.035)] transition-colors hover:border-nord-frostDark/35 hover:text-nord-frostDark md:rounded-none md:border-0 md:bg-transparent md:px-0 md:py-0 md:text-sm md:shadow-none";
 
   return (
     <div className="min-h-screen bg-[var(--background)]">
@@ -48,7 +48,7 @@ export default async function AppLayout({
                 </form>
               </div>
             </div>
-            <nav className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-5 md:mt-0 md:flex md:items-center md:gap-6">
+            <nav className="mt-2 flex gap-2 overflow-x-auto px-px pb-1 snap-x snap-mandatory [scrollbar-width:none] [&::-webkit-scrollbar]:hidden md:mt-0 md:overflow-visible md:px-0 md:pb-0 md:snap-none md:items-center md:gap-6">
               <Link
                 href="/schedule"
                 className={navLinkClass}
@@ -87,7 +87,7 @@ export default async function AppLayout({
               {user.role === "admin" && (
                 <Link
                   href="/admin"
-                  className={`${navLinkClass} col-span-2 text-nord-frostDark sm:col-span-5 md:col-auto`}
+                  className={`${navLinkClass} text-nord-frostDark`}
                 >
                   <IconAdmin />
                   Admin
