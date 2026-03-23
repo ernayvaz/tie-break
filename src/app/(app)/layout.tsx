@@ -64,18 +64,18 @@ export default async function AppLayout({
                 Leaderboard
               </Link>
               <Link
-                href="/predictions"
-                className={`${navLinkClass} text-nord-polarLight hover:text-nord-polar`}
-              >
-                <IconPredictions />
-                My predictions
-              </Link>
-              <Link
                 href="/highlights"
                 className={`${navLinkClass} text-nord-polarLight hover:text-nord-polar`}
               >
                 <IconHighlights />
                 Highlights
+              </Link>
+              <Link
+                href="/predictions"
+                className={`${navLinkClass} text-nord-polarLight hover:text-nord-polar`}
+              >
+                <IconPredictions />
+                My predictions
               </Link>
               <Link
                 href="/rules"
