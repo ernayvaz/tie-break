@@ -1311,43 +1311,51 @@ export function ScheduleTabs({
       )}
 
       {currentList.length > 0 && (
-        <div className="flex flex-col gap-3 border border-nord-polarLighter/50 border-t-0 bg-nord-snow/50 px-4 py-3 text-sm sm:flex-row sm:flex-wrap sm:items-center sm:gap-4">
-          <span className="font-medium text-nord-polar">Filters:</span>
-          <label className="flex w-full items-center justify-between gap-3 sm:w-auto sm:justify-start sm:gap-2">
-            <span className="text-nord-polarLight">Stage</span>
-            <select
-              value={filterStage}
-              onChange={(e) => setFilterStage(e.target.value)}
-              className="min-w-0 flex-1 rounded-lg border border-nord-polarLighter bg-white px-3 py-2 text-nord-polar focus:border-nord-frostDark focus:outline-none focus:ring-1 focus:ring-nord-frostDark sm:flex-none"
-            >
-              <option value="">All stages</option>
-              {stageOptions.map((stage) => (
-                <option key={stage} value={stage}>
-                  {formatStage(stage)}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="flex w-full items-center justify-between gap-3 sm:w-auto sm:justify-start sm:gap-2">
-            <span className="text-nord-polarLight">Team</span>
-            <select
-              value={filterTeam}
-              onChange={(e) => setFilterTeam(e.target.value)}
-              className="min-w-0 flex-1 rounded-lg border border-nord-polarLighter bg-white px-3 py-2 text-nord-polar focus:border-nord-frostDark focus:outline-none focus:ring-1 focus:ring-nord-frostDark sm:min-w-[12rem] sm:flex-none"
-            >
-              <option value="">All teams</option>
-              {teamOptions.map((team) => (
-                <option key={team} value={team}>
-                  {team}
-                </option>
-              ))}
-            </select>
-          </label>
+        <div className="flex flex-col gap-2 border border-nord-polarLighter/50 border-t-0 bg-nord-snow/50 px-3 py-2.5 text-sm sm:flex-row sm:flex-wrap sm:items-end sm:gap-x-4 sm:gap-y-2 sm:px-4 sm:py-3">
+          <span className="shrink-0 text-xs font-semibold uppercase tracking-[0.12em] text-nord-polar sm:text-sm sm:normal-case sm:tracking-normal">
+            Filters
+          </span>
+          <div className="grid w-full min-w-0 grid-cols-2 gap-x-2 gap-y-2 sm:flex sm:flex-1 sm:items-end sm:gap-4">
+            <label className="flex min-w-0 flex-col gap-1">
+              <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-nord-polarLight">
+                Stage
+              </span>
+              <select
+                value={filterStage}
+                onChange={(e) => setFilterStage(e.target.value)}
+                className="min-w-0 w-full cursor-pointer rounded-xl border border-nord-polarLighter/80 bg-white px-2.5 py-2 text-xs text-nord-polar shadow-[0_1px_2px_rgba(46,52,64,0.04)] focus:border-nord-frostDark focus:outline-none focus:ring-2 focus:ring-nord-frostDark/25 sm:min-w-[10rem] sm:px-3 sm:text-sm"
+              >
+                <option value="">All stages</option>
+                {stageOptions.map((stage) => (
+                  <option key={stage} value={stage}>
+                    {formatStage(stage)}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="flex min-w-0 flex-col gap-1">
+              <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-nord-polarLight">
+                Team
+              </span>
+              <select
+                value={filterTeam}
+                onChange={(e) => setFilterTeam(e.target.value)}
+                className="min-w-0 w-full cursor-pointer rounded-xl border border-nord-polarLighter/80 bg-white px-2.5 py-2 text-xs text-nord-polar shadow-[0_1px_2px_rgba(46,52,64,0.04)] focus:border-nord-frostDark focus:outline-none focus:ring-2 focus:ring-nord-frostDark/25 sm:min-w-[12rem] sm:px-3 sm:text-sm"
+              >
+                <option value="">All teams</option>
+                {teamOptions.map((team) => (
+                  <option key={team} value={team}>
+                    {team}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
           {(filterStage || filterTeam) && (
             <button
               type="button"
               onClick={resetFilters}
-              className="text-nord-frostDark hover:underline text-sm"
+              className="shrink-0 self-start text-xs font-medium text-nord-frostDark underline-offset-2 hover:underline sm:self-auto sm:text-sm"
             >
               Clear filters
             </button>
