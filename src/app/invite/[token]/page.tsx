@@ -2,6 +2,8 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { validateInviteToken } from "@/lib/invite";
 
+export const dynamic = "force-dynamic";
+
 type Props = {
   params: Promise<{ token: string }>;
 };

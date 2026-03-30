@@ -3,7 +3,7 @@ import type { NextRequest } from "next/server";
 
 const SESSION_COOKIE_NAME = "tb_session";
 
-const protectedPaths = ["/schedule", "/leaderboard", "/predictions", "/highlights", "/rules"];
+const protectedPaths = ["/schedule", "/leaderboard", "/predictions", "/highlights", "/halisaha", "/rules"];
 const adminPathPrefix = "/admin";
 const authPaths = ["/login", "/register"];
 
@@ -51,6 +51,8 @@ export const config = {
     "/leaderboard/:path*",
     "/predictions/:path*",
     "/highlights/:path*",
+    "/halisaha",
+    "/halisaha/:path*",
     "/rules",
     "/rules/:path*",
     "/admin/:path*",

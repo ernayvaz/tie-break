@@ -1,0 +1,158 @@
+{
+  "portrait": {
+    "rotateGateVisible": true,
+    "state": {
+      "htmlDataset": {},
+      "bodyDataset": {},
+      "shellDataset": {
+        "activeTab": "matchday",
+        "mobileOrientationGate": "true"
+      },
+      "header": {
+        "opacity": "1",
+        "pointerEvents": "auto",
+        "transform": "none",
+        "top": 0,
+        "bottom": 95,
+        "height": 95
+      },
+      "pagerTrackTransform": null,
+      "heroPanel": null,
+      "pitchPanel": null,
+      "debugText": "viewport 390 x 664phone true | landscape falsecoarse true | touch 1gate true | immersive false | panel hero",
+      "bodyTextSample": "TIE-BREAK Admin User Log out Schedule Leaderboard Highlights Halisaha Mode My predictions Rules & prizes Admin MOBILE LANDSCAPE REQUIRED Rotate your phone to use Halisaha Mode Halisaha Matchday is designed as a full-width mobile landscape experience. Keep the top site menu visible, rotate your device, then continue in "
+    }
+  },
+  "landscape": {
+    "initialState": {
+      "htmlDataset": {
+        "halisahaMobileLandscape": "true",
+        "halisahaMobilePanel": "hero"
+      },
+      "bodyDataset": {
+        "halisahaMobileLandscape": "true",
+        "halisahaMobilePanel": "hero"
+      },
+      "shellDataset": {
+        "activeTab": "matchday",
+        "mobileLandscape": "true",
+        "mobileLandscapePanel": "hero"
+      },
+      "header": {
+        "opacity": "1",
+        "pointerEvents": "auto",
+        "transform": "none",
+        "top": 0,
+        "bottom": 57,
+        "height": 57
+      },
+      "pagerTrackTransform": "matrix(1, 0, 0, 1, 0, 0)",
+      "heroPanel": {
+        "top": 83.59375,
+        "bottom": 375.40625,
+        "height": 291.8125
+      },
+      "pitchPanel": {
+        "top": 375.40625,
+        "bottom": 667.21875,
+        "height": 291.8125
+      },
+      "debugText": "viewport 844 x 390phone true | landscape truecoarse true | touch 1gate false | immersive true | panel hero",
+      "bodyTextSample": "TIE-BREAK Schedule Leaderboard Highlights Halisaha Mode My predictions Rules & prizes Admin Admin User Log out RAYNET MATCHDAY SHOW LEADERBOARD RAYNET GLORY VS FLEXERA CLUB 30 MAR 2026 | 21:00 HITABSPOR ARENA KICKOFF COUNTDOWN 00:06 7V7 PRESS THE BALL TO ENTER MATCH MODE ABDULBAKI TOY ABDULLAH AKAYDIN AHMET ÖZGÜR KORKM"
+    },
+    "pitchState": {
+      "htmlDataset": {
+        "halisahaMobileLandscape": "true",
+        "halisahaMobilePanel": "pitch"
+      },
+      "bodyDataset": {
+        "halisahaMobileLandscape": "true",
+        "halisahaMobilePanel": "pitch"
+      },
+      "shellDataset": {
+        "activeTab": "matchday",
+        "mobileLandscape": "true",
+        "mobileLandscapePanel": "pitch"
+      },
+      "header": {
+        "opacity": "0",
+        "pointerEvents": "none",
+        "transform": "matrix(1, 0, 0, 1, 0, -57)",
+        "top": -57,
+        "bottom": 0,
+        "height": 57
+      },
+      "pagerTrackTransform": "matrix(1, 0, 0, 1, 0, -373.625)",
+      "heroPanel": {
+        "top": -365.4375,
+        "bottom": 8.1875,
+        "height": 373.625
+      },
+      "pitchPanel": {
+        "top": 8.1875,
+        "bottom": 381.8125,
+        "height": 373.625
+      },
+      "debugText": "viewport 844 x 390phone true | landscape truecoarse true | touch 1gate false | immersive true | panel pitch",
+      "bodyTextSample": "TIE-BREAK Schedule Leaderboard Highlights Halisaha Mode My predictions Rules & prizes Admin Admin User Log out RAYNET MATCHDAY SHOW LEADERBOARD RAYNET GLORY VS FLEXERA CLUB 30 MAR 2026 | 21:00 HITABSPOR ARENA KICKOFF COUNTDOWN 00:06 7V7 PRESS THE BALL TO ENTER MATCH MODE ABDULBAKI TOY ABDULLAH AKAYDIN AHMET ÖZGÜR KORKM"
+    },
+    "returnedState": {
+      "htmlDataset": {
+        "halisahaMobileLandscape": "true",
+        "halisahaMobilePanel": "hero"
+      },
+      "bodyDataset": {
+        "halisahaMobileLandscape": "true",
+        "halisahaMobilePanel": "hero"
+      },
+      "shellDataset": {
+        "activeTab": "matchday",
+        "mobileLandscape": "true",
+        "mobileLandscapePanel": "hero"
+      },
+      "header": {
+        "opacity": "1",
+        "pointerEvents": "auto",
+        "transform": "none",
+        "top": 0,
+        "bottom": 57,
+        "height": 57
+      },
+      "pagerTrackTransform": "matrix(1, 0, 0, 1, 0, 0)",
+      "heroPanel": {
+        "top": 83.59375,
+        "bottom": 375.40625,
+        "height": 291.8125
+      },
+      "pitchPanel": {
+        "top": 375.40625,
+        "bottom": 667.21875,
+        "height": 291.8125
+      },
+      "debugText": "viewport 844 x 390phone true | landscape truecoarse true | touch 1gate false | immersive true | panel hero",
+      "bodyTextSample": "TIE-BREAK Schedule Leaderboard Highlights Halisaha Mode My predictions Rules & prizes Admin Admin User Log out RAYNET MATCHDAY SHOW LEADERBOARD RAYNET GLORY VS FLEXERA CLUB 30 MAR 2026 | 21:00 HITABSPOR ARENA KICKOFF COUNTDOWN 00:06 7V7 PRESS THE BALL TO ENTER MATCH MODE ABDULBAKI TOY ABDULLAH AKAYDIN AHMET ÖZGÜR KORKM"
+    }
+  },
+  "desktop": {
+    "state": {
+      "htmlDataset": {},
+      "bodyDataset": {},
+      "shellDataset": {
+        "activeTab": "matchday"
+      },
+      "header": {
+        "opacity": "1",
+        "pointerEvents": "auto",
+        "transform": "none",
+        "top": 0,
+        "bottom": 57,
+        "height": 57
+      },
+      "pagerTrackTransform": null,
+      "heroPanel": null,
+      "pitchPanel": null,
+      "debugText": "viewport 1280 x 800phone false | landscape truecoarse false | touch 0gate false | immersive false | panel hero",
+      "bodyTextSample": "TIE-BREAK Schedule Leaderboard Highlights Halisaha Mode My predictions Rules & prizes Admin Admin User Log out RAYNET MATCHDAY SHOW LEADERBOARD RAYNET GLORY VS FLEXERA CLUB 30 MAR 2026 | 21:00 HITABSPOR ARENA KICKOFF COUNTDOWN 00:06 7V7 PRESS THE BALL TO ENTER MATCH MODE ABDULBAKI TOY ABDULLAH AKAYDIN AHMET ÖZGÜR KORKM"
+    }
+  }
+}

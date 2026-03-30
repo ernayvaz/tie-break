@@ -11,7 +11,7 @@ export default async function AdminLayout({
 
   return (
     <div className="min-h-screen bg-[var(--background)] flex">
-      <aside className="w-56 shrink-0 border-r border-nord-polarLighter/30 bg-white/80 flex flex-col min-h-screen">
+      <aside className="w-72 shrink-0 border-r border-nord-polarLighter/30 bg-white/80 flex flex-col min-h-screen">
         <AdminNav />
         <div className="p-4 border-t border-nord-polarLighter/30">
           <form action={logoutAction}>
@@ -24,7 +24,9 @@ export default async function AdminLayout({
           </form>
         </div>
       </aside>
-      <main className="flex-1 min-w-0 mx-auto max-w-4xl px-6 py-6">{children}</main>
+      <main className="flex-1 min-w-0 px-4 py-5 sm:px-6 sm:py-6 lg:px-8 lg:py-8 xl:px-10 2xl:px-12">
+        <div className="mx-auto w-full max-w-[1560px]">{children}</div>
+      </main>
     </div>
   );
 }

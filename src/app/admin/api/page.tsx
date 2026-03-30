@@ -5,6 +5,7 @@ import { SyncMatchesButton } from "../sync-matches-button";
 import { SyncHighlightsButton } from "../sync-highlights-button";
 
 const API_LOG_TAKE = 50;
+export const dynamic = "force-dynamic";
 
 export default async function AdminApiPage() {
   const logs = await prisma.apiSyncLog.findMany({

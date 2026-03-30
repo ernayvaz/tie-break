@@ -37,3 +37,7 @@ test-results
 
 # Prisma
 prisma/migrations/**/migration_lock.toml
+
+# SQLite integration tests (generated client + local DB files)
+src/generated/prisma-sqlite/
+prisma/sqlite/*.sqlite

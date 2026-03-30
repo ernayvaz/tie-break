@@ -1,85 +1,144 @@
-import { prisma } from "@/lib/db";
+import { PageHeroBand } from "@/components/page-hero-band";
 import { requireAdmin } from "@/lib/auth/get-user";
+import { prisma } from "@/lib/db";
+import { sanitizeAdminPredictionHistoryFilters } from "@/lib/admin-prediction-history";
 import { PredictionManagementClient } from "./prediction-management-client";
-import type { PredictionRow, MatchOption, UserOption } from "./prediction-management-client";
+import type { MatchOption, PredictionRow, UserOption } from "./prediction-management-client";
 
-export default async function AdminPredictionsPage() {
+type SearchParams = Promise<{
+  league?: string;
+  matchId?: string;
+  userId?: string;
+  status?: string;
+  timeline?: string;
+  result?: string;
+  outcome?: string;
+}>;
+
+export default async function AdminPredictionsPage({
+  searchParams,
+}: {
+  searchParams: SearchParams;
+}) {
   await requireAdmin();
+  const initialFilters = sanitizeAdminPredictionHistoryFilters(await searchParams);
 
   const [predictions, matches, users] = await Promise.all([
     prisma.prediction.findMany({
-      orderBy: [{ match: { matchDatetime: "desc" } }, { createdAt: "desc" }],
-      take: 1000,
+      orderBy: [{ match: { matchDatetime: "desc" } }, { updatedAt: "desc" }],
       include: {
         match: {
           select: {
             id: true,
             competitionId: true,
+            stage: true,
             matchDatetime: true,
+            lockAt: true,
             homeTeamName: true,
             awayTeamName: true,
             officialResultType: true,
+            homeScore: true,
+            awayScore: true,
           },
         },
         user: {
-          select: { id: true, name: true, surname: true },
+          select: { id: true, name: true, surname: true, username: true },
         },
       },
     }),
     prisma.match.findMany({
       orderBy: { matchDatetime: "desc" },
-      select: { id: true, competitionId: true, matchDatetime: true, homeTeamName: true, awayTeamName: true },
+      select: {
+        id: true,
+        competitionId: true,
+        matchDatetime: true,
+        homeTeamName: true,
+        awayTeamName: true,
+      },
     }),
     prisma.user.findMany({
       orderBy: [{ surname: "asc" }, { name: "asc" }],
-      select: { id: true, name: true, surname: true },
+      select: { id: true, name: true, surname: true, username: true },
     }),
   ]);
 
-  const rows: PredictionRow[] = predictions.map((p) => ({
-    id: p.id,
-    userId: p.userId,
-    matchId: p.matchId,
-    selectedPrediction: p.selectedPrediction,
-    isFinal: p.isFinal,
-    finalizedAt: p.finalizedAt?.toISOString() ?? null,
-    awardedPoints: p.awardedPoints,
+  const rows: PredictionRow[] = predictions.map((prediction) => ({
+    id: prediction.id,
+    userId: prediction.userId,
+    matchId: prediction.matchId,
+    selectedPrediction: prediction.selectedPrediction,
+    isFinal: prediction.isFinal,
+    createdAt: prediction.createdAt.toISOString(),
+    updatedAt: prediction.updatedAt.toISOString(),
+    finalizedAt: prediction.finalizedAt?.toISOString() ?? null,
+    awardedPoints: prediction.awardedPoints,
     match: {
-      id: p.match.id,
-      competitionId: p.match.competitionId ?? null,
-      matchDatetime: p.match.matchDatetime.toISOString(),
-      homeTeamName: p.match.homeTeamName,
-      awayTeamName: p.match.awayTeamName,
-      officialResultType: p.match.officialResultType,
+      id: prediction.match.id,
+      competitionId: prediction.match.competitionId ?? null,
+      stage: prediction.match.stage,
+      matchDatetime: prediction.match.matchDatetime.toISOString(),
+      lockAt: prediction.match.lockAt.toISOString(),
+      homeTeamName: prediction.match.homeTeamName,
+      awayTeamName: prediction.match.awayTeamName,
+      officialResultType: prediction.match.officialResultType,
+      homeScore: prediction.match.homeScore,
+      awayScore: prediction.match.awayScore,
     },
     user: {
-      id: p.user.id,
-      name: p.user.name,
-      surname: p.user.surname,
+      id: prediction.user.id,
+      name: prediction.user.name,
+      surname: prediction.user.surname,
+      username: prediction.user.username,
     },
   }));
 
-  const matchOptions: MatchOption[] = matches.map((m) => ({
-    id: m.id,
-    competitionId: m.competitionId ?? null,
-    label: `${new Date(m.matchDatetime).toLocaleDateString("en-GB", { dateStyle: "short" })} ${m.homeTeamName} vs ${m.awayTeamName}`,
+  const matchOptions: MatchOption[] = matches.map((match) => ({
+    id: match.id,
+    competitionId: match.competitionId ?? null,
+    label: `${new Date(match.matchDatetime).toLocaleDateString("en-GB", {
+      dateStyle: "short",
+    })} ${match.homeTeamName} vs ${match.awayTeamName}`,
   }));
 
-  const userOptions: UserOption[] = users.map((u) => ({
-    id: u.id,
-    label: `${u.name} ${u.surname}`,
+  const userOptions: UserOption[] = users.map((user) => ({
+    id: user.id,
+    label: `${user.name} ${user.surname}`,
+    username: user.username,
   }));
 
   return (
-    <div>
-      <h1 className="text-xl font-semibold text-nord-polar">Prediction Management</h1>
-      <p className="mt-2 text-sm text-nord-polarLight">
-        View all predictions, filter by match or user, and apply manual point corrections (Set 0 / Set 1) for finalized predictions. Leaderboard is refreshed after each change. For a full recalculate, use <a href="/admin/scoring" className="text-nord-frostDark font-medium hover:underline">Scoring</a>.
-      </p>
+    <div className="space-y-6">
+      <PageHeroBand
+        eyebrow="TIE-BREAK Control"
+        title="Prediction Management"
+        description="Inspect previous-match picks with first save time, finalization time, last edit time, official result, and scoring detail in one premium control surface."
+        highlights={[
+          {
+            label: "Coverage",
+            value: `${rows.length} predictions across ${matches.length} fixtures`,
+          },
+          {
+            label: "Time signals",
+            value: "Saved, finalized, and last-updated timestamps",
+          },
+          {
+            label: "Quick focus",
+            value: "Jump in from Users or Matches with deep-linked filters",
+          },
+        ]}
+        footerNote={
+          <>
+            Use the filters below to isolate <strong>previous matches</strong>, a
+            single <strong>user</strong>, or an individual <strong>fixture</strong>.
+            Manual point overrides still refresh the leaderboard after each change.
+          </>
+        }
+      />
       <PredictionManagementClient
         predictions={rows}
         matchOptions={matchOptions}
         userOptions={userOptions}
+        initialFilters={initialFilters}
       />
     </div>
   );

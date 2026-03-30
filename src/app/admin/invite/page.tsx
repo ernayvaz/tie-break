@@ -1,6 +1,8 @@
 import { prisma } from "@/lib/db";
 import { InviteLinkList } from "./invite-link-list";
 
+export const dynamic = "force-dynamic";
+
 export default async function AdminInvitePage() {
   const links = await prisma.inviteLink.findMany({
     where: { isActive: true },

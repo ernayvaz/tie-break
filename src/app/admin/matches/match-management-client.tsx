@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button, Modal, Input } from "@/components/ui";
 import {
@@ -313,6 +314,17 @@ export function MatchManagementClient({ matches }: { matches: MatchRow[] }) {
                   </td>
                   <td className="px-4 py-3 text-right">
                     <div className="flex flex-wrap justify-end gap-1">
+                        <Button asChild size="sm" variant="ghost">
+                          <Link
+                            href={`/admin/predictions?matchId=${encodeURIComponent(m.id)}${
+                              new Date(m.matchDatetime).getTime() < now.getTime()
+                                ? "&timeline=previous"
+                                : ""
+                            }`}
+                          >
+                            Predictions
+                          </Link>
+                        </Button>
                       <Button size="sm" variant="secondary" onClick={() => openResultModal(m)} disabled={busy}>
                         Set result
                       </Button>

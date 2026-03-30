@@ -1,0 +1,510 @@
+// AUTO-GENERATED from prisma/schema.prisma — do not edit by hand.
+// Run `npm run prisma:sync-sqlite-schema` after changing the main schema.
+// SQLite test client + datasource for Vitest integration tests.
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../../src/generated/prisma-sqlite"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("SQLITE_TEST_DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
+enum UserStatus {
+  pending_approval
+  approved
+  rejected
+  blocked
+}
+
+enum UserRole {
+  user
+  admin
+}
+
+enum PredictionValue {
+  ONE // 1 = home wins
+  X // draw
+  TWO // 2 = away wins
+}
+
+enum MatchSourceStatus {
+  api
+  manual
+  mixed
+}
+
+enum HighlightSyncStatus {
+  available
+  stale
+  unavailable
+}
+
+enum HalisahaTeamSide {
+  home
+  away
+}
+
+enum HalisahaPositionKey {
+  goalkeeper
+  left_defender
+  right_defender
+  left_wing
+  center_midfield
+  right_wing
+  striker
+}
+
+enum HalisahaQuestionKind {
+  winner
+  mvp_prediction
+  score_prediction
+  standard
+}
+
+enum HalisahaQuestionOptionKind {
+  standard
+  custom_score
+}
+
+// ---------------------------------------------------------------------------
+// User & Auth
+// ---------------------------------------------------------------------------
+
+model User {
+  id         String     @id @default(cuid())
+  name       String
+  surname    String
+  username   String     @unique
+  pinHash    String     @map("pin_hash")
+  status     UserStatus @default(pending_approval)
+  role       UserRole   @default(user)
+  createdAt  DateTime   @default(now()) @map("created_at")
+  approvedAt DateTime?  @map("approved_at")
+  approvedBy String?    @map("approved_by")
+
+  sessions             Session[]
+  predictions          Prediction[]
+  leaderboardEntries   LeaderboardEntry[]
+  approvedUsers        User[]                @relation("ApprovedByUser")
+  approver             User?                 @relation("ApprovedByUser", fields: [approvedBy], references: [id])
+  adminLogs            AdminLog[]            @relation("AdminUser")
+  halisahaParticipants HalisahaParticipant[]
+  halisahaAnswers      HalisahaAnswer[]
+  halisahaMvpVotes     HalisahaMvpVote[]
+  halisahaLeaderboardRounds HalisahaLeaderboardRound[]
+  halisahaMvpRoundAwards HalisahaMvpRoundAward[]
+
+  @@map("users")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  userId       String   @map("user_id")
+  sessionToken String   @unique @map("session_token")
+  createdAt    DateTime @default(now()) @map("created_at")
+  expiresAt    DateTime @map("expires_at")
+  lastSeenAt   DateTime @default(now()) @map("last_seen_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+// ---------------------------------------------------------------------------
+// Matches
+// ---------------------------------------------------------------------------
+
+model Match {
+  id                   String            @id @default(cuid())
+  externalApiId        String?           @map("external_api_id")
+  competitionId        String?           @map("competition_id") // e.g. "CL" = UEFA Champions League; null/other = Diğer
+  stage                String // e.g. "GROUP_STAGE", "ROUND_16", "QUARTER_FINAL", "SEMI_FINAL", "FINAL"
+  matchDatetime        DateTime          @map("match_datetime")
+  homeTeamName         String            @map("home_team_name")
+  awayTeamName         String            @map("away_team_name")
+  homeTeamLogo         String?           @map("home_team_logo")
+  awayTeamLogo         String?           @map("away_team_logo")
+  officialResultType   PredictionValue?  @map("official_result_type") // 1 / X / 2 – 90 min + extra time only, no penalties
+  homeScore            Int?              @map("home_score") // full-time (90+ET) home goals
+  awayScore            Int?              @map("away_score") // full-time (90+ET) away goals
+  officialWinnerTeamId String?           @map("official_winner_team_id") // optional team id if needed
+  lockAt               DateTime          @map("lock_at")
+  isLocked             Boolean           @default(false) @map("is_locked")
+  sourceStatus         MatchSourceStatus @default(api) @map("source_status")
+  syncedAt             DateTime?         @map("synced_at")
+  createdAt            DateTime          @default(now()) @map("created_at")
+  updatedAt            DateTime          @updatedAt @map("updated_at")
+
+  predictions Prediction[]
+  statsCache  MatchStatsCache?
+  highlight   MatchHighlight?
+
+  @@index([matchDatetime])
+  @@index([externalApiId])
+  @@index([competitionId])
+  @@map("matches")
+}
+
+model MatchStatsCache {
+  matchId      String    @id @map("match_id")
+  status       String    @default("pending")
+  provider     String    @default("football-data.org")
+  payload      Json?
+  errorMessage String?   @map("error_message")
+  syncedAt     DateTime? @map("synced_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  match Match @relation(fields: [matchId], references: [id], onDelete: Cascade)
+
+  @@index([status])
+  @@index([syncedAt])
+  @@map("match_stats_cache")
+}
+
+model MatchHighlight {
+  id               String              @id @default(cuid())
+  matchId          String              @unique @map("match_id")
+  competitionId    String              @default("CL") @map("competition_id")
+  provider         String              @default("scorebat.com")
+  providerMatchId  String?             @map("provider_match_id")
+  title            String
+  competitionLabel String              @map("competition_label")
+  competitionUrl   String?             @map("competition_url")
+  matchviewUrl     String?             @map("matchview_url")
+  thumbnailUrl     String?             @map("thumbnail_url")
+  publishedAt      DateTime            @map("published_at")
+  homeTeamName     String              @map("home_team_name")
+  awayTeamName     String              @map("away_team_name")
+  homeScore        Int?                @map("home_score")
+  awayScore        Int?                @map("away_score")
+  stage            String
+  season           String
+  programNote      String?             @map("program_note")
+  isFeatured       Boolean             @default(false) @map("is_featured")
+  syncStatus       HighlightSyncStatus @default(available) @map("sync_status")
+  providerPayload  Json?               @map("provider_payload")
+  syncedAt         DateTime?           @map("synced_at")
+  createdAt        DateTime            @default(now()) @map("created_at")
+  updatedAt        DateTime            @updatedAt @map("updated_at")
+
+  match Match                @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  clips MatchHighlightClip[]
+
+  @@index([competitionId, publishedAt])
+  @@index([competitionId, stage, publishedAt])
+  @@index([provider, providerMatchId])
+  @@index([syncStatus])
+  @@index([isFeatured, publishedAt])
+  @@map("match_highlights")
+}
+
+model MatchHighlightClip {
+  id              String   @id @default(cuid())
+  highlightId     String   @map("highlight_id")
+  provider        String   @default("scorebat.com")
+  externalVideoId String   @map("external_video_id")
+  title           String
+  embedUrl        String?  @map("embed_url")
+  pageUrl         String?  @map("page_url")
+  sortOrder       Int      @default(0) @map("sort_order")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  highlight MatchHighlight @relation(fields: [highlightId], references: [id], onDelete: Cascade)
+
+  @@unique([highlightId, externalVideoId])
+  @@index([highlightId, sortOrder])
+  @@map("match_highlight_clips")
+}
+
+// ---------------------------------------------------------------------------
+// Predictions
+// ---------------------------------------------------------------------------
+
+model Prediction {
+  id                 String          @id @default(cuid())
+  userId             String          @map("user_id")
+  matchId            String          @map("match_id")
+  selectedPrediction PredictionValue @map("selected_prediction")
+  isFinal            Boolean         @default(false) @map("is_final")
+  finalizedAt        DateTime?       @map("finalized_at")
+  awardedPoints      Int             @default(0) @map("awarded_points")
+  createdAt          DateTime        @default(now()) @map("created_at")
+  updatedAt          DateTime        @updatedAt @map("updated_at")
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  match Match @relation(fields: [matchId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, matchId])
+  @@index([matchId])
+  @@index([userId])
+  @@map("predictions")
+}
+
+// ---------------------------------------------------------------------------
+// Leaderboard (materialized / recalculated)
+// Tie-break: total_points DESC, then accuracy_rate DESC, then shared rank
+// ---------------------------------------------------------------------------
+
+model LeaderboardEntry {
+  userId                     String @map("user_id")
+  competitionId              String @default("CL") @map("competition_id")
+  totalPoints                Int    @default(0) @map("total_points")
+  knockoutPoints             Int    @default(0) @map("knockout_points")
+  semifinalFinalPoints       Int    @default(0) @map("semifinal_final_points")
+  finalizedPredictionCount   Int    @default(0) @map("finalized_prediction_count")
+  completedMatchCount        Int    @default(0) @map("completed_match_count")
+  accuracyRate               Float  @default(0) @map("accuracy_rate")
+  averageFinalizedTimeMetric Float? @map("average_finalized_time_metric")
+  currentRank                Int    @map("current_rank")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, competitionId])
+  @@index([competitionId])
+  @@map("leaderboard")
+}
+
+// ---------------------------------------------------------------------------
+// Prizes
+// ---------------------------------------------------------------------------
+
+model Prize {
+  id            String  @id @default(cuid())
+  competitionId String  @default("CL") @map("competition_id") // "CL" = UCL, "OTHER" = Diğer
+  place         Int // 1, 2, 3
+  title         String
+  description   String?
+
+  @@unique([competitionId, place])
+  @@index([competitionId])
+  @@map("prizes")
+}
+
+// ---------------------------------------------------------------------------
+// Invite links
+// ---------------------------------------------------------------------------
+
+model InviteLink {
+  id        String    @id @default(cuid())
+  token     String    @unique
+  isActive  Boolean   @default(true) @map("is_active")
+  createdAt DateTime  @default(now()) @map("created_at")
+  expiresAt DateTime? @map("expires_at")
+
+  @@map("invite_links")
+}
+
+// ---------------------------------------------------------------------------
+// Admin audit & API sync logs
+// ---------------------------------------------------------------------------
+
+model AdminLog {
+  id          String   @id @default(cuid())
+  adminUserId String   @map("admin_user_id")
+  actionType  String   @map("action_type")
+  targetType  String   @map("target_type")
+  targetId    String   @map("target_id")
+  oldValue    String?  @map("old_value")
+  newValue    String?  @map("new_value")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  adminUser User @relation("AdminUser", fields: [adminUserId], references: [id], onDelete: Cascade)
+
+  @@index([adminUserId])
+  @@index([createdAt])
+  @@map("admin_logs")
+}
+
+model ApiSyncLog {
+  id           String   @id @default(cuid())
+  provider     String
+  action       String
+  status       String // success | error
+  errorMessage String?  @map("error_message")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@index([createdAt])
+  @@map("api_sync_logs")
+}
+
+model HalisahaMatch {
+  id                       String    @id @default(cuid())
+  singletonKey             String?   @unique @map("singleton_key")
+  roundNumber              Int       @default(1) @map("round_number")
+  title                    String    @default("RayNET Matchday Show")
+  homeTeamName             String    @map("home_team_name")
+  awayTeamName             String    @map("away_team_name")
+  venueName                String    @map("venue_name")
+  kickoffAt                DateTime  @map("kickoff_at")
+  kickoffTimezone          String    @default("Europe/Istanbul") @map("kickoff_timezone")
+  matchDurationMinutes     Int       @default(60) @map("match_duration_minutes")
+  answersResolvedAt        DateTime? @map("answers_resolved_at")
+  mvpResolvedParticipantId String?   @map("mvp_resolved_participant_id")
+  mvpResolvedAt            DateTime? @map("mvp_resolved_at")
+  archivedAt               DateTime? @map("archived_at")
+  createdAt                DateTime  @default(now()) @map("created_at")
+  updatedAt                DateTime  @updatedAt @map("updated_at")
+
+  participants           HalisahaParticipant[]
+  questions              HalisahaQuestion[]
+  answers                HalisahaAnswer[]
+  mvpVotes               HalisahaMvpVote[]
+  resolvedMvpParticipant HalisahaParticipant? @relation("ResolvedHalisahaMvp", fields: [mvpResolvedParticipantId], references: [id], onDelete: SetNull)
+
+  @@index([archivedAt])
+  @@map("halisaha_matches")
+}
+
+model HalisahaParticipant {
+  id                 String               @id @default(cuid())
+  matchId            String               @map("match_id")
+  userId             String?              @map("user_id")
+  guestName          String?              @map("guest_name")
+  teamSide           HalisahaTeamSide?    @map("team_side")
+  positionKey        HalisahaPositionKey? @map("position_key")
+  displayOrder       Int                  @default(0) @map("display_order")
+  createdAt          DateTime             @default(now()) @map("created_at")
+  updatedAt          DateTime             @updatedAt @map("updated_at")
+
+  match                 HalisahaMatch          @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  user                  User?                  @relation(fields: [userId], references: [id], onDelete: SetNull)
+  predictionOptions     HalisahaQuestionOption[] @relation("HalisahaParticipantQuestionOption")
+  receivedMvpVotes      HalisahaMvpVote[]      @relation("HalisahaParticipantVote")
+  resolvedMvpForMatches HalisahaMatch[]        @relation("ResolvedHalisahaMvp")
+
+  @@unique([matchId, userId])
+  @@unique([matchId, teamSide, positionKey])
+  @@index([matchId, teamSide])
+  @@index([matchId, displayOrder])
+  @@map("halisaha_participants")
+}
+
+model HalisahaQuestion {
+  id              String              @id @default(cuid())
+  matchId         String              @map("match_id")
+  kind            HalisahaQuestionKind @default(standard)
+  prompt          String
+  points          Int                 @default(1)
+  sortOrder       Int                 @default(0) @map("sort_order")
+  scoreHomeResult Int?                @map("score_home_result")
+  scoreAwayResult Int?                @map("score_away_result")
+  isActive        Boolean             @default(true) @map("is_active")
+  createdAt       DateTime            @default(now()) @map("created_at")
+  updatedAt       DateTime            @updatedAt @map("updated_at")
+
+  match   HalisahaMatch            @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  options HalisahaQuestionOption[]
+  answers HalisahaAnswer[]
+
+  @@index([matchId, sortOrder])
+  @@index([matchId, kind])
+  @@map("halisaha_questions")
+}
+
+model HalisahaQuestionOption {
+  id            String                   @id @default(cuid())
+  questionId    String                   @map("question_id")
+  label         String
+  kind          HalisahaQuestionOptionKind @default(standard)
+  participantId String?                  @map("participant_id")
+  sortOrder     Int                      @default(0) @map("sort_order")
+  isCorrect     Boolean                  @default(false) @map("is_correct")
+  createdAt     DateTime                 @default(now()) @map("created_at")
+  updatedAt     DateTime                 @updatedAt @map("updated_at")
+
+  question    HalisahaQuestion   @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  participant HalisahaParticipant? @relation("HalisahaParticipantQuestionOption", fields: [participantId], references: [id], onDelete: SetNull)
+  answers     HalisahaAnswer[]   @relation("SelectedHalisahaAnswer")
+
+  @@index([questionId, sortOrder])
+  @@index([questionId, kind])
+  @@index([participantId])
+  @@map("halisaha_question_options")
+}
+
+model HalisahaAnswer {
+  id               String   @id @default(cuid())
+  matchId          String   @map("match_id")
+  questionId       String   @map("question_id")
+  userId           String   @map("user_id")
+  selectedOptionId String   @map("selected_option_id")
+  customScoreHome  Int?     @map("custom_score_home")
+  customScoreAway  Int?     @map("custom_score_away")
+  isCorrect        Boolean? @map("is_correct")
+  isFinal          Boolean  @default(false) @map("is_final")
+  finalizedAt      DateTime? @map("finalized_at")
+  awardedPoints    Int      @default(0) @map("awarded_points")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  match          HalisahaMatch          @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  question       HalisahaQuestion       @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  user           User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  selectedOption HalisahaQuestionOption @relation("SelectedHalisahaAnswer", fields: [selectedOptionId], references: [id], onDelete: Cascade)
+
+  @@unique([questionId, userId])
+  @@index([matchId, userId])
+  @@index([matchId, questionId])
+  @@index([matchId, userId, isFinal])
+  @@map("halisaha_answers")
+}
+
+model HalisahaMvpVote {
+  id            String   @id @default(cuid())
+  matchId       String   @map("match_id")
+  userId        String   @map("user_id")
+  participantId String   @map("participant_id")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  match       HalisahaMatch       @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  user        User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  participant HalisahaParticipant @relation("HalisahaParticipantVote", fields: [participantId], references: [id], onDelete: Cascade)
+
+  @@unique([matchId, userId])
+  @@index([matchId, createdAt])
+  @@index([matchId, participantId])
+  @@map("halisaha_mvp_votes")
+}
+
+model HalisahaLeaderboardRound {
+  id               String   @id @default(cuid())
+  roundNumber      Int      @map("round_number")
+  userId           String   @map("user_id")
+  totalPoints      Int      @default(0) @map("total_points")
+  correctAnswers   Int      @default(0) @map("correct_answers")
+  answeredQuestions Int     @default(0) @map("answered_questions")
+  recentAnswers    Json     @map("recent_answers")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([roundNumber, userId])
+  @@index([roundNumber])
+  @@index([userId])
+  @@map("halisaha_leaderboard_rounds")
+}
+
+/// One row when a registered user was community MVP for a completed Halisaha round (match round number).
+model HalisahaMvpRoundAward {
+  id          String   @id @default(cuid())
+  roundNumber Int      @map("round_number")
+  userId      String   @map("user_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([roundNumber, userId])
+  @@index([userId])
+  @@map("halisaha_mvp_round_awards")
+}

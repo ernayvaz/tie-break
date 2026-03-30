@@ -14,6 +14,14 @@ const ACTION_OPTIONS = [
   { value: "match_deleted", label: "Match deleted" },
   { value: "match_result_manual", label: "Match result (manual)" },
   { value: "prediction_points_override", label: "Prediction points override" },
+  { value: "halisaha_match_updated", label: "Halisaha match updated" },
+  { value: "halisaha_match_archived", label: "Halisaha match archived" },
+  { value: "halisaha_match_archive_purged", label: "Halisaha archive purged" },
+  { value: "halisaha_answer_points_override", label: "Halisaha answer points override" },
+  { value: "halisaha_answer_deleted", label: "Halisaha answer deleted" },
+  { value: "halisaha_user_match_answers_reset", label: "Halisaha user match reset" },
+  { value: "halisaha_mvp_vote_deleted", label: "Halisaha MVP vote deleted" },
+  { value: "admin_set_halisaha_answer", label: "Admin set Halisaha answer" },
 ];
 
 const TARGET_OPTIONS = [
@@ -21,6 +29,9 @@ const TARGET_OPTIONS = [
   { value: "user", label: "User" },
   { value: "match", label: "Match" },
   { value: "prediction", label: "Prediction" },
+  { value: "halisaha_match", label: "Halisaha match" },
+  { value: "halisaha_answer", label: "Halisaha answer" },
+  { value: "halisaha_mvp_vote", label: "Halisaha MVP vote" },
 ];
 
 type Props = {
