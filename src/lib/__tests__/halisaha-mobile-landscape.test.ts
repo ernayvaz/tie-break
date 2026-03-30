@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { isHalisahaPhoneLikeViewport } from "@/lib/halisaha/mobile-landscape";
+import {
+  isHalisahaPhoneLikeViewport,
+  shouldUseHalisahaMobileMatchdayPager,
+} from "@/lib/halisaha/mobile-landscape";
 
 describe("halisaha/mobile-landscape", () => {
   it("treats phone-sized portrait viewports as mobile even without touch signals", () => {
@@ -42,6 +45,29 @@ describe("halisaha/mobile-landscape", () => {
         viewportHeight: 800,
         hasCoarsePointer: false,
         maxTouchPoints: 0,
+      }),
+    ).toBe(false);
+  });
+
+  it("enables the mobile pager for phone-sized matchday tabs without requiring landscape", () => {
+    expect(
+      shouldUseHalisahaMobileMatchdayPager({
+        isPhoneLikeViewport: true,
+        isMatchdayTab: true,
+      }),
+    ).toBe(true);
+
+    expect(
+      shouldUseHalisahaMobileMatchdayPager({
+        isPhoneLikeViewport: true,
+        isMatchdayTab: false,
+      }),
+    ).toBe(false);
+
+    expect(
+      shouldUseHalisahaMobileMatchdayPager({
+        isPhoneLikeViewport: false,
+        isMatchdayTab: true,
       }),
     ).toBe(false);
   });

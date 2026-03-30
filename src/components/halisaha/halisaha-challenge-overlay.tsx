@@ -379,6 +379,7 @@ export function HalisahaChallengeOverlay({
   winnerPercentagesVisible = false,
   onFinalizePromptVisibilityChange,
   onPlayerPickerVisibilityChange,
+  compactMobileLayout = false,
 }: {
   matchId: string | null;
   questions: HalisahaPublicQuestion[];
@@ -393,6 +394,7 @@ export function HalisahaChallengeOverlay({
   winnerPercentagesVisible?: boolean;
   onFinalizePromptVisibilityChange?: (visible: boolean) => void;
   onPlayerPickerVisibilityChange?: (visible: boolean) => void;
+  compactMobileLayout?: boolean;
 }) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
@@ -537,6 +539,7 @@ export function HalisahaChallengeOverlay({
     () => splitQuestionsIntoWings(numberedStandardQuestions),
     [numberedStandardQuestions],
   );
+  const stackedQuestions = numberedStandardQuestions;
   const questionSlotCount = Math.max(leftQuestions.length, rightQuestions.length, 1);
   const activePlayerPickerQuestion = useMemo(
     () =>
@@ -664,7 +667,10 @@ export function HalisahaChallengeOverlay({
     question: HalisahaPublicQuestion;
     questionNumber: number;
   }) => (
-    <div key={question.id} className="min-h-0">
+    <div
+      key={question.id}
+      className={compactMobileLayout ? "halisaha-mobile-question-slot min-h-0" : "min-h-0"}
+    >
       <HalisahaQuestionCard
         question={question}
         questionNumber={questionNumber}
@@ -692,16 +698,26 @@ export function HalisahaChallengeOverlay({
         predictionWindowClosed={predictionsClosed}
         showSaveButton={false}
         layoutMode="overlay"
+        compactOverlayLayout={compactMobileLayout}
       />
     </div>
   );
 
   return (
-    <div className="halisaha-challenge-overlay pointer-events-none absolute inset-0 z-[14]">
-      <CenterLaneFieldMarks />
+    <div
+      data-mobile-overlay-layout={compactMobileLayout ? "stacked" : undefined}
+      className="halisaha-challenge-overlay pointer-events-none absolute inset-0 z-[14]"
+    >
+      {compactMobileLayout ? null : <CenterLaneFieldMarks />}
       <div className="absolute inset-0 flex min-h-0 flex-col gap-[clamp(0.18rem,0.58vh,0.38rem)] overflow-hidden px-[2%] pb-[0.12%] pt-[0.2%]">
         {winnerQuestion && effectiveWinnerVoteSummary && winnerDisplayState ? (
-          <div className="halisaha-challenge-winner pointer-events-auto z-[3] mb-[clamp(0.24rem,0.72vh,0.42rem)] shrink-0 rounded-[1.04rem] border border-white/10 bg-[linear-gradient(180deg,rgba(8,15,14,0.84),rgba(8,15,14,0.62))] px-3.5 pb-[0.74rem] pt-[0.72rem] shadow-[0_14px_30px_rgba(0,0,0,0.18)] backdrop-blur-md">
+          <div
+            className={`halisaha-challenge-winner pointer-events-auto z-[3] shrink-0 rounded-[1.04rem] border border-white/10 bg-[linear-gradient(180deg,rgba(8,15,14,0.84),rgba(8,15,14,0.62))] shadow-[0_14px_30px_rgba(0,0,0,0.18)] backdrop-blur-md ${
+              compactMobileLayout
+                ? "mb-[clamp(0.16rem,0.42vh,0.26rem)] px-3 pb-[0.56rem] pt-[0.52rem]"
+                : "mb-[clamp(0.24rem,0.72vh,0.42rem)] px-3.5 pb-[0.74rem] pt-[0.72rem]"
+            }`}
+          >
             <div className="halisaha-challenge-winner-header mb-[0.58rem] grid items-center gap-2.5 [grid-template-columns:minmax(0,1fr)_auto_minmax(0,1fr)] px-0.5">
               <span className="justify-self-start text-[0.52rem] font-semibold uppercase tracking-[0.16em] text-white/44">
                 Question 1
@@ -714,7 +730,7 @@ export function HalisahaChallengeOverlay({
               </span>
             </div>
 
-            <div className="grid items-center gap-[clamp(0.75rem,1.4vw,1.05rem)] [grid-template-columns:minmax(0,1fr)_clamp(9.7rem,12.6vw,10.35rem)_minmax(0,1fr)]">
+            <div className="halisaha-challenge-winner-grid grid items-center gap-[clamp(0.75rem,1.4vw,1.05rem)] [grid-template-columns:minmax(0,1fr)_clamp(9.7rem,12.6vw,10.35rem)_minmax(0,1fr)]">
               <WinnerVoteButton
                 label={effectiveWinnerVoteSummary.homeOption.label}
                 fillPercentage={winnerDisplayState.homeFillPercentage}
@@ -778,27 +794,37 @@ export function HalisahaChallengeOverlay({
           </div>
         ) : null}
 
-        <div className="halisaha-challenge-grid z-[2] flex-1 min-h-0 grid grid-cols-[minmax(0,1fr)_clamp(3.7rem,8vw,5.35rem)_minmax(0,1fr)] gap-[1.02%] pointer-events-none">
-          <div className="halisaha-challenge-column pointer-events-auto min-h-0 overflow-hidden pr-0.35 pb-0.25">
-            <div
-              className="halisaha-challenge-column-stack grid h-full min-h-0 gap-[clamp(0.28rem,0.86vh,0.42rem)]"
-              style={{ gridTemplateRows: `repeat(${questionSlotCount}, minmax(0, 1fr))` }}
-            >
-              {leftQuestions.map(renderQuestionCard)}
+        {compactMobileLayout ? (
+          <div className="halisaha-challenge-grid halisaha-challenge-grid-mobile z-[2] flex-1 min-h-0 pointer-events-none">
+            <div className="halisaha-mobile-question-stack pointer-events-auto mx-auto flex h-full min-h-0 w-full max-w-[32rem] flex-col overflow-y-auto pr-[0.15rem]">
+              <div className="halisaha-mobile-question-stack-inner flex min-h-0 flex-col gap-[clamp(0.24rem,0.72vh,0.38rem)]">
+                {stackedQuestions.map(renderQuestionCard)}
+              </div>
             </div>
           </div>
+        ) : (
+          <div className="halisaha-challenge-grid z-[2] flex-1 min-h-0 grid grid-cols-[minmax(0,1fr)_clamp(3.7rem,8vw,5.35rem)_minmax(0,1fr)] gap-[1.02%] pointer-events-none">
+            <div className="halisaha-challenge-column pointer-events-auto min-h-0 overflow-hidden pr-0.35 pb-0.25">
+              <div
+                className="halisaha-challenge-column-stack grid h-full min-h-0 gap-[clamp(0.28rem,0.86vh,0.42rem)]"
+                style={{ gridTemplateRows: `repeat(${questionSlotCount}, minmax(0, 1fr))` }}
+              >
+                {leftQuestions.map(renderQuestionCard)}
+              </div>
+            </div>
 
-          <div className="pointer-events-none" />
+            <div className="pointer-events-none" />
 
-          <div className="halisaha-challenge-column pointer-events-auto min-h-0 overflow-hidden pl-0.35 pb-0.25">
-            <div
-              className="halisaha-challenge-column-stack grid h-full min-h-0 gap-[clamp(0.28rem,0.86vh,0.42rem)]"
-              style={{ gridTemplateRows: `repeat(${questionSlotCount}, minmax(0, 1fr))` }}
-            >
-              {rightQuestions.map(renderQuestionCard)}
+            <div className="halisaha-challenge-column pointer-events-auto min-h-0 overflow-hidden pl-0.35 pb-0.25">
+              <div
+                className="halisaha-challenge-column-stack grid h-full min-h-0 gap-[clamp(0.28rem,0.86vh,0.42rem)]"
+                style={{ gridTemplateRows: `repeat(${questionSlotCount}, minmax(0, 1fr))` }}
+              >
+                {rightQuestions.map(renderQuestionCard)}
+              </div>
             </div>
           </div>
-        </div>
+        )}
 
         <div className="halisaha-challenge-footer pointer-events-auto z-[3] mt-auto flex shrink-0 flex-col items-center gap-[0.12rem] pt-0">
           <div className="w-full max-w-[43rem] space-y-[0.68rem]">
@@ -870,24 +896,24 @@ export function HalisahaChallengeOverlay({
             )}
 
             <div className="halisaha-challenge-stats mt-0 flex w-full items-center justify-between gap-2 rounded-[0.82rem] border border-white/10 bg-[linear-gradient(180deg,rgba(9,16,15,0.72),rgba(9,16,15,0.54))] px-4 pb-[0.66rem] pt-[0.88rem] shadow-[0_10px_20px_rgba(0,0,0,0.16)] backdrop-blur-md sm:justify-center sm:gap-5 lg:gap-7">
-              <div className="flex flex-col items-center">
-                <span className="text-[0.48rem] font-semibold uppercase tracking-[0.16em] text-white/40">Questions</span>
-                <span className="mt-[0.08rem] text-[0.88rem] font-bold leading-none text-white">{questions.length}</span>
+              <div className="halisaha-challenge-stat flex flex-col items-center">
+                <span className="halisaha-challenge-stat-label text-[0.48rem] font-semibold uppercase tracking-[0.16em] text-white/40">Questions</span>
+                <span className="halisaha-challenge-stat-value mt-[0.08rem] text-[0.88rem] font-bold leading-none text-white">{questions.length}</span>
               </div>
-              <div className="h-4 w-px bg-white/10" />
-              <div className="flex flex-col items-center">
-                <span className="text-[0.48rem] font-semibold uppercase tracking-[0.16em] text-white/40">Total Points</span>
-                <span className="mt-[0.08rem] text-[0.88rem] font-bold leading-none text-white">{totalPoints}</span>
+              <div className="halisaha-challenge-stats-divider h-4 w-px bg-white/10" />
+              <div className="halisaha-challenge-stat flex flex-col items-center">
+                <span className="halisaha-challenge-stat-label text-[0.48rem] font-semibold uppercase tracking-[0.16em] text-white/40">Total Points</span>
+                <span className="halisaha-challenge-stat-value mt-[0.08rem] text-[0.88rem] font-bold leading-none text-white">{totalPoints}</span>
               </div>
-              <div className="h-4 w-px bg-white/10" />
-              <div className="flex flex-col items-center">
-                <span className="text-[0.48rem] font-semibold uppercase tracking-[0.16em] text-[#d4e4df]/60">Your Answers</span>
-                <span className="mt-[0.08rem] text-[0.88rem] font-bold leading-none text-white">{answeredCount}</span>
+              <div className="halisaha-challenge-stats-divider h-4 w-px bg-white/10" />
+              <div className="halisaha-challenge-stat flex flex-col items-center">
+                <span className="halisaha-challenge-stat-label text-[0.48rem] font-semibold uppercase tracking-[0.16em] text-[#d4e4df]/60">Your Answers</span>
+                <span className="halisaha-challenge-stat-value mt-[0.08rem] text-[0.88rem] font-bold leading-none text-white">{answeredCount}</span>
               </div>
-              <div className="h-4 w-px bg-white/10" />
-              <div className="flex flex-col items-center">
-                <span className="text-[0.48rem] font-semibold uppercase tracking-[0.16em] text-[#d4e4df]/60">Your Points</span>
-                <span className="mt-[0.08rem] text-[0.88rem] font-bold leading-none text-white">
+              <div className="halisaha-challenge-stats-divider h-4 w-px bg-white/10" />
+              <div className="halisaha-challenge-stat flex flex-col items-center">
+                <span className="halisaha-challenge-stat-label text-[0.48rem] font-semibold uppercase tracking-[0.16em] text-[#d4e4df]/60">Your Points</span>
+                <span className="halisaha-challenge-stat-value mt-[0.08rem] text-[0.88rem] font-bold leading-none text-white">
                   {answersResolved ? awardedPoints : optimisticPoints}
                 </span>
               </div>

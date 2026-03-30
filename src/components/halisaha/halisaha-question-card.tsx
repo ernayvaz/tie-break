@@ -23,6 +23,7 @@ export function HalisahaQuestionCard({
   showSaveButton = true,
   layoutMode = "default",
   onRequestPlayerPicker,
+  compactOverlayLayout = false,
 }: {
   question: HalisahaPublicQuestion;
   initialAnswer?: HalisahaPublicAnswerState;
@@ -45,6 +46,7 @@ export function HalisahaQuestionCard({
   showSaveButton?: boolean;
   layoutMode?: "default" | "overlay";
   onRequestPlayerPicker?: () => void;
+  compactOverlayLayout?: boolean;
 }) {
   const router = useRouter();
   const [internalAnswer, setInternalAnswer] = useState({
@@ -57,6 +59,7 @@ export function HalisahaQuestionCard({
   const selectedAnswer = controlledSelectedAnswer ?? internalAnswer;
   const selectedOptionId = selectedAnswer.selectedOptionId;
   const isOverlayLayout = layoutMode === "overlay";
+  const useCompactOverlayLayout = isOverlayLayout && compactOverlayLayout;
   const correctOption = question.options.find((option) => option.isCorrect) ?? null;
   const customScoreOption = question.options.find((option) => option.kind === "custom_score");
   const isScoreQuestion = question.kind === "score_prediction";
@@ -234,10 +237,18 @@ export function HalisahaQuestionCard({
     }),
     [question.options],
   );
-  const overlayOptionGapClass = "gap-[clamp(0.22rem,0.64vh,0.34rem)]";
-  const overlayOptionHeightClass = "h-[clamp(1.84rem,4.18vh,2.08rem)]";
-  const overlayOptionMinHeightClass = "min-h-[clamp(1.72rem,4.05vh,2.04rem)]";
-  const overlayOptionTextClass = "text-center text-[0.66rem] leading-[1.08]";
+  const overlayOptionGapClass = useCompactOverlayLayout
+    ? "gap-[clamp(0.2rem,0.54vh,0.3rem)]"
+    : "gap-[clamp(0.22rem,0.64vh,0.34rem)]";
+  const overlayOptionHeightClass = useCompactOverlayLayout
+    ? "h-[clamp(1.76rem,3.72vh,1.96rem)]"
+    : "h-[clamp(1.84rem,4.18vh,2.08rem)]";
+  const overlayOptionMinHeightClass = useCompactOverlayLayout
+    ? "min-h-[clamp(1.68rem,3.48vh,1.92rem)]"
+    : "min-h-[clamp(1.72rem,4.05vh,2.04rem)]";
+  const overlayOptionTextClass = useCompactOverlayLayout
+    ? "text-center text-[0.62rem] leading-[1.04]"
+    : "text-center text-[0.66rem] leading-[1.08]";
   const overlayOptionGridStyle = isOverlayLayout
     ? isScoreQuestion && question.options.some((option) => option.kind === "custom_score")
       ? {
@@ -253,21 +264,41 @@ export function HalisahaQuestionCard({
 
   return (
     <article
-      className={`halisaha-question-card relative flex h-full min-h-0 flex-col overflow-hidden rounded-[0.92rem] border border-white/12 px-[clamp(0.5rem,1.45vw,0.78rem)] py-[clamp(0.4rem,0.96vh,0.56rem)] shadow-[0_10px_24px_rgba(0,0,0,0.15)] backdrop-blur-[2px] ${
+      className={`halisaha-question-card relative flex h-full min-h-0 flex-col overflow-hidden rounded-[0.92rem] border border-white/12 shadow-[0_10px_24px_rgba(0,0,0,0.15)] backdrop-blur-[2px] ${
         isOverlayLayout
-          ? "justify-between bg-[linear-gradient(180deg,rgba(7,13,12,0.68),rgba(10,18,17,0.36))]"
-          : "bg-[linear-gradient(180deg,rgba(7,13,12,0.58),rgba(10,18,17,0.26))]"
+          ? useCompactOverlayLayout
+            ? "halisaha-question-card-compact justify-between bg-[linear-gradient(180deg,rgba(7,13,12,0.68),rgba(10,18,17,0.36))] px-[clamp(0.48rem,1.26vw,0.68rem)] py-[clamp(0.34rem,0.78vh,0.48rem)]"
+            : "justify-between bg-[linear-gradient(180deg,rgba(7,13,12,0.68),rgba(10,18,17,0.36))] px-[clamp(0.5rem,1.45vw,0.78rem)] py-[clamp(0.4rem,0.96vh,0.56rem)]"
+          : "bg-[linear-gradient(180deg,rgba(7,13,12,0.58),rgba(10,18,17,0.26))] px-[clamp(0.5rem,1.45vw,0.78rem)] py-[clamp(0.4rem,0.96vh,0.56rem)]"
       }`}
     >
-      <div className={`flex items-start justify-between gap-2.5 ${isOverlayLayout ? "min-h-[2.18rem]" : ""}`}>
-        <div className={`min-w-0 ${isOverlayLayout ? "flex min-h-[2.18rem] flex-col justify-start" : ""}`}>
+      <div
+        className={`flex items-start justify-between ${
+          useCompactOverlayLayout
+            ? "gap-2.1 min-h-[2rem]"
+            : isOverlayLayout
+              ? "gap-2.5 min-h-[2.18rem]"
+              : "gap-2.5"
+        }`}
+      >
+        <div
+          className={`min-w-0 ${
+            useCompactOverlayLayout
+              ? "flex min-h-[2rem] flex-col justify-start"
+              : isOverlayLayout
+                ? "flex min-h-[2.18rem] flex-col justify-start"
+                : ""
+          }`}
+        >
           <div className="text-[0.52rem] font-semibold uppercase tracking-[0.16em] text-white/44">
             Question {questionNumber ?? question.sortOrder}
           </div>
           <h3
             className={`halisaha-question-title mt-[clamp(0.1rem,0.32vh,0.18rem)] font-semibold text-white ${
               isOverlayLayout
-                ? "max-h-[1.82rem] overflow-hidden text-[0.76rem] leading-[0.9rem] [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:2]"
+                ? useCompactOverlayLayout
+                  ? "max-h-[1.7rem] overflow-hidden text-[0.7rem] leading-[0.82rem] [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:2]"
+                  : "max-h-[1.82rem] overflow-hidden text-[0.76rem] leading-[0.9rem] [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:2]"
                 : "text-[0.8rem] leading-[1.2]"
             }`}
           >
@@ -279,10 +310,24 @@ export function HalisahaQuestionCard({
         </div>
       </div>
 
-      <div className={`mt-[clamp(0.3rem,0.82vh,0.46rem)] flex min-h-0 flex-1 flex-col ${isOverlayLayout ? "justify-center" : ""}`}>
+      <div
+        className={`flex min-h-0 flex-1 flex-col ${
+          useCompactOverlayLayout
+            ? "mt-[clamp(0.2rem,0.56vh,0.32rem)] justify-center"
+            : isOverlayLayout
+              ? "mt-[clamp(0.3rem,0.82vh,0.46rem)] justify-center"
+              : "mt-[clamp(0.3rem,0.82vh,0.46rem)]"
+        }`}
+      >
         {isMvpPredictionQuestion ? (
           <>
-            <div className={`grid ${overlayOptionGapClass} sm:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)]`}>
+            <div
+              className={`grid ${overlayOptionGapClass} ${
+                useCompactOverlayLayout
+                  ? "grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)]"
+                  : "sm:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)]"
+              }`}
+            >
               <button
                 type="button"
                 onClick={() => {

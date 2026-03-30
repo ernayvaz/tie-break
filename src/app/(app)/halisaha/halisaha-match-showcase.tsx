@@ -17,7 +17,10 @@ import { HalisahaChallengeOverlay } from "@/components/halisaha/halisaha-challen
 import { HalisahaPostMatchMvpVote } from "@/components/halisaha/halisaha-post-match-mvp-vote";
 import { HalisahaResultsGateCard } from "@/components/halisaha/halisaha-results-gate-card";
 import { getPitchSpot } from "@/lib/halisaha/config";
-import { isHalisahaPhoneLikeViewport } from "@/lib/halisaha/mobile-landscape";
+import {
+  isHalisahaPhoneLikeViewport,
+  shouldUseHalisahaMobileMatchdayPager,
+} from "@/lib/halisaha/mobile-landscape";
 import { getHalisahaPredictionLockAt } from "@/lib/halisaha/match-state";
 import { shouldRevealWinnerPercentages } from "@/lib/halisaha/rules";
 import type { HalisahaPublicSnapshot } from "@/lib/halisaha/server";
@@ -80,27 +83,6 @@ function getMobileLandscapeViewportState() {
     hasCoarsePointer,
     maxTouchPoints: navigator.maxTouchPoints,
   };
-}
-
-async function tryRequestLandscapeOrientation() {
-  if (typeof window === "undefined") {
-    return;
-  }
-
-  const orientation = window.screen?.orientation as
-    | (ScreenOrientation & {
-        lock?: (orientation: "portrait" | "landscape" | "any") => Promise<void>;
-      })
-    | undefined;
-  if (!orientation?.lock) {
-    return;
-  }
-
-  try {
-    await orientation.lock("landscape");
-  } catch {
-    // Best-effort only: browsers often require fullscreen or a trusted gesture.
-  }
 }
 
 function getGestureTargetElement(target: EventTarget | null) {
@@ -213,13 +195,20 @@ export function HalisahaMatchShowcase({
     activeTab === "matchday" &&
     showLineups &&
     (shouldShowPostMatchMvpVoteForLayout || hasPublishedHalisahaQuestions);
-  const shouldRequireMobileLandscape = mobileViewportState.isPhoneLike;
-  const shouldShowRotateGate =
-    shouldRequireMobileLandscape && !mobileViewportState.isLandscape;
+  const shouldForceMobilePreview =
+    process.env.NODE_ENV !== "production" && searchParams.get("halisaha-force-mobile") === "1";
+  const forcedMobilePanelParam =
+    process.env.NODE_ENV !== "production" ? searchParams.get("halisaha-panel") : null;
+  const forcedMobilePanel =
+    forcedMobilePanelParam === "pitch" || forcedMobilePanelParam === "hero"
+      ? forcedMobilePanelParam
+      : null;
+  const shouldUseMobilePager = shouldUseHalisahaMobileMatchdayPager({
+    isPhoneLikeViewport: shouldForceMobilePreview ? true : mobileViewportState.isPhoneLike,
+    isMatchdayTab: activeTab === "matchday",
+  });
   const isImmersiveMobileMatchday =
-    shouldRequireMobileLandscape &&
-    mobileViewportState.isLandscape &&
-    activeTab === "matchday";
+    shouldUseMobilePager;
   const shouldShowViewportDebug =
     process.env.NODE_ENV !== "production" && searchParams.get("halisaha-debug") === "1";
 
@@ -281,15 +270,7 @@ export function HalisahaMatchShowcase({
   }, []);
 
   useEffect(() => {
-    if (!shouldShowRotateGate) {
-      return;
-    }
-
-    void tryRequestLandscapeOrientation();
-  }, [shouldShowRotateGate]);
-
-  useEffect(() => {
-    if (!shouldRequireMobileLandscape) {
+    if (!mobileViewportState.isPhoneLike) {
       return;
     }
 
@@ -298,9 +279,8 @@ export function HalisahaMatchShowcase({
     const previousBodyOverflowY = body.style.overflowY;
     const previousHtmlOverscrollBehaviorY = documentElement.style.overscrollBehaviorY;
     const previousBodyOverscrollBehaviorY = body.style.overscrollBehaviorY;
-    const shouldLockVerticalViewport = shouldShowRotateGate || isImmersiveMobileMatchday;
 
-    if (shouldLockVerticalViewport) {
+    if (isImmersiveMobileMatchday) {
       documentElement.style.overflowY = "hidden";
       body.style.overflowY = "hidden";
       documentElement.style.overscrollBehaviorY = "none";
@@ -313,7 +293,7 @@ export function HalisahaMatchShowcase({
       documentElement.style.overscrollBehaviorY = previousHtmlOverscrollBehaviorY;
       body.style.overscrollBehaviorY = previousBodyOverscrollBehaviorY;
     };
-  }, [isImmersiveMobileMatchday, shouldRequireMobileLandscape, shouldShowRotateGate]);
+  }, [isImmersiveMobileMatchday, mobileViewportState.isPhoneLike]);
 
   useEffect(() => {
     const { documentElement, body } = document;
@@ -348,6 +328,14 @@ export function HalisahaMatchShowcase({
     setShowLineups(true);
   }, [shouldAutoOpenVoteOverlay]);
 
+  useEffect(() => {
+    if (!shouldForceMobilePreview || !forcedMobilePanel) {
+      return;
+    }
+
+    setMobileLandscapePanel(forcedMobilePanel);
+  }, [forcedMobilePanel, shouldForceMobilePreview]);
+
   const handleTabChange = (nextTab: ShowcaseTab) => {
     setActiveTab(nextTab);
 
@@ -367,8 +355,8 @@ export function HalisahaMatchShowcase({
       return;
     }
 
-    setMobileLandscapePanel("hero");
-  }, [isImmersiveMobileMatchday, snapshot.match.id]);
+    setMobileLandscapePanel(forcedMobilePanel ?? "hero");
+  }, [forcedMobilePanel, isImmersiveMobileMatchday, snapshot.match.id]);
 
   const resetPagerTouchState = useCallback(() => {
     touchStartYRef.current = null;
@@ -459,11 +447,6 @@ export function HalisahaMatchShowcase({
       event.preventDefault();
       resetPagerTouchState();
     }
-  };
-
-  const handleRequestLandscape = async () => {
-    await tryRequestLandscapeOrientation();
-    setMobileViewportState(getMobileLandscapeViewportState());
   };
 
   useEffect(() => {
@@ -567,6 +550,7 @@ export function HalisahaMatchShowcase({
       viewerCanManageOwnAnswerLock={viewerCanManageOwnAnswerLock}
       predictionWindowClosed={predictionWindowClosed}
       viewerCanRevealWinnerPercentages={viewerCanRevealWinnerPercentages}
+      useMobileScreen2Layout={isImmersiveMobileMatchday}
     />
   );
 
@@ -594,7 +578,6 @@ export function HalisahaMatchShowcase({
       data-halisaha-pitch-overlay={halisahaPitchOverlayOpen ? "open" : undefined}
       data-mobile-landscape={isImmersiveMobileMatchday ? "true" : undefined}
       data-mobile-landscape-panel={isImmersiveMobileMatchday ? mobileLandscapePanel : undefined}
-      data-mobile-orientation-gate={shouldShowRotateGate ? "true" : undefined}
       className={`halisaha-shell relative isolate flex min-h-[calc(100dvh-5.2rem)] flex-col overflow-hidden rounded-[1.35rem] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.025),rgba(255,255,255,0.01))] px-3.5 py-3.5 text-white shadow-[0_22px_58px_rgba(0,0,0,0.24)] sm:rounded-[1.8rem] sm:px-4 sm:py-3.5 ${
         activeTab === "leaderboard"
           ? "lg:min-h-[calc(100dvh-5.25rem)]"
@@ -603,16 +586,7 @@ export function HalisahaMatchShowcase({
     >
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_12%_10%,rgba(255,255,255,0.06),transparent_20%),radial-gradient(circle_at_86%_18%,rgba(255,255,255,0.04),transparent_24%)]" />
 
-      {shouldShowRotateGate ? (
-        <div className="relative flex min-h-0 flex-1 flex-col">
-          <HalisahaRotateGate
-            title={snapshot.match.title}
-            homeTeamName={homeTeam.name}
-            awayTeamName={awayTeam.name}
-            onRequestLandscape={() => void handleRequestLandscape()}
-          />
-        </div>
-      ) : isImmersiveMobileMatchday ? (
+      {isImmersiveMobileMatchday ? (
         <div
           ref={mobilePagerRef}
           className="halisaha-mobile-pager relative flex min-h-0 flex-1 overflow-hidden"
@@ -660,8 +634,7 @@ export function HalisahaMatchShowcase({
             {mobileViewportState.maxTouchPoints}
           </div>
           <div>
-            gate {String(shouldShowRotateGate)} | immersive {String(isImmersiveMobileMatchday)} |
-            panel {mobileLandscapePanel}
+            immersive {String(isImmersiveMobileMatchday)} | panel {mobileLandscapePanel}
           </div>
         </div>
       ) : null}
@@ -721,33 +694,35 @@ function HalisahaHeroSummary({
 }) {
   return (
     <div className="halisaha-hero relative flex flex-col gap-1.25 sm:gap-1.5 lg:pr-[25.25rem] xl:pr-[28.5rem]">
-      <div className="min-w-0">
+      <div className="halisaha-hero-primary min-w-0">
         <h1 className="halisaha-team-name text-[clamp(2.55rem,6.8vw,5.7rem)] font-semibold uppercase leading-[0.78] tracking-[0.015em] text-white">
           {homeTeamName}
         </h1>
-        <div className="mt-[-0.06rem] flex flex-wrap items-end gap-x-3 gap-y-0">
-          <span className="halisaha-vs-label pb-[0.18rem] text-[0.94rem] font-semibold uppercase tracking-[0.34em] text-white/56 sm:text-[1.08rem]">
-            vs
-          </span>
-          <p className="halisaha-team-name text-[clamp(2.55rem,6.8vw,5.7rem)] font-semibold uppercase leading-[0.78] tracking-[0.015em] text-white">
-            {awayTeamName}
-          </p>
-        </div>
+        <div className="halisaha-hero-post-home flex min-w-0 flex-col">
+          <div className="halisaha-away-vs-row mt-[-0.06rem] flex flex-wrap items-end gap-x-3 gap-y-0">
+            <span className="halisaha-vs-label shrink-0 pb-[0.18rem] text-[0.94rem] font-semibold uppercase tracking-[0.34em] text-white/56 sm:text-[1.08rem]">
+              vs
+            </span>
+            <p className="halisaha-team-name min-w-0 flex-1 text-[clamp(2.55rem,6.8vw,5.7rem)] font-semibold uppercase leading-[0.78] tracking-[0.015em] text-white">
+              {awayTeamName}
+            </p>
+          </div>
 
-        <div className="mt-0 flex min-w-0 items-center gap-3">
-          <CupGlyph />
-          <div className="halisaha-venue-meta flex min-w-0 flex-col justify-center gap-[0.14rem]">
-            <div className="halisaha-venue-kicker text-[11px] font-medium uppercase tracking-[0.24em] text-white/70 sm:text-[12px]">
-              {kickoffLabel}
-            </div>
-            <div className="halisaha-venue-name text-[15px] font-medium uppercase tracking-[0.22em] text-white/88 sm:text-[18px]">
-              {venueName}
+          <div className="halisaha-venue-row mt-0 flex min-w-0 items-center gap-3">
+            <CupGlyph />
+            <div className="halisaha-venue-meta flex min-w-0 flex-col justify-center gap-[0.14rem]">
+              <div className="halisaha-venue-kicker text-[11px] font-medium uppercase tracking-[0.24em] text-white/70 sm:text-[12px]">
+                {kickoffLabel}
+              </div>
+              <div className="halisaha-venue-name text-[15px] font-medium uppercase tracking-[0.22em] text-white/88 sm:text-[18px]">
+                {venueName}
+              </div>
             </div>
           </div>
         </div>
       </div>
 
-      <div className="halisaha-crest-stage mt-2 text-center sm:mt-2.5 lg:absolute lg:right-[-3.5rem] lg:top-[-1.8625rem] lg:mt-0 lg:w-[24rem] xl:right-[-4.05rem] xl:top-[-2.1125rem] xl:w-[27.6rem]">
+      <div className="halisaha-hero-secondary halisaha-crest-stage mt-2 text-center sm:mt-2.5 lg:absolute lg:right-[-3.5rem] lg:top-[-1.8625rem] lg:mt-0 lg:w-[24rem] xl:right-[-4.05rem] xl:top-[-2.1125rem] xl:w-[27.6rem]">
         <div className="relative w-full">
           <RaynetCrest />
           <div className="halisaha-countdown-stage absolute left-1/2 top-full mt-[calc(-1.9rem-10px)] -translate-x-1/2">
@@ -763,95 +738,6 @@ function HalisahaHeroSummary({
         </div>
       </div>
     </div>
-  );
-}
-
-function HalisahaRotateGate({
-  title,
-  homeTeamName,
-  awayTeamName,
-  onRequestLandscape,
-}: {
-  title: string;
-  homeTeamName: string;
-  awayTeamName: string;
-  onRequestLandscape: () => void;
-}) {
-  return (
-    <div className="halisaha-rotate-gate flex h-full min-h-0 flex-col items-center justify-center text-center">
-      <div className="mx-auto flex max-w-[34rem] flex-col items-center rounded-[1.35rem] border border-white/12 bg-[linear-gradient(180deg,rgba(255,255,255,0.06),rgba(255,255,255,0.025))] px-5 py-5 shadow-[0_24px_56px_rgba(0,0,0,0.28)]">
-        <RotateDeviceGlyph />
-        <div className="mt-4 text-[0.62rem] font-semibold uppercase tracking-[0.22em] text-white/52">
-          Mobile landscape required
-        </div>
-        <h2 className="mt-2 text-[1.24rem] font-semibold leading-tight text-white">
-          Rotate your phone to use Halisaha Mode
-        </h2>
-        <p className="mt-3 text-[0.82rem] leading-[1.6] text-white/68">
-          Halisaha Matchday is designed as a full-width mobile landscape experience. Keep the
-          top site menu visible, rotate your device, then continue in horizontal mode.
-        </p>
-        <p className="mt-4 text-[0.62rem] font-semibold uppercase tracking-[0.18em] text-white/44">
-          {title}
-        </p>
-        <p className="mt-1 text-[0.94rem] font-medium uppercase tracking-[0.08em] text-white/86">
-          {homeTeamName} vs {awayTeamName}
-        </p>
-        <button
-          type="button"
-          onClick={onRequestLandscape}
-          className="mt-5 rounded-full border border-white/14 bg-white/[0.08] px-4 py-[0.78rem] text-[0.62rem] font-semibold uppercase tracking-[0.18em] text-white shadow-[0_14px_28px_rgba(0,0,0,0.2)] transition-colors hover:bg-white/[0.13]"
-        >
-          I rotated my phone
-        </button>
-      </div>
-    </div>
-  );
-}
-
-function RotateDeviceGlyph() {
-  return (
-    <svg
-      viewBox="0 0 120 120"
-      aria-hidden
-      className="h-16 w-16 text-white/84"
-      fill="none"
-    >
-      <rect
-        x="23"
-        y="17"
-        width="42"
-        height="74"
-        rx="9"
-        stroke="currentColor"
-        strokeWidth="4.5"
-        opacity="0.38"
-      />
-      <rect
-        x="58"
-        y="43"
-        width="39"
-        height="26"
-        rx="7"
-        stroke="currentColor"
-        strokeWidth="4.5"
-      />
-      <path
-        d="M77 27c9.8 2.2 17.7 10 20 19.8"
-        stroke="currentColor"
-        strokeWidth="4"
-        strokeLinecap="round"
-        opacity="0.72"
-      />
-      <path
-        d="M99 42.8L97.3 48l-4.9-2.3"
-        stroke="currentColor"
-        strokeWidth="4"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        opacity="0.72"
-      />
-    </svg>
   );
 }
 
@@ -872,6 +758,7 @@ function PitchBoard({
   viewerCanManageOwnAnswerLock,
   predictionWindowClosed,
   viewerCanRevealWinnerPercentages,
+  useMobileScreen2Layout,
 }: {
   showLineups: boolean;
   onToggle: () => void;
@@ -889,6 +776,7 @@ function PitchBoard({
   viewerCanManageOwnAnswerLock: boolean;
   predictionWindowClosed: boolean;
   viewerCanRevealWinnerPercentages: boolean;
+  useMobileScreen2Layout: boolean;
 }) {
   const hasPublishedQuestions = questions.length > 0;
   const shouldPreviewAdminMvpVote =
@@ -901,6 +789,11 @@ function PitchBoard({
     !postMatchMvpVote.hasUserVoted;
   const hasOverlayContent = shouldShowPostMatchMvpVote || hasPublishedQuestions;
   const showChallengeSurface = showLineups && hasOverlayContent;
+  const usePortraitMobilePitch = useMobileScreen2Layout;
+  const useCompactMobileChallengeLayout =
+    useMobileScreen2Layout && showChallengeSurface;
+  const renderInlineMobileBall = useCompactMobileChallengeLayout;
+  const renderCenteredPitchBall = !renderInlineMobileBall;
   const [renderChallengeOverlay, setRenderChallengeOverlay] = useState(showChallengeSurface);
   const [isFinalizePromptOpen, setIsFinalizePromptOpen] = useState(false);
   const [isPlayerPickerOpen, setIsPlayerPickerOpen] = useState(false);
@@ -942,11 +835,36 @@ function PitchBoard({
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-1.5">
       <div className="halisaha-pitch-caption flex items-center justify-between gap-3 text-[10px] uppercase tracking-[0.18em] text-white/52 sm:text-[11px]">
-        <span>7V7</span>
+        <div className="flex items-center gap-2.5">
+          {renderInlineMobileBall ? (
+            <MidfieldBallButton
+              showLineups={showLineups}
+              promptOpen={overlayBlocksBall}
+              compactMobileBall
+              inlineCompactBall
+              label={
+                shouldShowPostMatchMvpVote
+                  ? showLineups
+                    ? "Hide MVP vote"
+                    : "Reveal MVP vote"
+                  : undefined
+              }
+              onToggle={onToggle}
+            />
+          ) : null}
+          <span>7V7</span>
+        </div>
         <span>{statusLabel}</span>
       </div>
 
       <div
+        data-mobile-pitch-state={
+          !showLineups && usePortraitMobilePitch
+            ? "closed-portrait"
+            : useCompactMobileChallengeLayout
+              ? "open-compact"
+              : undefined
+        }
         className={`halisaha-pitch-board relative min-h-0 flex-1 overflow-hidden rounded-[1.3rem] border border-white/10 p-2 shadow-[0_20px_54px_rgba(0,0,0,0.24)] transition-[background-image,box-shadow,transform] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] sm:rounded-[1.55rem] sm:p-2.5 ${
           showLineups
             ? "bg-[linear-gradient(180deg,rgba(62,104,92,0.988),rgba(28,56,50,0.995),rgba(11,22,20,0.999))]"
@@ -971,39 +889,63 @@ function PitchBoard({
 
         <div className="relative flex h-full min-h-[15.75rem] w-full min-w-0 items-center justify-center sm:min-h-[19.25rem]">
           {/* Match SVG viewBox 1000×620: contain in parent so letterboxing is even (same band top/bottom as left/right). */}
-          <div className="relative aspect-[1000/620] h-full max-h-full w-auto max-w-full min-h-0 min-w-0">
           <div
-            className={`pointer-events-none absolute inset-y-0 left-0 z-[1] w-1/2 origin-right rounded-l-[1.2rem] border-r border-white/6 transition-transform duration-300 ${
-              showLineups
-                ? "bg-[linear-gradient(180deg,rgba(17,29,26,0.52),rgba(10,16,15,0.24))]"
-                : "bg-[linear-gradient(180deg,rgba(48,48,48,0.68),rgba(24,24,24,0.58))]"
-            } ${
-              showLineups ? "scale-x-100" : "scale-x-0"
-            }`}
-          />
-          <div
-            className={`pointer-events-none absolute inset-y-0 right-0 z-[1] w-1/2 origin-left rounded-r-[1.2rem] border-l border-white/6 transition-transform duration-300 ${
-              showLineups
-                ? "bg-[linear-gradient(180deg,rgba(19,31,28,0.56),rgba(11,17,15,0.26))]"
-                : "bg-[linear-gradient(180deg,rgba(48,48,48,0.72),rgba(22,22,22,0.6))]"
-            } ${
-              showLineups ? "scale-x-100" : "scale-x-0"
-            }`}
-          />
-
-          <PitchLines showLineups={showLineups} />
-          {shouldRenderMatchdayPitchOverlay ? (
+            data-mobile-pitch-stage={usePortraitMobilePitch ? "portrait" : undefined}
+            className={`halisaha-pitch-stage relative ${
+              usePortraitMobilePitch
+                ? "aspect-[620/1000] h-full max-h-full w-auto max-w-full"
+                : "aspect-[1000/620] h-full max-h-full w-auto max-w-full"
+            } min-h-0 min-w-0`}
+          >
             <div
-              aria-hidden={showChallengeSurface}
-              className={`absolute inset-0 z-10 transition-[opacity,transform,filter] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${
-                showChallengeSurface
-                  ? "pointer-events-none opacity-0 blur-[10px] scale-[1.028]"
-                  : "opacity-100 blur-0 scale-100"
+              className={`halisaha-pitch-stage-canvas transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${
+                usePortraitMobilePitch
+                  ? `absolute left-1/2 top-1/2 ${
+                      showLineups
+                        ? "h-[62.6%] w-[162.9%]"
+                        : "h-[62.8%] w-[163.4%]"
+                    } -translate-x-1/2 -translate-y-1/2 rotate-90`
+                  : "absolute inset-0"
               }`}
             >
-              <PitchOverlay homeLineup={homeLineup} awayLineup={awayLineup} />
+              <div
+                className={`pointer-events-none absolute inset-y-0 left-0 z-[1] w-1/2 origin-right rounded-l-[1.2rem] border-r border-white/6 transition-transform duration-300 ${
+                  showLineups
+                    ? "bg-[linear-gradient(180deg,rgba(17,29,26,0.52),rgba(10,16,15,0.24))]"
+                    : "bg-[linear-gradient(180deg,rgba(48,48,48,0.68),rgba(24,24,24,0.58))]"
+                } ${
+                  showLineups ? "scale-x-100" : "scale-x-0"
+                }`}
+              />
+              <div
+                className={`pointer-events-none absolute inset-y-0 right-0 z-[1] w-1/2 origin-left rounded-r-[1.2rem] border-l border-white/6 transition-transform duration-300 ${
+                  showLineups
+                    ? "bg-[linear-gradient(180deg,rgba(19,31,28,0.56),rgba(11,17,15,0.26))]"
+                    : "bg-[linear-gradient(180deg,rgba(48,48,48,0.72),rgba(22,22,22,0.6))]"
+                } ${
+                  showLineups ? "scale-x-100" : "scale-x-0"
+                }`}
+              />
+
+              <PitchLines showLineups={showLineups} />
+              {shouldRenderMatchdayPitchOverlay ? (
+                <div
+                  aria-hidden={showChallengeSurface}
+                  className={`absolute inset-0 z-10 transition-[opacity,transform,filter] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${
+                    showChallengeSurface
+                      ? "pointer-events-none opacity-0 blur-[10px] scale-[1.028]"
+                      : "opacity-100 blur-0 scale-100"
+                  }`}
+                >
+                  <PitchOverlay
+                    homeLineup={homeLineup}
+                    awayLineup={awayLineup}
+                    portraitClosedLayout={usePortraitMobilePitch}
+                  />
+                </div>
+              ) : null}
             </div>
-          ) : null}
+          </div>
           {renderChallengeOverlay ? (
             <div
               aria-hidden={!showChallengeSurface}
@@ -1034,23 +976,26 @@ function PitchBoard({
                   winnerPercentagesVisible={viewerCanRevealWinnerPercentages}
                   onFinalizePromptVisibilityChange={setIsFinalizePromptOpen}
                   onPlayerPickerVisibilityChange={setIsPlayerPickerOpen}
+                  compactMobileLayout={useCompactMobileChallengeLayout}
                 />
               )}
             </div>
           ) : null}
-          <MidfieldBallButton
-            showLineups={showLineups}
-            promptOpen={overlayBlocksBall}
-            label={
-              shouldShowPostMatchMvpVote
-                ? showLineups
-                  ? "Hide MVP vote"
-                  : "Reveal MVP vote"
-                : undefined
-            }
-            onToggle={onToggle}
-          />
-          </div>
+          {renderCenteredPitchBall ? (
+            <MidfieldBallButton
+              showLineups={showLineups}
+              promptOpen={overlayBlocksBall}
+              compactMobileBall={useCompactMobileChallengeLayout}
+              label={
+                shouldShowPostMatchMvpVote
+                  ? showLineups
+                    ? "Hide MVP vote"
+                    : "Reveal MVP vote"
+                  : undefined
+              }
+              onToggle={onToggle}
+            />
+          ) : null}
         </div>
       </div>
     </div>
@@ -1060,9 +1005,11 @@ function PitchBoard({
 function PitchOverlay({
   homeLineup,
   awayLineup,
+  portraitClosedLayout = false,
 }: {
   homeLineup: PlayerSpot[];
   awayLineup: PlayerSpot[];
+  portraitClosedLayout?: boolean;
 }) {
   return (
     <svg
@@ -1076,6 +1023,7 @@ function PitchOverlay({
           key={`home-${player.name}`}
           player={player}
           side="left"
+          portraitClosedLayout={portraitClosedLayout}
         />
       ))}
 
@@ -1084,6 +1032,7 @@ function PitchOverlay({
           key={`away-${player.name}`}
           player={player}
           side="right"
+          portraitClosedLayout={portraitClosedLayout}
         />
       ))}
     </svg>
@@ -1093,11 +1042,15 @@ function PitchOverlay({
 function MidfieldBallButton({
   showLineups,
   promptOpen,
+  compactMobileBall = false,
+  inlineCompactBall = false,
   label,
   onToggle,
 }: {
   showLineups: boolean;
   promptOpen: boolean;
+  compactMobileBall?: boolean;
+  inlineCompactBall?: boolean;
   label?: string;
   onToggle: () => void;
 }) {
@@ -1114,14 +1067,24 @@ function MidfieldBallButton({
       aria-pressed={showLineups}
       aria-label={label ?? (showLineups ? "Hide lineups" : "Reveal lineups")}
       tabIndex={-1}
-      className={`absolute left-1/2 ${promptOpen ? "z-[12]" : "z-20"} flex items-center justify-center -translate-x-1/2 -translate-y-1/2 appearance-none border-0 bg-transparent p-0 outline-none ring-0 transition-[width,height,box-shadow,transform,top] duration-150 ease-[cubic-bezier(0.22,1,0.36,1)] focus:outline-none focus-visible:outline-none focus-visible:ring-0 ${
+      className={`${
+        inlineCompactBall
+          ? `relative ${promptOpen ? "z-[12]" : "z-20"} shrink-0`
+          : `absolute left-1/2 ${promptOpen ? "z-[12]" : "z-20"} -translate-x-1/2 -translate-y-1/2`
+      } flex items-center justify-center appearance-none border-0 bg-transparent p-0 outline-none ring-0 transition-[width,height,box-shadow,transform,top] duration-150 ease-[cubic-bezier(0.22,1,0.36,1)] focus:outline-none focus-visible:outline-none focus-visible:ring-0 ${
         showLineups
-          ? "h-[4.32rem] w-[4.32rem] shadow-none sm:h-[4.5rem] sm:w-[4.5rem]"
+          ? compactMobileBall
+            ? inlineCompactBall
+              ? "h-[2.1rem] w-[2.1rem] shadow-none"
+              : "h-[2.88rem] w-[2.88rem] shadow-none sm:h-[3.05rem] sm:w-[3.05rem]"
+            : "h-[4.32rem] w-[4.32rem] shadow-none sm:h-[4.5rem] sm:w-[4.5rem]"
           : "aspect-square w-[12.16%] min-w-[6.12rem] max-w-[7.36rem] shadow-[0_12px_22px_rgba(0,0,0,0.2)]"
       }`}
       style={{
-        top: showLineups ? "calc(50% + 4px)" : "calc(50% + 4.5px)",
-        transform: `translate(${showLineups ? "-50%" : "calc(-50% - 0.5px)"}, -50%) scale(${showLineups ? 0.98 : 1})`,
+        top: inlineCompactBall ? undefined : showLineups ? "calc(50% + 4px)" : "calc(50% + 4.5px)",
+        transform: inlineCompactBall
+          ? undefined
+          : `translate(${showLineups ? "-50%" : "calc(-50% - 0.5px)"}, -50%) scale(${showLineups ? 0.98 : 1})`,
         WebkitTapHighlightColor: "transparent",
         outline: "none",
         border: "none",
@@ -1132,7 +1095,11 @@ function MidfieldBallButton({
       <div
         className={`relative overflow-hidden rounded-full transition-[width,height,transform,box-shadow] duration-150 ease-[cubic-bezier(0.22,1,0.36,1)] ${
           showLineups
-            ? "h-[3.87rem] w-[3.87rem] shadow-[0_6px_18px_rgba(0,0,0,0.2)]"
+            ? compactMobileBall
+              ? inlineCompactBall
+                ? "h-[2.1rem] w-[2.1rem] shadow-[0_3px_10px_rgba(0,0,0,0.16)]"
+                : "h-[2.58rem] w-[2.58rem] shadow-[0_4px_12px_rgba(0,0,0,0.18)]"
+              : "h-[3.87rem] w-[3.87rem] shadow-[0_6px_18px_rgba(0,0,0,0.2)]"
             : "h-full w-full"
         }`}
       >
@@ -1140,7 +1107,15 @@ function MidfieldBallButton({
           src={midfieldBallAsset}
           alt=""
           fill
-          sizes={showLineups ? "(min-width: 640px) 3.87rem, 3.87rem" : "(min-width: 640px) 9.2rem, 7.65rem"}
+          sizes={
+            showLineups
+              ? compactMobileBall
+                ? inlineCompactBall
+                  ? "2.1rem"
+                  : "(min-width: 640px) 2.58rem, 2.58rem"
+                : "(min-width: 640px) 3.87rem, 3.87rem"
+              : "(min-width: 640px) 9.2rem, 7.65rem"
+          }
           className={`pointer-events-none rounded-full object-cover object-center transition-transform duration-150 ease-[cubic-bezier(0.22,1,0.36,1)] ${
             showLineups ? "scale-[1.04]" : "scale-[1.46]"
           }`}
@@ -1342,7 +1317,7 @@ function CupGlyph() {
 
 function RaynetCrest() {
   return (
-    <div className="relative aspect-[757/433] w-full overflow-visible">
+    <div className="halisaha-crest-scale-wrap relative aspect-[757/433] w-full overflow-visible">
       <div className="pointer-events-none absolute inset-[7%] rounded-[2rem] bg-[radial-gradient(circle_at_20%_40%,rgba(143,188,187,0.14),transparent_30%),radial-gradient(circle_at_80%_36%,rgba(129,161,193,0.12),transparent_32%)] blur-2xl" />
       <Image
         src={crestAsset}
@@ -1359,12 +1334,16 @@ function RaynetCrest() {
 function PitchPlayerLabel({
   player,
   side,
+  portraitClosedLayout = false,
 }: {
   player: PlayerSpot;
   side: "left" | "right";
+  portraitClosedLayout?: boolean;
 }) {
+  const labelRotation = portraitClosedLayout ? -90 : side === "left" ? -90 : 90;
+
   return (
-    <g transform={`translate(${player.x} ${player.y}) rotate(${side === "left" ? "-90" : "90"})`}>
+    <g transform={`translate(${player.x} ${player.y}) rotate(${labelRotation})`}>
       <text
         x="0"
         y="0"

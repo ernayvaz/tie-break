@@ -26,3 +26,13 @@ export function isHalisahaPhoneLikeViewport({
     (hasCoarsePointer || maxTouchPoints > 0 || matchesPhoneSizedViewportFallback)
   );
 }
+
+export function shouldUseHalisahaMobileMatchdayPager({
+  isPhoneLikeViewport,
+  isMatchdayTab,
+}: {
+  isPhoneLikeViewport: boolean;
+  isMatchdayTab: boolean;
+}) {
+  return isPhoneLikeViewport && isMatchdayTab;
+}
