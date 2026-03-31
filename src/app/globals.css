@@ -133,19 +133,65 @@ body {
   .halisaha-challenge-overlay[data-mobile-overlay-layout="stacked"]
   .halisaha-challenge-grid-mobile {
   padding-top: 0;
+  min-height: 0;
+}
+
+.halisaha-shell[data-mobile-landscape="true"][data-halisaha-pitch-overlay="open"]
+  .halisaha-challenge-overlay[data-mobile-overlay-layout="stacked"]
+  .halisaha-mobile-question-scroll-frame {
+  max-width: min(100%, 32rem);
+  min-height: 0;
+  isolation: isolate;
 }
 
 .halisaha-shell[data-mobile-landscape="true"][data-halisaha-pitch-overlay="open"]
   .halisaha-challenge-overlay[data-mobile-overlay-layout="stacked"]
   .halisaha-mobile-question-stack {
+  min-height: 0;
   max-width: min(100%, 32rem);
+  overscroll-behavior-y: contain;
+  scrollbar-gutter: stable both-edges;
+  scroll-padding-top: 0.18rem;
+  scroll-padding-bottom: 0.28rem;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(212, 228, 223, 0.22) transparent;
   padding-inline: clamp(0.08rem, 0.38vw, 0.18rem);
+  padding-top: 0.04rem;
+  padding-bottom: 0.18rem;
+}
+
+.halisaha-shell[data-mobile-landscape="true"][data-halisaha-pitch-overlay="open"]
+  .halisaha-challenge-overlay[data-mobile-overlay-layout="stacked"]
+  .halisaha-mobile-question-stack::-webkit-scrollbar {
+  width: 0.28rem;
+}
+
+.halisaha-shell[data-mobile-landscape="true"][data-halisaha-pitch-overlay="open"]
+  .halisaha-challenge-overlay[data-mobile-overlay-layout="stacked"]
+  .halisaha-mobile-question-stack::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.halisaha-shell[data-mobile-landscape="true"][data-halisaha-pitch-overlay="open"]
+  .halisaha-challenge-overlay[data-mobile-overlay-layout="stacked"]
+  .halisaha-mobile-question-stack::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(212, 228, 223, 0.28), rgba(212, 228, 223, 0.14));
 }
 
 .halisaha-shell[data-mobile-landscape="true"][data-halisaha-pitch-overlay="open"]
   .halisaha-challenge-overlay[data-mobile-overlay-layout="stacked"]
   .halisaha-mobile-question-stack-inner {
-  padding-bottom: 0.18rem;
+  min-height: max-content;
+  padding-top: 0.04rem;
+  padding-bottom: 0.24rem;
+}
+
+.halisaha-shell[data-mobile-landscape="true"][data-halisaha-pitch-overlay="open"]
+  .halisaha-challenge-overlay[data-mobile-overlay-layout="stacked"]
+  .halisaha-mobile-question-slot {
+  min-height: fit-content;
 }
 
 .halisaha-shell[data-mobile-landscape="true"][data-halisaha-pitch-overlay="open"]

@@ -669,7 +669,7 @@ export function HalisahaChallengeOverlay({
   }) => (
     <div
       key={question.id}
-      className={compactMobileLayout ? "halisaha-mobile-question-slot min-h-0" : "min-h-0"}
+      className={compactMobileLayout ? "halisaha-mobile-question-slot shrink-0" : "min-h-0"}
     >
       <HalisahaQuestionCard
         question={question}
@@ -709,7 +709,13 @@ export function HalisahaChallengeOverlay({
       className="halisaha-challenge-overlay pointer-events-none absolute inset-0 z-[14]"
     >
       {compactMobileLayout ? null : <CenterLaneFieldMarks />}
-      <div className="absolute inset-0 flex min-h-0 flex-col gap-[clamp(0.18rem,0.58vh,0.38rem)] overflow-hidden px-[2%] pb-[0.12%] pt-[0.2%]">
+      <div
+        className={`absolute inset-0 h-full min-h-0 overflow-hidden px-[2%] pb-[0.12%] pt-[0.2%] ${
+          compactMobileLayout
+            ? "grid grid-rows-[auto_minmax(0,1fr)_auto] gap-[clamp(0.18rem,0.58vh,0.38rem)]"
+            : "flex flex-col gap-[clamp(0.18rem,0.58vh,0.38rem)]"
+        }`}
+      >
         {winnerQuestion && effectiveWinnerVoteSummary && winnerDisplayState ? (
           <div
             className={`halisaha-challenge-winner pointer-events-auto z-[3] shrink-0 rounded-[1.04rem] border border-white/10 bg-[linear-gradient(180deg,rgba(8,15,14,0.84),rgba(8,15,14,0.62))] shadow-[0_14px_30px_rgba(0,0,0,0.18)] backdrop-blur-md ${
@@ -795,10 +801,14 @@ export function HalisahaChallengeOverlay({
         ) : null}
 
         {compactMobileLayout ? (
-          <div className="halisaha-challenge-grid halisaha-challenge-grid-mobile z-[2] flex-1 min-h-0 pointer-events-none">
-            <div className="halisaha-mobile-question-stack pointer-events-auto mx-auto flex h-full min-h-0 w-full max-w-[32rem] flex-col overflow-y-auto pr-[0.15rem]">
-              <div className="halisaha-mobile-question-stack-inner flex min-h-0 flex-col gap-[clamp(0.24rem,0.72vh,0.38rem)]">
-                {stackedQuestions.map(renderQuestionCard)}
+          <div className="halisaha-challenge-grid halisaha-challenge-grid-mobile z-[2] min-h-0 pointer-events-none">
+            <div className="halisaha-mobile-question-scroll-frame pointer-events-auto relative mx-auto flex h-full min-h-0 w-full max-w-[32rem] overflow-hidden">
+              <div className="pointer-events-none absolute inset-x-0 top-0 z-[2] h-[clamp(0.42rem,1.08vh,0.72rem)] bg-[linear-gradient(180deg,rgba(7,13,12,0.82),rgba(7,13,12,0))]" />
+              <div className="pointer-events-none absolute inset-x-0 bottom-0 z-[2] h-[clamp(0.48rem,1.2vh,0.82rem)] bg-[linear-gradient(180deg,rgba(7,13,12,0),rgba(7,13,12,0.86))]" />
+              <div className="halisaha-mobile-question-stack relative z-[1] flex h-full min-h-0 w-full flex-col overflow-y-auto pr-[0.1rem]">
+                <div className="halisaha-mobile-question-stack-inner flex flex-col gap-[clamp(0.24rem,0.72vh,0.38rem)] pb-[0.2rem]">
+                  {stackedQuestions.map(renderQuestionCard)}
+                </div>
               </div>
             </div>
           </div>
@@ -812,7 +822,6 @@ export function HalisahaChallengeOverlay({
                 {leftQuestions.map(renderQuestionCard)}
               </div>
             </div>
-
             <div className="pointer-events-none" />
 
             <div className="halisaha-challenge-column pointer-events-auto min-h-0 overflow-hidden pl-0.35 pb-0.25">
@@ -826,7 +835,11 @@ export function HalisahaChallengeOverlay({
           </div>
         )}
 
-        <div className="halisaha-challenge-footer pointer-events-auto z-[3] mt-auto flex shrink-0 flex-col items-center gap-[0.12rem] pt-0">
+        <div
+          className={`halisaha-challenge-footer pointer-events-auto z-[3] flex shrink-0 flex-col items-center gap-[0.12rem] pt-0 ${
+            compactMobileLayout ? "mt-0" : "mt-auto"
+          }`}
+        >
           <div className="w-full max-w-[43rem] space-y-[0.68rem]">
             {error ? (
               <FeedbackBanner tone="error" message={error} onDismiss={() => setError(null)} />

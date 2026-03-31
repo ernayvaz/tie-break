@@ -264,7 +264,9 @@ export function HalisahaQuestionCard({
 
   return (
     <article
-      className={`halisaha-question-card relative flex h-full min-h-0 flex-col overflow-hidden rounded-[0.92rem] border border-white/12 shadow-[0_10px_24px_rgba(0,0,0,0.15)] backdrop-blur-[2px] ${
+      className={`halisaha-question-card relative flex ${
+        useCompactOverlayLayout ? "h-auto shrink-0" : "h-full min-h-0"
+      } flex-col overflow-hidden rounded-[0.92rem] border border-white/12 shadow-[0_10px_24px_rgba(0,0,0,0.15)] backdrop-blur-[2px] ${
         isOverlayLayout
           ? useCompactOverlayLayout
             ? "halisaha-question-card-compact justify-between bg-[linear-gradient(180deg,rgba(7,13,12,0.68),rgba(10,18,17,0.36))] px-[clamp(0.48rem,1.26vw,0.68rem)] py-[clamp(0.34rem,0.78vh,0.48rem)]"
