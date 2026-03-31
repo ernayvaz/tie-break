@@ -19,23 +19,24 @@ vi.mock("next/link", () => ({
 }));
 
 vi.mock("next/image", () => ({
-  default: ({
-    src,
-    alt,
-    fill: _fill,
-    priority: _priority,
-    ...props
-  }: {
+  default: (props: {
     src: string | { src?: string };
     alt: string;
     fill?: boolean;
     priority?: boolean;
-  }) =>
-    createElement("img", {
+  }) => {
+    const { src, alt, ...imgProps } = props;
+
+    // Strip Next.js-only props so the test render stays warning-free.
+    delete imgProps.fill;
+    delete imgProps.priority;
+
+    return createElement("img", {
       src: typeof src === "string" ? src : src?.src,
       alt,
-      ...props,
-    }),
+      ...imgProps,
+    });
+  },
 }));
 
 function createParticipant(
