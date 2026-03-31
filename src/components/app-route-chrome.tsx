@@ -24,9 +24,17 @@ export function AppRouteChrome({ header, children }: Props) {
     const { body, documentElement } = document;
     const visualViewport = window.visualViewport;
     let frameId = 0;
+    let cancelled = false;
     let settleTimeoutIds: number[] = [];
     const syncHalisahaViewportHeight = () => {
-      const viewportHeight = Math.round(visualViewport?.height ?? window.innerHeight);
+      const heightCandidates = [
+        window.innerHeight,
+        documentElement.clientHeight,
+        Math.round(visualViewport?.height ?? 0),
+      ].filter((value) => Number.isFinite(value) && value > 0);
+      const viewportHeight =
+        heightCandidates.length > 0 ? Math.max(...heightCandidates) : window.innerHeight;
+
       documentElement.style.setProperty("--halisaha-page-viewport-height", `${viewportHeight}px`);
     };
     const clearSettlingTimers = () => {
@@ -60,10 +68,20 @@ export function AppRouteChrome({ header, children }: Props) {
       documentElement.classList.add("halisaha-app-route");
       body.classList.add("halisaha-app-route");
       scheduleViewportSync();
+      if (document.fonts?.ready) {
+        document.fonts.ready
+          .then(() => {
+            if (!cancelled) {
+              scheduleViewportSync();
+            }
+          })
+          .catch(() => undefined);
+      }
       window.addEventListener("resize", scheduleViewportSync);
       window.addEventListener("orientationchange", scheduleViewportSync);
       window.addEventListener("load", scheduleViewportSync);
       window.addEventListener("pageshow", scheduleViewportSync);
+      window.addEventListener("focus", scheduleViewportSync);
       visualViewport?.addEventListener("resize", scheduleViewportSync);
       visualViewport?.addEventListener("scroll", scheduleViewportSync);
       document.addEventListener("visibilitychange", handleVisibilityChange);
@@ -75,11 +93,13 @@ export function AppRouteChrome({ header, children }: Props) {
     }
 
     return () => {
+      cancelled = true;
       clearSettlingTimers();
       window.removeEventListener("resize", scheduleViewportSync);
       window.removeEventListener("orientationchange", scheduleViewportSync);
       window.removeEventListener("load", scheduleViewportSync);
       window.removeEventListener("pageshow", scheduleViewportSync);
+      window.removeEventListener("focus", scheduleViewportSync);
       visualViewport?.removeEventListener("resize", scheduleViewportSync);
       visualViewport?.removeEventListener("scroll", scheduleViewportSync);
       document.removeEventListener("visibilitychange", handleVisibilityChange);

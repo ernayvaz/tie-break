@@ -37,7 +37,7 @@ body {
 
 html.halisaha-app-route,
 body.halisaha-app-route {
-  min-height: 100%;
+  min-height: var(--halisaha-page-viewport-height, 100dvh);
   background: #171717;
 }
 
@@ -48,7 +48,7 @@ body.halisaha-app-route {
 @supports (-webkit-touch-callout: none) {
   html.halisaha-app-route,
   body.halisaha-app-route {
-    min-height: -webkit-fill-available;
+    height: -webkit-fill-available;
   }
 }
 
@@ -76,38 +76,38 @@ body.halisaha-app-route {
   }
 }
 
-@keyframes halisaha-scroll-cue-dot {
+@keyframes halisaha-swipe-cue-dot {
   0% {
     opacity: 0;
-    transform: translateY(0.08rem) scale(0.88);
+    transform: translateY(0.96rem) scale(0.82);
   }
 
   18% {
     opacity: 0.95;
-    transform: translateY(0) scale(1);
+    transform: translateY(0.68rem) scale(1);
   }
 
   72% {
-    opacity: 0.18;
-    transform: translateY(1.2rem) scale(0.94);
+    opacity: 0.24;
+    transform: translateY(0.08rem) scale(0.94);
   }
 
   100% {
     opacity: 0;
-    transform: translateY(1.42rem) scale(0.88);
+    transform: translateY(-0.18rem) scale(0.86);
   }
 }
 
-@keyframes halisaha-scroll-cue-chevron {
+@keyframes halisaha-swipe-cue-arrow {
   0%,
   100% {
-    opacity: 0.2;
+    opacity: 0.22;
     transform: translateY(0);
   }
 
   50% {
-    opacity: 0.72;
-    transform: translateY(0.18rem);
+    opacity: 0.74;
+    transform: translateY(-0.14rem);
   }
 }
 
@@ -120,36 +120,36 @@ body.halisaha-app-route {
   will-change: transform;
 }
 
-.halisaha-mobile-scroll-cue-dot {
-  animation: halisaha-scroll-cue-dot 1.9s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+.halisaha-mobile-swipe-cue-dot {
+  animation: halisaha-swipe-cue-dot 1.9s cubic-bezier(0.22, 1, 0.36, 1) infinite;
 }
 
-.halisaha-mobile-scroll-cue-chevron {
+.halisaha-mobile-swipe-cue-arrow {
   position: relative;
-  animation: halisaha-scroll-cue-chevron 1.9s ease-in-out infinite;
+  animation: halisaha-swipe-cue-arrow 1.9s ease-in-out infinite;
 }
 
-.halisaha-mobile-scroll-cue-chevron::before,
-.halisaha-mobile-scroll-cue-chevron::after {
+.halisaha-mobile-swipe-cue-arrow::before,
+.halisaha-mobile-swipe-cue-arrow::after {
   content: "";
   position: absolute;
-  top: 0.08rem;
-  width: 0.62rem;
-  height: 0.12rem;
+  bottom: 0.12rem;
+  width: 0.58rem;
+  height: 0.11rem;
   border-radius: 999px;
   background: rgba(240, 247, 245, 0.55);
   box-shadow: 0 0 10px rgba(255, 255, 255, 0.08);
 }
 
-.halisaha-mobile-scroll-cue-chevron::before {
+.halisaha-mobile-swipe-cue-arrow::before {
   left: 50%;
-  transform: translateX(-100%) rotate(36deg);
+  transform: translateX(-100%) rotate(-36deg);
   transform-origin: right center;
 }
 
-.halisaha-mobile-scroll-cue-chevron::after {
+.halisaha-mobile-swipe-cue-arrow::after {
   left: 50%;
-  transform: rotate(-36deg);
+  transform: rotate(36deg);
   transform-origin: left center;
 }
 

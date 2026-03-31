@@ -14,7 +14,12 @@ export default function HalisahaLayout({
   const root = document.documentElement;
   const sync = () => {
     const viewport = window.visualViewport;
-    const height = Math.round(viewport?.height ?? window.innerHeight ?? root.clientHeight ?? 0);
+    const heightCandidates = [
+      window.innerHeight,
+      root.clientHeight,
+      Math.round(viewport?.height ?? 0),
+    ].filter((value) => Number.isFinite(value) && value > 0);
+    const height = heightCandidates.length > 0 ? Math.max(...heightCandidates) : 0;
     if (height > 0) {
       root.style.setProperty("--halisaha-page-viewport-height", \`\${height}px\`);
     }
@@ -31,11 +36,15 @@ export default function HalisahaLayout({
   window.addEventListener("orientationchange", schedule, { passive: true });
   window.addEventListener("pageshow", schedule, { passive: true });
   window.addEventListener("load", schedule, { passive: true });
+  window.addEventListener("focus", schedule, { passive: true });
   document.addEventListener("visibilitychange", () => {
     if (!document.hidden) schedule();
   });
   window.visualViewport?.addEventListener("resize", schedule, { passive: true });
   window.visualViewport?.addEventListener("scroll", schedule, { passive: true });
+  if (document.fonts && document.fonts.ready) {
+    document.fonts.ready.then(schedule).catch(() => {});
+  }
 })();`}</Script>
       <div
         className="halisaha-page-shell relative flex min-h-0 flex-1 flex-col max-w-none overflow-x-hidden overflow-y-visible bg-[#171717]"

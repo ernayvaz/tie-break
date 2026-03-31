@@ -70,6 +70,48 @@ const WINNER_SAVE_BUTTON_STYLES: Record<
   },
 };
 
+const OPAQUE_WINNER_SAVE_BUTTON_STYLES: Record<
+  WinnerSelectionTone,
+  {
+    fill: string;
+    glow: string;
+    bubble: string;
+    borderColor: string;
+    textColor: string;
+  }
+> = {
+  home: {
+    fill:
+      "linear-gradient(90deg, rgba(144,53,61,1) 0%, rgba(188,83,89,0.98) 54%, rgba(233,160,152,0.82) 100%)",
+    glow:
+      "radial-gradient(circle at 20% 50%, rgba(255,255,255,0.2) 0%, rgba(255,255,255,0.08) 28%, transparent 64%)",
+    bubble:
+      "radial-gradient(circle, rgba(255,214,210,0.28) 0%, rgba(255,160,154,0.18) 44%, transparent 74%)",
+    borderColor: "rgba(241,179,171,0.34)",
+    textColor: "#fff8f6",
+  },
+  away: {
+    fill:
+      "linear-gradient(270deg, rgba(68,84,189,1) 0%, rgba(95,107,244,0.98) 54%, rgba(171,183,255,0.82) 100%)",
+    glow:
+      "radial-gradient(circle at 80% 50%, rgba(255,255,255,0.2) 0%, rgba(255,255,255,0.08) 28%, transparent 64%)",
+    bubble:
+      "radial-gradient(circle, rgba(218,225,255,0.28) 0%, rgba(151,164,255,0.18) 44%, transparent 74%)",
+    borderColor: "rgba(187,197,255,0.34)",
+    textColor: "#f8faff",
+  },
+  neutral: {
+    fill:
+      "linear-gradient(180deg, rgba(34,48,45,1), rgba(21,31,29,1))",
+    glow:
+      "radial-gradient(circle at 50% 50%, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0.04) 28%, transparent 58%)",
+    bubble:
+      "radial-gradient(circle, rgba(255,255,255,0.14) 0%, rgba(255,255,255,0.06) 44%, transparent 72%)",
+    borderColor: "rgba(215,231,227,0.18)",
+    textColor: "#f4fbf8",
+  },
+};
+
 function splitQuestionsIntoWings(questions: NumberedQuestion[]) {
   const leftQuestionCount = Math.ceil(questions.length / 2);
 
@@ -600,7 +642,9 @@ export function HalisahaChallengeOverlay({
 
     return "neutral";
   }, [effectiveWinnerVoteSummary, selectedAnswers, winnerQuestion]);
-  const saveButtonStyle = WINNER_SAVE_BUTTON_STYLES[winnerSelectionTone];
+  const saveButtonStyle = compactMobileLayout
+    ? OPAQUE_WINNER_SAVE_BUTTON_STYLES[winnerSelectionTone]
+    : WINNER_SAVE_BUTTON_STYLES[winnerSelectionTone];
   const winnerDisplayState = useMemo(() => {
     if (!winnerQuestion || !effectiveWinnerVoteSummary) {
       return null;
@@ -913,12 +957,18 @@ export function HalisahaChallengeOverlay({
                 type="button"
                 onClick={viewerCanUnlockAnswers ? handleUnlockAnswers : openFinalizePrompt}
                 disabled={busy || (!hasSelections && !viewerCanUnlockAnswers)}
-                className="halisaha-challenge-save absolute left-1/2 top-0 z-[4] min-h-0 min-w-[7.1rem] -translate-x-1/2 -translate-y-[38%] overflow-hidden rounded-full border px-3.5 py-[0.46rem] text-[0.49rem] font-semibold uppercase tracking-[0.18em] shadow-[inset_0_1px_0_rgba(255,255,255,0.06),0_10px_22px_rgba(0,0,0,0.18)] backdrop-blur-md transition-[border-color,box-shadow,transform] duration-500 hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_12px_26px_rgba(0,0,0,0.22)] disabled:cursor-default"
+                className={`halisaha-challenge-save absolute left-1/2 top-0 z-[4] min-h-0 min-w-[7.1rem] -translate-x-1/2 -translate-y-[38%] overflow-hidden rounded-full border px-3.5 py-[0.46rem] text-[0.49rem] font-semibold uppercase tracking-[0.18em] transition-[border-color,box-shadow,transform] duration-500 hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_12px_26px_rgba(0,0,0,0.22)] disabled:cursor-default ${
+                  compactMobileLayout
+                    ? "shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_14px_28px_rgba(0,0,0,0.24)] backdrop-blur-none"
+                    : "shadow-[inset_0_1px_0_rgba(255,255,255,0.06),0_10px_22px_rgba(0,0,0,0.18)] backdrop-blur-md"
+                }`}
                 style={{
                   borderColor: saveButtonStyle.borderColor,
                   color: saveButtonStyle.textColor,
                   backgroundImage:
-                    "linear-gradient(180deg,rgba(8,15,14,0.82),rgba(10,17,16,0.58))",
+                    compactMobileLayout
+                      ? "linear-gradient(180deg,rgba(11,19,18,1),rgba(10,17,16,1))"
+                      : "linear-gradient(180deg,rgba(8,15,14,0.82),rgba(10,17,16,0.58))",
                 }}
               >
                 <span
@@ -941,7 +991,11 @@ export function HalisahaChallengeOverlay({
                 />
                 <span
                   className={`pointer-events-none absolute inset-0 transition-opacity duration-500 ${
-                    winnerSelectionTone === "neutral" ? "opacity-24" : "opacity-100"
+                    compactMobileLayout
+                      ? "opacity-100"
+                      : winnerSelectionTone === "neutral"
+                        ? "opacity-24"
+                        : "opacity-100"
                   }`}
                   style={{ backgroundImage: saveButtonStyle.glow }}
                 />

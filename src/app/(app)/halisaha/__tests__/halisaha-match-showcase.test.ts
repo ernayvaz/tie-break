@@ -146,8 +146,9 @@ describe("HalisahaMatchShowcase mobile render", () => {
       }),
     );
 
-    expect(html).toContain("Scroll down");
+    expect(html).toContain("Swipe up");
     expect(html).toContain("for lineups");
+    expect(html).not.toContain("Scroll down");
     expect(html).not.toContain("Share lineup image");
   });
 });

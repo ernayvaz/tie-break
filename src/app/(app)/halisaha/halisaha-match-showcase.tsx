@@ -20,6 +20,8 @@ import { HalisahaPostMatchMvpVote } from "@/components/halisaha/halisaha-post-ma
 import { HalisahaResultsGateCard } from "@/components/halisaha/halisaha-results-gate-card";
 import { getPitchSpot } from "@/lib/halisaha/config";
 import {
+  HALISAHA_MOBILE_VIEWPORT_FALLBACK_LONG_SIDE_PX,
+  HALISAHA_MOBILE_VIEWPORT_FALLBACK_SHORT_SIDE_PX,
   isHalisahaPhoneLikeViewport,
   shouldUseHalisahaMobileMatchdayPager,
 } from "@/lib/halisaha/mobile-landscape";
@@ -54,6 +56,40 @@ const MOBILE_PAGER_WHEEL_THRESHOLD_PX = 18;
 const MOBILE_PAGER_COOLDOWN_MS = 320;
 const MOBILE_VIEWPORT_SETTLE_DELAYS_MS = [120, 320, 760] as const;
 
+function getStableViewportDimensions() {
+  if (typeof window === "undefined") {
+    return {
+      viewportWidth: 0,
+      viewportHeight: 0,
+    };
+  }
+
+  const widthCandidates = [
+    window.innerWidth,
+    document.documentElement.clientWidth,
+    Math.round(window.visualViewport?.width ?? 0),
+  ].filter((value) => Number.isFinite(value) && value > 0);
+  const heightCandidates = [
+    window.innerHeight,
+    document.documentElement.clientHeight,
+    Math.round(window.visualViewport?.height ?? 0),
+  ].filter((value) => Number.isFinite(value) && value > 0);
+
+  return {
+    viewportWidth: widthCandidates.length > 0 ? Math.max(...widthCandidates) : window.innerWidth,
+    viewportHeight:
+      heightCandidates.length > 0 ? Math.max(...heightCandidates) : window.innerHeight,
+  };
+}
+
+function syncHalisahaViewportHeightVar(viewportHeight: number) {
+  if (typeof document === "undefined" || viewportHeight <= 0) {
+    return;
+  }
+
+  document.documentElement.style.setProperty("--halisaha-page-viewport-height", `${viewportHeight}px`);
+}
+
 function getMobileLandscapeViewportState() {
   if (typeof window === "undefined") {
     return {
@@ -66,19 +102,7 @@ function getMobileLandscapeViewportState() {
     };
   }
 
-  const widthCandidates = [
-    window.innerWidth,
-    document.documentElement.clientWidth,
-    Math.round(window.visualViewport?.width ?? Number.POSITIVE_INFINITY),
-  ].filter((value) => Number.isFinite(value) && value > 0);
-  const heightCandidates = [
-    window.innerHeight,
-    document.documentElement.clientHeight,
-    Math.round(window.visualViewport?.height ?? Number.POSITIVE_INFINITY),
-  ].filter((value) => Number.isFinite(value) && value > 0);
-  const viewportWidth = widthCandidates.length > 0 ? Math.min(...widthCandidates) : window.innerWidth;
-  const viewportHeight =
-    heightCandidates.length > 0 ? Math.min(...heightCandidates) : window.innerHeight;
+  const { viewportWidth, viewportHeight } = getStableViewportDimensions();
   const hasCoarsePointer =
     window.matchMedia("(pointer: coarse)").matches || navigator.maxTouchPoints > 0;
 
@@ -89,7 +113,8 @@ function getMobileLandscapeViewportState() {
       hasCoarsePointer,
       maxTouchPoints: navigator.maxTouchPoints,
     }),
-    isLandscape: window.matchMedia("(orientation: landscape)").matches,
+    isLandscape:
+      window.matchMedia("(orientation: landscape)").matches || viewportWidth > viewportHeight,
     viewportWidth,
     viewportHeight,
     hasCoarsePointer,
@@ -101,8 +126,8 @@ function createInitialMobileViewportState(initialPhoneLikeViewport: boolean): Mo
   return {
     isPhoneLike: initialPhoneLikeViewport,
     isLandscape: false,
-    viewportWidth: 0,
-    viewportHeight: 0,
+    viewportWidth: initialPhoneLikeViewport ? HALISAHA_MOBILE_VIEWPORT_FALLBACK_SHORT_SIDE_PX : 0,
+    viewportHeight: initialPhoneLikeViewport ? HALISAHA_MOBILE_VIEWPORT_FALLBACK_LONG_SIDE_PX : 0,
     hasCoarsePointer: initialPhoneLikeViewport,
     maxTouchPoints: initialPhoneLikeViewport ? 1 : 0,
   };
@@ -195,6 +220,7 @@ export function HalisahaMatchShowcase({
     createInitialMobileViewportState(initialPhoneLikeViewport),
   );
   const mobilePagerRef = useRef<HTMLDivElement | null>(null);
+  const viewportSyncRef = useRef<(() => void) | null>(null);
   const touchStartYRef = useRef<number | null>(null);
   const touchTargetRef = useRef<EventTarget | null>(null);
   const lastPanelChangeAtRef = useRef(0);
@@ -299,9 +325,11 @@ export function HalisahaMatchShowcase({
   useLayoutEffect(() => {
     const visualViewport = window.visualViewport;
     let frameId = 0;
+    let cancelled = false;
     let settleTimeoutIds: number[] = [];
     const syncViewportState = () => {
       const nextState = getMobileLandscapeViewportState();
+      syncHalisahaViewportHeightVar(nextState.viewportHeight);
       setMobileViewportState((current) =>
         hasSameMobileViewportState(current, nextState) ? current : nextState,
       );
@@ -332,27 +360,68 @@ export function HalisahaMatchShowcase({
       }
     };
 
+    viewportSyncRef.current = scheduleViewportStateSync;
     scheduleViewportStateSync();
+    if (document.fonts?.ready) {
+      document.fonts.ready
+        .then(() => {
+          if (!cancelled) {
+            scheduleViewportStateSync();
+          }
+        })
+        .catch(() => undefined);
+    }
 
     window.addEventListener("resize", scheduleViewportStateSync);
     window.addEventListener("orientationchange", scheduleViewportStateSync);
     window.addEventListener("load", scheduleViewportStateSync);
     window.addEventListener("pageshow", scheduleViewportStateSync);
+    window.addEventListener("focus", scheduleViewportStateSync);
     visualViewport?.addEventListener("resize", scheduleViewportStateSync);
     visualViewport?.addEventListener("scroll", scheduleViewportStateSync);
     document.addEventListener("visibilitychange", handleVisibilityChange);
 
     return () => {
+      cancelled = true;
+      viewportSyncRef.current = null;
       clearSettlingTimers();
       window.removeEventListener("resize", scheduleViewportStateSync);
       window.removeEventListener("orientationchange", scheduleViewportStateSync);
       window.removeEventListener("load", scheduleViewportStateSync);
       window.removeEventListener("pageshow", scheduleViewportStateSync);
+      window.removeEventListener("focus", scheduleViewportStateSync);
       visualViewport?.removeEventListener("resize", scheduleViewportStateSync);
       visualViewport?.removeEventListener("scroll", scheduleViewportStateSync);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
   }, []);
+
+  useLayoutEffect(() => {
+    if (!(shouldForceMobilePreview || (mobileViewportState.isPhoneLike && activeTab === "matchday"))) {
+      return;
+    }
+
+    const scheduleViewportSync = viewportSyncRef.current;
+    if (!scheduleViewportSync) {
+      return;
+    }
+
+    scheduleViewportSync();
+    const frameId = window.requestAnimationFrame(() => {
+      scheduleViewportSync();
+      window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+    });
+
+    return () => {
+      window.cancelAnimationFrame(frameId);
+    };
+  }, [
+    activeTab,
+    mobileLandscapePanel,
+    mobileViewportState.isPhoneLike,
+    shouldForceMobilePreview,
+    showLineups,
+  ]);
 
   useEffect(() => {
     if (!mobileViewportState.isPhoneLike) {
@@ -784,17 +853,17 @@ function HalisahaHeroSummary({
 
 function MobileHeroScrollCue() {
   return (
-    <div className="pointer-events-none absolute inset-x-0 bottom-[max(0.12rem,env(safe-area-inset-bottom,0px))] flex flex-col items-center justify-end px-4 text-center">
-      <div className="text-[0.54rem] font-semibold uppercase tracking-[0.28em] text-white/44">
-        Scroll down
+    <div className="pointer-events-none absolute inset-x-0 bottom-[max(0.32rem,env(safe-area-inset-bottom,0px))] flex flex-col items-center justify-end px-4 text-center">
+      <div className="text-[0.52rem] font-semibold uppercase tracking-[0.26em] text-white/52">
+        Swipe up
       </div>
-      <div className="mt-2 flex items-center justify-center">
-        <div className="relative flex h-[2.95rem] w-[1.72rem] items-start justify-center rounded-full border border-white/12 bg-[linear-gradient(180deg,rgba(255,255,255,0.05),rgba(255,255,255,0.015))] px-[0.28rem] py-[0.32rem] shadow-[0_14px_30px_rgba(0,0,0,0.24),inset_0_1px_0_rgba(255,255,255,0.04)]">
-          <span className="halisaha-mobile-scroll-cue-dot h-[0.44rem] w-[0.44rem] rounded-full bg-[rgba(240,247,245,0.82)] shadow-[0_0_10px_rgba(255,255,255,0.16)]" />
+      <div className="halisaha-mobile-swipe-cue-arrow mt-[0.55rem] h-[0.72rem] w-[1.2rem]" aria-hidden />
+      <div className="mt-[0.55rem] flex items-center justify-center">
+        <div className="relative flex h-[2.72rem] w-[1.08rem] items-end justify-center rounded-full border border-white/12 bg-[linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.01))] px-[0.22rem] py-[0.28rem] shadow-[0_14px_28px_rgba(0,0,0,0.2),inset_0_1px_0_rgba(255,255,255,0.03)]">
+          <span className="halisaha-mobile-swipe-cue-dot h-[0.34rem] w-[0.34rem] rounded-full bg-[rgba(240,247,245,0.86)] shadow-[0_0_10px_rgba(255,255,255,0.14)]" />
         </div>
       </div>
-      <div className="halisaha-mobile-scroll-cue-chevron mt-2 h-[0.95rem] w-[1.5rem]" aria-hidden />
-      <div className="mt-1.5 text-[0.46rem] font-medium uppercase tracking-[0.22em] text-white/26">
+      <div className="mt-[0.7rem] text-[0.42rem] font-medium uppercase tracking-[0.24em] text-white/26">
         for lineups
       </div>
     </div>
@@ -1405,6 +1474,9 @@ function PitchPlayerLabel({
   portraitClosedLayout?: boolean;
 }) {
   const labelRotation = portraitClosedLayout ? -90 : side === "left" ? -90 : 90;
+  const fontSize = portraitClosedLayout ? 17.85 : 11.9;
+  const strokeWidth = portraitClosedLayout ? 0.63 : 0.42;
+  const letterSpacing = portraitClosedLayout ? 1.65 : 1.1;
 
   return (
     <g transform={`translate(${player.x} ${player.y}) rotate(${labelRotation})`}>
@@ -1415,11 +1487,11 @@ function PitchPlayerLabel({
         dominantBaseline="central"
         fill="#E45F5F"
         stroke="rgba(42,4,4,0.82)"
-        strokeWidth="0.42"
+        strokeWidth={strokeWidth}
         paintOrder="stroke"
-        fontSize="11.9"
+        fontSize={fontSize}
         fontWeight="650"
-        letterSpacing="1.1"
+        letterSpacing={letterSpacing}
         fontFamily="system-ui, sans-serif"
       >
         {player.name.toUpperCase()}
