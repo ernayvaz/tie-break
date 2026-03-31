@@ -7,7 +7,7 @@ export default function HalisahaLayout({
 }) {
   return (
     <div
-      className="halisaha-page-shell relative -mb-2 -mt-2 max-w-none overflow-hidden bg-[#171717] sm:-mb-6 sm:-mt-6"
+      className="halisaha-page-shell relative -mb-2 max-w-none overflow-x-hidden overflow-y-visible bg-[#171717] sm:-mb-6 pt-[max(0.35rem,env(safe-area-inset-top))]"
       style={{
         animation: "halisaha-page-reveal 180ms cubic-bezier(0.16, 1, 0.3, 1)",
         transformOrigin: "top center",
@@ -26,7 +26,7 @@ export default function HalisahaLayout({
             "repeating-linear-gradient(0deg, rgba(255,255,255,0.045) 0px, rgba(255,255,255,0.045) 1px, transparent 1px, transparent 19px), repeating-linear-gradient(90deg, rgba(255,255,255,0.03) 0px, rgba(255,255,255,0.03) 1px, transparent 1px, transparent 23px)",
         }}
       />
-      <div className="halisaha-page-inner relative mx-auto max-w-7xl px-2.5 py-2 sm:px-4 sm:py-3">
+      <div className="halisaha-page-inner relative mx-auto max-w-7xl px-2.5 pb-2 pt-1 sm:px-4 sm:pb-3 sm:pt-1.5">
         {children}
       </div>
     </div>
