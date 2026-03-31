@@ -74,6 +74,13 @@ body {
   will-change: transform;
 }
 
+.halisaha-shell a,
+.halisaha-shell button,
+.halisaha-shell label,
+.halisaha-shell input {
+  touch-action: manipulation;
+}
+
 .app-shell-header,
 .app-shell-main,
 .halisaha-page-shell,
@@ -102,24 +109,24 @@ body {
 }
 
 .halisaha-shell[data-mobile-landscape="true"] .halisaha-pitch-board[data-mobile-pitch-state="closed-portrait"] {
-  padding: 0.24rem;
+  padding: 0.12rem;
 }
 
 .halisaha-shell[data-mobile-landscape="true"]
   .halisaha-pitch-board[data-mobile-pitch-state="closed-portrait"]
   .halisaha-pitch-stage {
-  max-width: min(100%, 20rem);
+  max-width: 100%;
 }
 
 .halisaha-shell[data-mobile-landscape="true"]
   .halisaha-pitch-board[data-mobile-pitch-state="open-compact"] {
-  padding: 0.2rem;
+  padding: 0.12rem;
 }
 
 .halisaha-shell[data-mobile-landscape="true"]
   .halisaha-pitch-board[data-mobile-pitch-state="open-compact"]
   .halisaha-pitch-stage {
-  max-width: min(100%, 19.7rem);
+  max-width: 100%;
 }
 
 .halisaha-shell[data-mobile-landscape="true"][data-halisaha-pitch-overlay="open"]

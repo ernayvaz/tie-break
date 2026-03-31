@@ -116,7 +116,7 @@ describe("halisaha/rules", () => {
       ).toBe(false);
     });
 
-    it("reveals WHO WINS percentages after kickoff only for viewers allowed past the MVP gate", () => {
+    it("keeps WHO WINS percentages hidden until the user locks answers even after kickoff", () => {
       expect(
         shouldRevealWinnerPercentages({
           phase: "results_unlocked",
@@ -124,7 +124,7 @@ describe("halisaha/rules", () => {
           canRevealResults: false,
           hasWinnerVoteSummary: true,
         }),
-      ).toBe(false);
+      ).toBe(true);
 
       expect(
         shouldRevealWinnerPercentages({
@@ -133,7 +133,7 @@ describe("halisaha/rules", () => {
           canRevealResults: true,
           hasWinnerVoteSummary: true,
         }),
-      ).toBe(true);
+      ).toBe(false);
     });
   });
 

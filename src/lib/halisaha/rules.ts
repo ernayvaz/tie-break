@@ -46,11 +46,7 @@ export function shouldRevealWinnerPercentages(input: {
   canRevealResults: boolean;
   hasWinnerVoteSummary: boolean;
 }) {
-  if (input.phase === "pre_match") {
-    return input.userAnswersLocked;
-  }
-
-  return input.canRevealResults && input.hasWinnerVoteSummary;
+  return input.userAnswersLocked && input.hasWinnerVoteSummary;
 }
 
 export function maskHalisahaAnswerForGate<T extends HalisahaGateAnswerState>(

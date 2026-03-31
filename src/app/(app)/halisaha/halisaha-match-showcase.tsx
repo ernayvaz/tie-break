@@ -40,7 +40,7 @@ type ShowcaseTab = "matchday" | "leaderboard";
 type MobileLandscapePanel = "hero" | "pitch";
 
 const PITCH_TRANSITION_TIMEOUT_MS = 280;
-const MOBILE_PAGER_TOUCH_THRESHOLD_PX = 18;
+const MOBILE_PAGER_TOUCH_THRESHOLD_PX = 28;
 const MOBILE_PAGER_WHEEL_THRESHOLD_PX = 18;
 const MOBILE_PAGER_COOLDOWN_MS = 320;
 
@@ -450,68 +450,6 @@ export function HalisahaMatchShowcase({
       resetPagerTouchState();
     }
   };
-
-  useEffect(() => {
-    if (!isImmersiveMobileMatchday) {
-      return;
-    }
-
-    const handleWindowWheel = (event: WheelEvent) => {
-      if (Math.abs(event.deltaY) < MOBILE_PAGER_WHEEL_THRESHOLD_PX) {
-        return;
-      }
-
-      const direction = event.deltaY > 0 ? "down" : "up";
-      if (trySwitchMobileLandscapePanel(direction, event.target)) {
-        event.preventDefault();
-      }
-    };
-
-    const handleWindowTouchStart = (event: TouchEvent) => {
-      touchStartYRef.current = event.touches[0]?.clientY ?? null;
-      touchTargetRef.current = event.target;
-    };
-
-    const handleWindowTouchMove = (event: TouchEvent) => {
-      if (touchStartYRef.current === null) {
-        return;
-      }
-
-      const currentY = event.touches[0]?.clientY;
-      if (typeof currentY !== "number") {
-        return;
-      }
-
-      const deltaY = currentY - touchStartYRef.current;
-      if (Math.abs(deltaY) < MOBILE_PAGER_TOUCH_THRESHOLD_PX) {
-        return;
-      }
-
-      const direction = deltaY < 0 ? "down" : "up";
-      if (trySwitchMobileLandscapePanel(direction, touchTargetRef.current)) {
-        event.preventDefault();
-        resetPagerTouchState();
-      }
-    };
-
-    const handleWindowTouchEnd = () => {
-      resetPagerTouchState();
-    };
-
-    window.addEventListener("wheel", handleWindowWheel, { passive: false });
-    window.addEventListener("touchstart", handleWindowTouchStart, { passive: true });
-    window.addEventListener("touchmove", handleWindowTouchMove, { passive: false });
-    window.addEventListener("touchend", handleWindowTouchEnd, { passive: true });
-    window.addEventListener("touchcancel", handleWindowTouchEnd, { passive: true });
-
-    return () => {
-      window.removeEventListener("wheel", handleWindowWheel);
-      window.removeEventListener("touchstart", handleWindowTouchStart);
-      window.removeEventListener("touchmove", handleWindowTouchMove);
-      window.removeEventListener("touchend", handleWindowTouchEnd);
-      window.removeEventListener("touchcancel", handleWindowTouchEnd);
-    };
-  }, [isImmersiveMobileMatchday, resetPagerTouchState, trySwitchMobileLandscapePanel]);
 
   const heroShell = (
     <div
