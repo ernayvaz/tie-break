@@ -518,13 +518,13 @@ export function HalisahaMatchShowcase({
       data-halisaha-pitch-overlay={halisahaPitchOverlayOpen ? "open" : undefined}
       data-mobile-landscape={isImmersiveMobileMatchday ? "true" : undefined}
       data-mobile-landscape-panel={isImmersiveMobileMatchday ? mobileLandscapePanel : undefined}
-      className={`halisaha-shell relative isolate flex min-h-[calc(100dvh-5.2rem)] flex-col overflow-hidden rounded-[1.35rem] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.025),rgba(255,255,255,0.01))] px-3.5 py-3.5 text-white shadow-[0_22px_58px_rgba(0,0,0,0.24)] sm:rounded-[1.8rem] sm:px-4 sm:py-3.5 ${
+      className={`halisaha-shell relative isolate flex min-h-full flex-1 flex-col overflow-hidden rounded-[1.35rem] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.012),rgba(255,255,255,0.006))] px-3.5 py-3.5 text-white shadow-[0_22px_58px_rgba(0,0,0,0.24)] sm:rounded-[1.8rem] sm:px-4 sm:py-3.5 ${
         activeTab === "leaderboard"
           ? "lg:min-h-[calc(100dvh-5.25rem)]"
           : "lg:h-[calc(100dvh-5.25rem)] lg:min-h-0"
       }`}
     >
-      <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.018),rgba(255,255,255,0.008)_30%,transparent_64%,rgba(255,255,255,0.012)_100%)]" />
+      <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.005),transparent_26%,transparent_78%,rgba(255,255,255,0.006)_100%)]" />
 
       {isImmersiveMobileMatchday ? (
         <div
