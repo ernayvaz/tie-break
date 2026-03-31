@@ -203,7 +203,8 @@ body {
 .halisaha-shell[data-mobile-landscape="true"][data-halisaha-pitch-overlay="open"]
   .halisaha-challenge-overlay[data-mobile-overlay-layout="stacked"]
   .halisaha-challenge-winner {
-  max-width: min(100%, 32rem);
+  width: 100%;
+  max-width: 100%;
   margin-left: auto;
   margin-right: auto;
 }
@@ -211,22 +212,22 @@ body {
 .halisaha-shell[data-mobile-landscape="true"][data-halisaha-pitch-overlay="open"]
   .halisaha-challenge-overlay[data-mobile-overlay-layout="stacked"]
   .halisaha-challenge-winner-header {
-  margin-bottom: 0.26rem;
-  gap: 0.68rem;
+  margin-bottom: 0.22rem;
+  gap: 0.46rem;
 }
 
 .halisaha-shell[data-mobile-landscape="true"][data-halisaha-pitch-overlay="open"]
   .halisaha-challenge-overlay[data-mobile-overlay-layout="stacked"]
   .halisaha-challenge-winner-grid {
-  gap: clamp(0.14rem, 0.42vw, 0.24rem);
-  grid-template-columns: minmax(0, 1fr) clamp(5.6rem, 14.2vw, 6.15rem) minmax(0, 1fr);
+  gap: clamp(0.06rem, 0.22vw, 0.12rem);
+  grid-template-columns: minmax(0, 1fr) clamp(4.65rem, 11.35vw, 5.05rem) minmax(0, 1fr);
 }
 
 .halisaha-shell[data-mobile-landscape="true"][data-halisaha-pitch-overlay="open"]
   .halisaha-challenge-overlay[data-mobile-overlay-layout="stacked"]
   .halisaha-winner-center {
-  height: 2.42rem;
-  max-width: 6.15rem;
+  height: 2.18rem;
+  max-width: 5.05rem;
 }
 
 .halisaha-shell[data-mobile-landscape="true"][data-halisaha-pitch-overlay="open"]
@@ -398,7 +399,7 @@ body {
 
 @media (orientation: landscape) and (max-width: 1023px) {
   :root {
-    --halisaha-page-viewport-height: 100svh;
+    --halisaha-page-viewport-height: 100dvh;
   }
 
   html[data-halisaha-mobile-landscape="true"][data-halisaha-mobile-panel="pitch"] .app-shell-header {
@@ -414,23 +415,34 @@ body {
   }
 
   html[data-halisaha-mobile-landscape="true"][data-halisaha-mobile-panel="pitch"] .halisaha-page-shell {
-    min-height: var(--halisaha-page-viewport-height, 100svh);
+    min-height: var(--halisaha-page-viewport-height, 100dvh);
     margin-top: 0;
     margin-bottom: 0;
+    padding-top: 0;
   }
 
   html[data-halisaha-mobile-landscape="true"][data-halisaha-mobile-panel="pitch"] .halisaha-page-inner {
     --halisaha-page-vertical-padding: 0;
+    display: flex;
+    min-height: 100%;
     padding-top: 0;
     padding-bottom: 0;
   }
 
   html[data-halisaha-mobile-landscape="true"][data-halisaha-mobile-panel="pitch"]
+    .halisaha-page-inner
+    > section.halisaha-shell {
+    flex: 1 1 auto;
+  }
+
+  html[data-halisaha-mobile-landscape="true"][data-halisaha-mobile-panel="pitch"]
     .halisaha-shell[data-mobile-landscape="true"][data-mobile-landscape-panel="pitch"] {
-    height: var(--halisaha-page-viewport-height, 100svh);
-    min-height: var(--halisaha-page-viewport-height, 100svh);
-    padding-top: max(0.55rem, calc(0.2rem + env(safe-area-inset-top, 0px)));
-    padding-bottom: max(0.45rem, env(safe-area-inset-bottom));
+    height: var(--halisaha-page-viewport-height, 100dvh);
+    min-height: var(--halisaha-page-viewport-height, 100dvh);
+    padding-top: max(0.24rem, calc(0.06rem + env(safe-area-inset-top, 0px)));
+    padding-bottom: max(0.2rem, env(safe-area-inset-bottom));
+    padding-left: 0.58rem;
+    padding-right: 0.58rem;
   }
 
   .app-shell-header-inner {
@@ -474,19 +486,19 @@ body {
 
   .halisaha-shell[data-mobile-landscape="true"] {
     height: calc(
-      var(--halisaha-page-viewport-height, 100svh) -
+      var(--halisaha-page-viewport-height, 100dvh) -
         var(--app-header-height, 4rem) -
         var(--halisaha-page-vertical-padding, 0.75rem)
     );
     min-height: calc(
-      var(--halisaha-page-viewport-height, 100svh) -
+      var(--halisaha-page-viewport-height, 100dvh) -
         var(--app-header-height, 4rem) -
         var(--halisaha-page-vertical-padding, 0.75rem)
     );
-    padding-top: max(1.05rem, calc(0.42rem + env(safe-area-inset-top, 0px)));
-    padding-bottom: max(0.85rem, env(safe-area-inset-bottom));
-    padding-left: 0.85rem;
-    padding-right: 0.85rem;
+    padding-top: max(0.72rem, calc(0.2rem + env(safe-area-inset-top, 0px)));
+    padding-bottom: max(0.52rem, env(safe-area-inset-bottom));
+    padding-left: 0.68rem;
+    padding-right: 0.68rem;
   }
 
   .halisaha-shell[data-mobile-landscape="true"] .halisaha-hero-shell {
@@ -557,7 +569,7 @@ body {
   }
 
   .halisaha-shell[data-mobile-landscape="true"] .halisaha-mobile-panel-pitch {
-    padding-top: 0.05rem;
+    padding-top: 0;
   }
 
   .halisaha-shell[data-mobile-landscape="true"][data-mobile-landscape-panel="pitch"]
@@ -566,7 +578,8 @@ body {
   }
 
   .halisaha-shell[data-mobile-landscape="true"] .halisaha-pitch-caption {
-    font-size: 0.54rem;
+    font-size: 0.5rem;
+    line-height: 1;
   }
 
   .halisaha-shell[data-mobile-landscape="true"] .halisaha-pitch-board {

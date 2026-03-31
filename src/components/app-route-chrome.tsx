@@ -21,18 +21,25 @@ export function AppRouteChrome({ header, children }: Props) {
   const halisaha = isHalisahaAppRoute(pathname);
 
   useEffect(() => {
+    const { body } = document;
     if (halisaha) {
       document.documentElement.style.setProperty("--app-header-height", "0px");
+      body.classList.add("halisaha-app-route");
     } else {
       document.documentElement.style.removeProperty("--app-header-height");
+      body.classList.remove("halisaha-app-route");
     }
+
+    return () => {
+      body.classList.remove("halisaha-app-route");
+    };
   }, [halisaha]);
 
   return (
     <div
       className={
         halisaha
-          ? "min-h-[100dvh] bg-[linear-gradient(180deg,rgba(46,46,46,0.98)_0%,rgba(25,25,25,0.99)_100%)]"
+          ? "min-h-[100dvh] bg-[#171717]"
           : "min-h-screen bg-[var(--background)]"
       }
     >

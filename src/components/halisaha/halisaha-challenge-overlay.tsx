@@ -746,17 +746,17 @@ export function HalisahaChallengeOverlay({
     >
       {compactMobileLayout ? null : <CenterLaneFieldMarks />}
       <div
-        className={`absolute inset-0 h-full min-h-0 overflow-hidden px-[2%] pb-[0.12%] pt-[0.2%] ${
+        className={`absolute inset-0 h-full min-h-0 overflow-hidden ${
           compactMobileLayout
-            ? "grid grid-rows-[auto_minmax(0,1fr)_auto] gap-[clamp(0.18rem,0.58vh,0.38rem)]"
-            : "flex flex-col gap-[clamp(0.18rem,0.58vh,0.38rem)]"
+            ? "grid grid-rows-[auto_minmax(0,1fr)_auto] gap-[clamp(0.12rem,0.42vh,0.28rem)] px-[0.45%] pb-[0.04%] pt-[0.04%]"
+            : "flex flex-col gap-[clamp(0.18rem,0.58vh,0.38rem)] px-[2%] pb-[0.12%] pt-[0.2%]"
         }`}
       >
         {winnerQuestion && effectiveWinnerVoteSummary && winnerDisplayState ? (
           <div
             className={`halisaha-challenge-winner pointer-events-auto z-[3] shrink-0 rounded-[1.04rem] border border-white/10 bg-[linear-gradient(180deg,rgba(8,15,14,0.84),rgba(8,15,14,0.62))] shadow-[0_14px_30px_rgba(0,0,0,0.18)] backdrop-blur-md ${
               compactMobileLayout
-                ? "mb-[clamp(0.14rem,0.36vh,0.24rem)] px-2.5 pb-[0.46rem] pt-[0.42rem]"
+                ? "mb-[clamp(0.1rem,0.28vh,0.18rem)] px-2 pb-[0.4rem] pt-[0.36rem]"
                 : "mb-[clamp(0.24rem,0.72vh,0.42rem)] px-3.5 pb-[0.74rem] pt-[0.72rem]"
             }`}
           >

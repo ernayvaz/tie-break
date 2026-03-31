@@ -18,7 +18,7 @@ export default function HalisahaLayout({
         marginRight: "calc(50% - 50dvw)",
       }}
     >
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_14%_8%,rgba(255,255,255,0.05),transparent_22%),radial-gradient(circle_at_86%_10%,rgba(255,255,255,0.04),transparent_24%),linear-gradient(180deg,rgba(46,46,46,0.98)_0%,rgba(25,25,25,0.99)_100%)]" />
+      <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(35,35,35,0.985)_0%,rgba(24,24,24,0.992)_42%,rgba(17,17,17,1)_100%)]" />
       <div
         className="pointer-events-none absolute inset-0 opacity-[0.08]"
         style={{
