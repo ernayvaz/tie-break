@@ -292,23 +292,34 @@ function PlayerPickerModal({
 /** Visual-only: extend fill toward center logos (~10%) without changing shown % labels. */
 const WHO_WINS_BAR_FILL_EXTEND = 1.1;
 
+function getCompactWinnerLabel(label: string) {
+  const [firstWord] = label.trim().split(/\s+/);
+  return firstWord || label;
+}
+
 function WinnerVoteButton({
   label,
+  displayLabel = label,
   fillPercentage,
   percentageLabel,
   selected,
   align,
   animated,
   disabled,
+  compact = false,
+  reservePercentageSpace = true,
   onClick,
 }: {
   label: string;
+  displayLabel?: string;
   fillPercentage: number;
   percentageLabel: number | null;
   selected: boolean;
   align: "left" | "right";
   animated: boolean;
   disabled: boolean;
+  compact?: boolean;
+  reservePercentageSpace?: boolean;
   onClick: () => void;
 }) {
   const visualFillWidth = Math.min(100, fillPercentage * WHO_WINS_BAR_FILL_EXTEND);
@@ -318,7 +329,10 @@ function WinnerVoteButton({
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className={`halisaha-winner-bar relative min-h-[3.02rem] overflow-hidden rounded-[1.04rem] border bg-[linear-gradient(180deg,rgba(9,16,15,0.9),rgba(13,24,22,0.64))] text-left shadow-[0_14px_28px_rgba(0,0,0,0.18)] transition-[border-color,box-shadow,transform] duration-300 ${
+      aria-label={percentageLabel === null ? label : `${label} ${percentageLabel}%`}
+      className={`halisaha-winner-bar relative overflow-hidden border bg-[linear-gradient(180deg,rgba(9,16,15,0.9),rgba(13,24,22,0.64))] text-left shadow-[0_14px_28px_rgba(0,0,0,0.18)] transition-[border-color,box-shadow,transform] duration-300 ${
+        compact ? "min-h-[2.72rem] rounded-[0.98rem]" : "min-h-[3.02rem] rounded-[1.04rem]"
+      } ${
         selected
           ? "border-white/24 ring-1 ring-white/12"
           : "border-white/10 hover:border-white/16"
@@ -335,9 +349,11 @@ function WinnerVoteButton({
         style={{ width: `${animated ? visualFillWidth : 0}%` }}
       />
       <span
-        className={`pointer-events-none absolute inset-y-[18%] ${
+        className={`pointer-events-none absolute ${
+          compact ? "inset-y-[16%]" : "inset-y-[18%]"
+        } ${
           align === "left" ? "left-[6%]" : "right-[6%]"
-        } w-[38%] rounded-full blur-2xl transition-opacity duration-700`}
+        } ${compact ? "w-[40%]" : "w-[38%]"} rounded-full blur-2xl transition-opacity duration-700`}
         style={{
           opacity: animated && visualFillWidth > 0 ? 1 : 0,
           background:
@@ -347,15 +363,35 @@ function WinnerVoteButton({
         }}
       />
       <span className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.045),transparent_58%)]" />
-      <span className="halisaha-winner-bar-inner relative flex min-h-[3.02rem] items-center justify-between gap-3 px-4 py-[0.72rem]">
-        <span className="block min-w-0 flex-1 truncate self-center text-[0.72rem] font-semibold uppercase tracking-[0.08em] text-white/92">
-          {label}
+      <span
+        className={`halisaha-winner-bar-inner relative flex items-center justify-between ${
+          compact ? "min-h-[2.72rem] gap-2 px-3 py-[0.58rem]" : "min-h-[3.02rem] gap-3 px-4 py-[0.72rem]"
+        }`}
+      >
+        <span
+          className={`block min-w-0 flex-1 truncate self-center font-semibold uppercase text-white/92 ${
+            compact ? "text-[0.76rem] tracking-[0.05em]" : "text-[0.72rem] tracking-[0.08em]"
+          }`}
+          title={label}
+        >
+          {displayLabel}
         </span>
-        <span className="shrink-0 self-center text-[1.04rem] font-black leading-none text-white tabular-nums">
+        <span
+          className={`shrink-0 self-center font-black leading-none text-white tabular-nums ${
+            compact ? "text-[0.96rem]" : "text-[1.04rem]"
+          }`}
+        >
           {percentageLabel === null ? (
-            <span aria-hidden="true" className="inline-block min-w-[2.6rem] text-right opacity-0">
-              100%
-            </span>
+            reservePercentageSpace ? (
+              <span
+                aria-hidden="true"
+                className={`inline-block text-right opacity-0 ${
+                  compact ? "min-w-[1.8rem]" : "min-w-[2.6rem]"
+                }`}
+              >
+                100%
+              </span>
+            ) : null
           ) : (
             `${percentageLabel}%`
           )}
@@ -720,7 +756,7 @@ export function HalisahaChallengeOverlay({
           <div
             className={`halisaha-challenge-winner pointer-events-auto z-[3] shrink-0 rounded-[1.04rem] border border-white/10 bg-[linear-gradient(180deg,rgba(8,15,14,0.84),rgba(8,15,14,0.62))] shadow-[0_14px_30px_rgba(0,0,0,0.18)] backdrop-blur-md ${
               compactMobileLayout
-                ? "mb-[clamp(0.16rem,0.42vh,0.26rem)] px-3 pb-[0.56rem] pt-[0.52rem]"
+                ? "mb-[clamp(0.14rem,0.36vh,0.24rem)] px-2.5 pb-[0.46rem] pt-[0.42rem]"
                 : "mb-[clamp(0.24rem,0.72vh,0.42rem)] px-3.5 pb-[0.74rem] pt-[0.72rem]"
             }`}
           >
@@ -739,6 +775,11 @@ export function HalisahaChallengeOverlay({
             <div className="halisaha-challenge-winner-grid grid items-center gap-[clamp(0.75rem,1.4vw,1.05rem)] [grid-template-columns:minmax(0,1fr)_clamp(9.7rem,12.6vw,10.35rem)_minmax(0,1fr)]">
               <WinnerVoteButton
                 label={effectiveWinnerVoteSummary.homeOption.label}
+                displayLabel={
+                  compactMobileLayout
+                    ? getCompactWinnerLabel(effectiveWinnerVoteSummary.homeOption.label)
+                    : effectiveWinnerVoteSummary.homeOption.label
+                }
                 fillPercentage={winnerDisplayState.homeFillPercentage}
                 percentageLabel={winnerDisplayState.homePercentageLabel}
                 selected={
@@ -747,6 +788,8 @@ export function HalisahaChallengeOverlay({
                 }
                 align="left"
                 animated={animateBars}
+                compact={compactMobileLayout}
+                reservePercentageSpace={!compactMobileLayout}
                 disabled={answersResolved || answersLocked || predictionsClosed || busy}
                 onClick={() =>
                   setSelectedAnswers((current) => ({
@@ -776,6 +819,11 @@ export function HalisahaChallengeOverlay({
 
               <WinnerVoteButton
                 label={effectiveWinnerVoteSummary.awayOption.label}
+                displayLabel={
+                  compactMobileLayout
+                    ? getCompactWinnerLabel(effectiveWinnerVoteSummary.awayOption.label)
+                    : effectiveWinnerVoteSummary.awayOption.label
+                }
                 fillPercentage={winnerDisplayState.awayFillPercentage}
                 percentageLabel={winnerDisplayState.awayPercentageLabel}
                 selected={
@@ -784,6 +832,8 @@ export function HalisahaChallengeOverlay({
                 }
                 align="right"
                 animated={animateBars}
+                compact={compactMobileLayout}
+                reservePercentageSpace={!compactMobileLayout}
                 disabled={answersResolved || answersLocked || predictionsClosed || busy}
                 onClick={() =>
                   setSelectedAnswers((current) => ({

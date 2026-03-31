@@ -1030,7 +1030,7 @@ function MidfieldBallButton({
         showLineups
           ? compactMobileBall
             ? inlineCompactBall
-              ? "h-[2.1rem] w-[2.1rem] shadow-none"
+              ? "h-[3.15rem] w-[3.15rem] shadow-none"
               : "h-[2.88rem] w-[2.88rem] shadow-none sm:h-[3.05rem] sm:w-[3.05rem]"
             : "h-[4.32rem] w-[4.32rem] shadow-none sm:h-[4.5rem] sm:w-[4.5rem]"
           : "aspect-square w-[12.16%] min-w-[6.12rem] max-w-[7.36rem] shadow-[0_12px_22px_rgba(0,0,0,0.2)]"
@@ -1052,7 +1052,7 @@ function MidfieldBallButton({
           showLineups
             ? compactMobileBall
               ? inlineCompactBall
-                ? "h-[2.1rem] w-[2.1rem] shadow-[0_3px_10px_rgba(0,0,0,0.16)]"
+                ? "h-[3.15rem] w-[3.15rem] shadow-[0_5px_16px_rgba(0,0,0,0.2)]"
                 : "h-[2.58rem] w-[2.58rem] shadow-[0_4px_12px_rgba(0,0,0,0.18)]"
               : "h-[3.87rem] w-[3.87rem] shadow-[0_6px_18px_rgba(0,0,0,0.2)]"
             : "h-full w-full"
@@ -1066,7 +1066,7 @@ function MidfieldBallButton({
             showLineups
               ? compactMobileBall
                 ? inlineCompactBall
-                  ? "2.1rem"
+                  ? "3.15rem"
                   : "(min-width: 640px) 2.58rem, 2.58rem"
                 : "(min-width: 640px) 3.87rem, 3.87rem"
               : "(min-width: 640px) 9.2rem, 7.65rem"

@@ -261,15 +261,33 @@ export function HalisahaQuestionCard({
           gridTemplateColumns: `repeat(${Math.max(question.options.length, 1)}, minmax(0, 1fr))`,
         }
     : undefined;
+  const compactOverlaySurfaceClass = useCompactOverlayLayout
+    ? "border-white/14 shadow-[0_14px_30px_rgba(0,0,0,0.22)] backdrop-blur-[7px]"
+    : "border-white/12 shadow-[0_10px_24px_rgba(0,0,0,0.15)] backdrop-blur-[2px]";
+  const compactOverlayNeutralOptionClass = useCompactOverlayLayout
+    ? "border-white/12 bg-[rgba(6,12,11,0.38)] hover:bg-[rgba(255,255,255,0.08)]"
+    : "border-white/10 bg-black/10 hover:bg-white/[0.05]";
+  const compactOverlaySelectedOptionClass = useCompactOverlayLayout
+    ? "border-[#d9e6e2]/38 bg-white/[0.14] shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]"
+    : "border-[#d9e6e2]/34 bg-white/[0.115] shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]";
+  const compactOverlayReadValueClass = useCompactOverlayLayout
+    ? "border-white/12 bg-[rgba(6,12,11,0.44)] text-white/90"
+    : "border-white/12 bg-black/10 text-white/86";
+  const compactOverlayMvpActionClass = useCompactOverlayLayout
+    ? "border-white/14 bg-[linear-gradient(180deg,rgba(255,255,255,0.12),rgba(255,255,255,0.05))] hover:bg-[rgba(255,255,255,0.11)]"
+    : "border-white/12 bg-[linear-gradient(180deg,rgba(255,255,255,0.08),rgba(255,255,255,0.03))] hover:bg-white/[0.09]";
+  const compactOverlayScoreInputClass = useCompactOverlayLayout
+    ? "border-white/12 bg-[rgba(6,12,11,0.46)]"
+    : "border-white/10 bg-black/15";
 
   return (
     <article
       className={`halisaha-question-card relative flex ${
         useCompactOverlayLayout ? "h-auto shrink-0" : "h-full min-h-0"
-      } flex-col overflow-hidden rounded-[0.92rem] border border-white/12 shadow-[0_10px_24px_rgba(0,0,0,0.15)] backdrop-blur-[2px] ${
+      } flex-col overflow-hidden rounded-[0.92rem] border ${compactOverlaySurfaceClass} ${
         isOverlayLayout
           ? useCompactOverlayLayout
-            ? "halisaha-question-card-compact justify-between bg-[linear-gradient(180deg,rgba(7,13,12,0.68),rgba(10,18,17,0.36))] px-[clamp(0.48rem,1.26vw,0.68rem)] py-[clamp(0.34rem,0.78vh,0.48rem)]"
+            ? "halisaha-question-card-compact justify-between bg-[linear-gradient(180deg,rgba(7,13,12,0.84),rgba(10,18,17,0.62))] px-[clamp(0.48rem,1.26vw,0.68rem)] py-[clamp(0.34rem,0.78vh,0.48rem)]"
             : "justify-between bg-[linear-gradient(180deg,rgba(7,13,12,0.68),rgba(10,18,17,0.36))] px-[clamp(0.5rem,1.45vw,0.78rem)] py-[clamp(0.4rem,0.96vh,0.56rem)]"
           : "bg-[linear-gradient(180deg,rgba(7,13,12,0.58),rgba(10,18,17,0.26))] px-[clamp(0.5rem,1.45vw,0.78rem)] py-[clamp(0.4rem,0.96vh,0.56rem)]"
       }`}
@@ -343,9 +361,9 @@ export function HalisahaQuestionCard({
                   setIsPlayerPickerOpen(true);
                 }}
                 disabled={isReadOnly || question.options.length === 0}
-                className={`halisaha-mvp-control flex ${isOverlayLayout ? overlayOptionHeightClass : overlayOptionMinHeightClass} items-center justify-center overflow-hidden rounded-[0.72rem] border border-white/12 bg-[linear-gradient(180deg,rgba(255,255,255,0.08),rgba(255,255,255,0.03))] px-3 ${
+                className={`halisaha-mvp-control flex ${isOverlayLayout ? overlayOptionHeightClass : overlayOptionMinHeightClass} items-center justify-center overflow-hidden rounded-[0.72rem] border ${compactOverlayMvpActionClass} px-3 ${
                   isOverlayLayout ? "py-[0.24rem]" : "py-[0.34rem]"
-                } text-[0.66rem] font-semibold uppercase leading-[1.08] tracking-[0.16em] text-white/84 transition-colors hover:bg-white/[0.09] disabled:cursor-default disabled:text-white/38`}
+                } text-[0.66rem] font-semibold uppercase leading-[1.08] tracking-[0.16em] text-white/84 transition-colors disabled:cursor-default disabled:text-white/38`}
               >
                 {question.options.length === 0 ? "No players yet" : "Choose player"}
               </button>
@@ -359,7 +377,7 @@ export function HalisahaQuestionCard({
                         initialAnswer?.selectedOptionId &&
                         initialAnswer.isCorrect === false
                       ? "border-rose-300/28 bg-rose-400/10 text-rose-100"
-                      : "border-white/12 bg-black/10 text-white/86"
+                      : compactOverlayReadValueClass
                 }`}
               >
                 <span className="truncate leading-[1.14]">
@@ -475,8 +493,8 @@ export function HalisahaQuestionCard({
                         : isIncorrectSelected
                           ? "border-rose-300/30 bg-rose-400/10"
                           : isSelected
-                            ? "border-[#d9e6e2]/34 bg-white/[0.115]"
-                            : "border-white/10 bg-black/10 hover:bg-white/[0.05]"
+                            ? compactOverlaySelectedOptionClass
+                            : compactOverlayNeutralOptionClass
                     }`}
                   >
                     <input
@@ -504,7 +522,7 @@ export function HalisahaQuestionCard({
                         onChange={(event) => handleCustomScoreChange("home", event.target.value)}
                         inputMode="numeric"
                         disabled={isReadOnly}
-                        className={`rounded-[0.6rem] border border-white/10 bg-black/15 px-1 text-center font-semibold text-white outline-none placeholder:text-white/24 ${
+                        className={`rounded-[0.6rem] border ${compactOverlayScoreInputClass} px-1 text-center font-semibold text-white outline-none placeholder:text-white/24 ${
                           isOverlayLayout
                             ? "h-[1.3rem] w-[2.18rem] text-[0.66rem]"
                             : "h-8 w-12 px-2 text-[0.78rem]"
@@ -518,7 +536,7 @@ export function HalisahaQuestionCard({
                         onChange={(event) => handleCustomScoreChange("away", event.target.value)}
                         inputMode="numeric"
                         disabled={isReadOnly}
-                        className={`rounded-[0.6rem] border border-white/10 bg-black/15 px-1 text-center font-semibold text-white outline-none placeholder:text-white/24 ${
+                        className={`rounded-[0.6rem] border ${compactOverlayScoreInputClass} px-1 text-center font-semibold text-white outline-none placeholder:text-white/24 ${
                           isOverlayLayout
                             ? "h-[1.3rem] w-[2.18rem] text-[0.66rem]"
                             : "h-8 w-12 px-2 text-[0.78rem]"
@@ -552,8 +570,8 @@ export function HalisahaQuestionCard({
                       : isIncorrectSelected
                         ? "border-rose-300/28 bg-rose-400/10 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]"
                   : isSelected
-                          ? "border-[#d9e6e2]/34 bg-white/[0.115] shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]"
-                          : "border-white/10 bg-black/10 hover:bg-white/[0.05]"
+                          ? compactOverlaySelectedOptionClass
+                          : compactOverlayNeutralOptionClass
               }`}
             >
               <input
@@ -626,8 +644,8 @@ export function HalisahaQuestionCard({
                       : isIncorrectSelected
                         ? "border-rose-300/28 bg-rose-400/10 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]"
                         : isSelected
-                          ? "border-[#d9e6e2]/34 bg-white/[0.115] shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]"
-                          : "border-white/10 bg-black/10 hover:bg-white/[0.05]"
+                          ? compactOverlaySelectedOptionClass
+                          : compactOverlayNeutralOptionClass
                   }`}
                 >
                   <input
