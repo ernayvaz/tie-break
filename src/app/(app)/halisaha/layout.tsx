@@ -47,11 +47,10 @@ export default function HalisahaLayout({
   }
 })();`}</Script>
       <div
-        className="halisaha-page-shell relative flex min-h-0 flex-1 flex-col max-w-none overflow-x-hidden overflow-y-visible bg-[#171717]"
+        className="halisaha-page-shell relative flex h-full min-h-0 flex-1 flex-col max-w-none overflow-hidden bg-[#171717]"
         style={{
           animation: "halisaha-page-reveal 180ms cubic-bezier(0.16, 1, 0.3, 1)",
           transformOrigin: "top center",
-          minHeight: "var(--halisaha-page-viewport-height, 100dvh)",
         }}
       >
         <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(23,23,23,1),rgba(23,23,23,1))]" />

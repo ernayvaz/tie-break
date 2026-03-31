@@ -387,11 +387,7 @@ body.halisaha-app-route {
 
   .halisaha-page-inner > section.halisaha-shell:not([data-mobile-landscape="true"]) {
     flex: 1 1 auto;
-    min-height: calc(
-      var(--halisaha-page-viewport-height, 100dvh) -
-        env(safe-area-inset-top, 0px) -
-        env(safe-area-inset-bottom, 0px)
-    );
+    min-height: var(--halisaha-page-viewport-height, 100dvh);
     padding-top: max(0.56rem, env(safe-area-inset-top, 0px));
     padding-bottom: max(0.42rem, env(safe-area-inset-bottom, 0px));
     padding-left: 0.78rem;

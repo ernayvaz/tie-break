@@ -113,7 +113,7 @@ export function AppRouteChrome({ header, children }: Props) {
     <div
       className={
         halisaha
-          ? "flex min-h-[var(--halisaha-page-viewport-height,100dvh)] flex-col bg-[#171717]"
+          ? "flex h-[100dvh] max-h-[100dvh] flex-col overflow-hidden bg-[#171717]"
           : "min-h-screen bg-[var(--background)]"
       }
     >

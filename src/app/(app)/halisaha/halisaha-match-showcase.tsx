@@ -607,7 +607,7 @@ export function HalisahaMatchShowcase({
     <div
       className={`halisaha-hero-shell flex flex-col gap-4 pb-2.5 sm:gap-4 sm:pb-3 ${
         isImmersiveMobileMatchday
-          ? "relative h-full min-h-0 flex-1 justify-between border-b-0"
+          ? "relative h-full justify-start border-b-0"
           : "border-b border-white/10"
       }`}
     >
@@ -622,7 +622,6 @@ export function HalisahaMatchShowcase({
         kickoffLabel={snapshot.match.kickoffLabel}
         venueName={snapshot.match.venueName}
         countdown={countdown}
-        immersiveMobileLayout={isImmersiveMobileMatchday}
       />
       {activeTab === "matchday" && isCompactMobileViewport ? <MobileHeroScrollCue /> : null}
     </div>
@@ -796,21 +795,15 @@ function HalisahaHeroSummary({
   kickoffLabel,
   venueName,
   countdown,
-  immersiveMobileLayout = false,
 }: {
   homeTeamName: string;
   awayTeamName: string;
   kickoffLabel: string;
   venueName: string;
   countdown: string;
-  immersiveMobileLayout?: boolean;
 }) {
   return (
-    <div
-      className={`halisaha-hero relative flex min-h-0 flex-col gap-1.25 sm:gap-1.5 lg:pr-[25.25rem] xl:pr-[28.5rem] ${
-        immersiveMobileLayout ? "flex-1 justify-between pb-[5.2rem]" : ""
-      }`}
-    >
+    <div className="halisaha-hero relative flex min-h-0 flex-col gap-1.25 sm:gap-1.5 lg:pr-[25.25rem] xl:pr-[28.5rem]">
       <div className="halisaha-hero-primary min-w-0 shrink-0">
         <h1 className="halisaha-team-name text-[clamp(2.55rem,6.8vw,5.7rem)] font-semibold uppercase leading-[0.78] tracking-[0.015em] text-white">
           {homeTeamName}
