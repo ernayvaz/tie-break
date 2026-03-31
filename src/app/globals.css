@@ -204,6 +204,11 @@ body.halisaha-app-route {
   max-width: 100%;
 }
 
+/* Matchday predictions open: caption row vertically centers ball+7V7 with status copy */
+.halisaha-shell[data-halisaha-pitch-overlay="open"] .halisaha-pitch-caption {
+  align-items: center;
+}
+
 .halisaha-shell[data-mobile-landscape="true"][data-halisaha-pitch-overlay="open"]
   .halisaha-challenge-overlay[data-mobile-overlay-layout="stacked"]
   .halisaha-challenge-grid-mobile {

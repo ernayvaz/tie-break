@@ -986,7 +986,13 @@ function PitchBoard({
               onToggle={onToggle}
             />
           ) : null}
-          <span className="halisaha-pitch-format-label text-[0.5rem] font-medium leading-none tracking-[0.18em] sm:text-[0.55rem]">
+          <span
+            className={`halisaha-pitch-format-label font-medium leading-none tracking-[0.18em] ${
+              renderInlineMobileBall
+                ? "text-[calc(3.15rem/2)] sm:text-[calc(3.15rem/2)]"
+                : "text-[0.5rem] sm:text-[0.55rem]"
+            }`}
+          >
             7V7
           </span>
         </div>
@@ -1083,6 +1089,7 @@ function PitchBoard({
                     homeLineup={homeLineup}
                     awayLineup={awayLineup}
                     portraitClosedLayout={usePortraitMobilePitch}
+                    stackThreeWordNames={useClosedPortraitPitchLayout}
                   />
                 </div>
               ) : null}
@@ -1128,6 +1135,7 @@ function PitchBoard({
               showLineups={showLineups}
               promptOpen={overlayBlocksBall}
               compactMobileBall={useCompactMobileChallengeLayout}
+              closedPortraitNudgeUp={useClosedPortraitPitchLayout}
               label={
                 shouldShowPostMatchMvpVote
                   ? showLineups
@@ -1148,10 +1156,12 @@ function PitchOverlay({
   homeLineup,
   awayLineup,
   portraitClosedLayout = false,
+  stackThreeWordNames = false,
 }: {
   homeLineup: PlayerSpot[];
   awayLineup: PlayerSpot[];
   portraitClosedLayout?: boolean;
+  stackThreeWordNames?: boolean;
 }) {
   return (
     <svg
@@ -1166,6 +1176,7 @@ function PitchOverlay({
           player={player}
           side="left"
           portraitClosedLayout={portraitClosedLayout}
+          stackThreeWordNames={stackThreeWordNames}
         />
       ))}
 
@@ -1175,6 +1186,7 @@ function PitchOverlay({
           player={player}
           side="right"
           portraitClosedLayout={portraitClosedLayout}
+          stackThreeWordNames={stackThreeWordNames}
         />
       ))}
     </svg>
@@ -1186,6 +1198,7 @@ function MidfieldBallButton({
   promptOpen,
   compactMobileBall = false,
   inlineCompactBall = false,
+  closedPortraitNudgeUp = false,
   label,
   onToggle,
 }: {
@@ -1193,6 +1206,7 @@ function MidfieldBallButton({
   promptOpen: boolean;
   compactMobileBall?: boolean;
   inlineCompactBall?: boolean;
+  closedPortraitNudgeUp?: boolean;
   label?: string;
   onToggle: () => void;
 }) {
@@ -1223,7 +1237,13 @@ function MidfieldBallButton({
           : "aspect-square w-[12.16%] min-w-[6.12rem] max-w-[7.36rem] shadow-[0_12px_22px_rgba(0,0,0,0.2)]"
       }`}
       style={{
-        top: inlineCompactBall ? undefined : showLineups ? "calc(50% + 4px)" : "calc(50% + 4.5px)",
+        top: inlineCompactBall
+          ? undefined
+          : showLineups
+            ? "calc(50% + 4px)"
+            : closedPortraitNudgeUp
+              ? "calc(50% + 2.5px)"
+              : "calc(50% + 4.5px)",
         transform: inlineCompactBall
           ? undefined
           : `translate(${showLineups ? "-50%" : "calc(-50% - 0.5px)"}, -50%) scale(${showLineups ? 0.98 : 1})`,
@@ -1473,19 +1493,37 @@ function RaynetCrest() {
   );
 }
 
+function splitThreeWordPlayerName(
+  name: string,
+  enabled: boolean,
+): { mode: "single"; text: string } | { mode: "stack"; first: string; second: string } {
+  const words = name.trim().split(/\s+/).filter(Boolean);
+  if (enabled && words.length === 3) {
+    return {
+      mode: "stack",
+      first: `${words[0]} ${words[1]}`.toUpperCase(),
+      second: words[2].toUpperCase(),
+    };
+  }
+  return { mode: "single", text: name.trim().toUpperCase() };
+}
+
 function PitchPlayerLabel({
   player,
   side,
   portraitClosedLayout = false,
+  stackThreeWordNames = false,
 }: {
   player: PlayerSpot;
   side: "left" | "right";
   portraitClosedLayout?: boolean;
+  stackThreeWordNames?: boolean;
 }) {
   const labelRotation = portraitClosedLayout ? -90 : side === "left" ? -90 : 90;
   const fontSize = portraitClosedLayout ? 17.85 : 11.9;
   const strokeWidth = portraitClosedLayout ? 0.63 : 0.42;
   const letterSpacing = portraitClosedLayout ? 1.65 : 1.1;
+  const lines = splitThreeWordPlayerName(player.name, stackThreeWordNames);
 
   return (
     <g transform={`translate(${player.x} ${player.y}) rotate(${labelRotation})`}>
@@ -1503,7 +1541,18 @@ function PitchPlayerLabel({
         letterSpacing={letterSpacing}
         fontFamily="system-ui, sans-serif"
       >
-        {player.name.toUpperCase()}
+        {lines.mode === "single" ? (
+          lines.text
+        ) : (
+          <>
+            <tspan x="0" dy="-0.55em">
+              {lines.first}
+            </tspan>
+            <tspan x="0" dy="1.12em">
+              {lines.second}
+            </tspan>
+          </>
+        )}
       </text>
     </g>
   );
