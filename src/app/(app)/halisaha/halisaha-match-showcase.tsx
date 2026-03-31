@@ -9,6 +9,7 @@ import {
   type WheelEvent as ReactWheelEvent,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -38,11 +39,20 @@ type PlayerSpot = {
 
 type ShowcaseTab = "matchday" | "leaderboard";
 type MobileLandscapePanel = "hero" | "pitch";
+type MobileViewportState = {
+  isPhoneLike: boolean;
+  isLandscape: boolean;
+  viewportWidth: number;
+  viewportHeight: number;
+  hasCoarsePointer: boolean;
+  maxTouchPoints: number;
+};
 
 const PITCH_TRANSITION_TIMEOUT_MS = 280;
 const MOBILE_PAGER_TOUCH_THRESHOLD_PX = 28;
 const MOBILE_PAGER_WHEEL_THRESHOLD_PX = 18;
 const MOBILE_PAGER_COOLDOWN_MS = 320;
+const MOBILE_VIEWPORT_SETTLE_DELAYS_MS = [120, 320, 760] as const;
 
 function getMobileLandscapeViewportState() {
   if (typeof window === "undefined") {
@@ -85,6 +95,31 @@ function getMobileLandscapeViewportState() {
     hasCoarsePointer,
     maxTouchPoints: navigator.maxTouchPoints,
   };
+}
+
+function createInitialMobileViewportState(initialPhoneLikeViewport: boolean): MobileViewportState {
+  return {
+    isPhoneLike: initialPhoneLikeViewport,
+    isLandscape: false,
+    viewportWidth: 0,
+    viewportHeight: 0,
+    hasCoarsePointer: initialPhoneLikeViewport,
+    maxTouchPoints: initialPhoneLikeViewport ? 1 : 0,
+  };
+}
+
+function hasSameMobileViewportState(
+  current: MobileViewportState,
+  next: MobileViewportState,
+) {
+  return (
+    current.isPhoneLike === next.isPhoneLike &&
+    current.isLandscape === next.isLandscape &&
+    current.viewportWidth === next.viewportWidth &&
+    current.viewportHeight === next.viewportHeight &&
+    current.hasCoarsePointer === next.hasCoarsePointer &&
+    current.maxTouchPoints === next.maxTouchPoints
+  );
 }
 
 function getGestureTargetElement(target: EventTarget | null) {
@@ -134,10 +169,12 @@ export function HalisahaMatchShowcase({
   snapshot,
   viewerCanManageOwnAnswerLock,
   forcePostMatchMvpVote = false,
+  initialPhoneLikeViewport = false,
 }: {
   snapshot: HalisahaPublicSnapshot;
   viewerCanManageOwnAnswerLock: boolean;
   forcePostMatchMvpVote?: boolean;
+  initialPhoneLikeViewport?: boolean;
 }) {
   const searchParams = useSearchParams();
   const shouldForceVoteOverlay =
@@ -154,8 +191,8 @@ export function HalisahaMatchShowcase({
   const [activeTab, setActiveTab] = useState<ShowcaseTab>("matchday");
   const [mobileLandscapePanel, setMobileLandscapePanel] =
     useState<MobileLandscapePanel>("hero");
-  const [mobileViewportState, setMobileViewportState] = useState(() =>
-    getMobileLandscapeViewportState(),
+  const [mobileViewportState, setMobileViewportState] = useState<MobileViewportState>(() =>
+    createInitialMobileViewportState(initialPhoneLikeViewport),
   );
   const mobilePagerRef = useRef<HTMLDivElement | null>(null);
   const touchStartYRef = useRef<number | null>(null);
@@ -209,6 +246,10 @@ export function HalisahaMatchShowcase({
     isPhoneLikeViewport: shouldForceMobilePreview ? true : mobileViewportState.isPhoneLike,
     isMatchdayTab: activeTab === "matchday",
   });
+  const isCompactMobileViewport =
+    shouldForceMobilePreview ||
+    initialPhoneLikeViewport ||
+    (mobileViewportState.viewportWidth > 0 && mobileViewportState.viewportWidth <= 767);
   const isImmersiveMobileMatchday =
     shouldUseMobilePager;
   const shouldShowViewportDebug =
@@ -255,19 +296,61 @@ export function HalisahaMatchShowcase({
     };
   }, []);
 
-  useEffect(() => {
-    const updateViewportState = () => {
-      setMobileViewportState(getMobileLandscapeViewportState());
+  useLayoutEffect(() => {
+    const visualViewport = window.visualViewport;
+    let frameId = 0;
+    let settleTimeoutIds: number[] = [];
+    const syncViewportState = () => {
+      const nextState = getMobileLandscapeViewportState();
+      setMobileViewportState((current) =>
+        hasSameMobileViewportState(current, nextState) ? current : nextState,
+      );
+    };
+    const clearSettlingTimers = () => {
+      if (frameId) {
+        window.cancelAnimationFrame(frameId);
+        frameId = 0;
+      }
+      settleTimeoutIds.forEach((timeoutId) => window.clearTimeout(timeoutId));
+      settleTimeoutIds = [];
+    };
+    const scheduleViewportStateSync = () => {
+      clearSettlingTimers();
+      syncViewportState();
+      frameId = window.requestAnimationFrame(() => {
+        syncViewportState();
+      });
+      settleTimeoutIds = MOBILE_VIEWPORT_SETTLE_DELAYS_MS.map((delay) =>
+        window.setTimeout(() => {
+          syncViewportState();
+        }, delay),
+      );
+    };
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        scheduleViewportStateSync();
+      }
     };
 
-    updateViewportState();
+    scheduleViewportStateSync();
 
-    window.addEventListener("resize", updateViewportState);
-    window.addEventListener("orientationchange", updateViewportState);
+    window.addEventListener("resize", scheduleViewportStateSync);
+    window.addEventListener("orientationchange", scheduleViewportStateSync);
+    window.addEventListener("load", scheduleViewportStateSync);
+    window.addEventListener("pageshow", scheduleViewportStateSync);
+    visualViewport?.addEventListener("resize", scheduleViewportStateSync);
+    visualViewport?.addEventListener("scroll", scheduleViewportStateSync);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
 
     return () => {
-      window.removeEventListener("resize", updateViewportState);
-      window.removeEventListener("orientationchange", updateViewportState);
+      clearSettlingTimers();
+      window.removeEventListener("resize", scheduleViewportStateSync);
+      window.removeEventListener("orientationchange", scheduleViewportStateSync);
+      window.removeEventListener("load", scheduleViewportStateSync);
+      window.removeEventListener("pageshow", scheduleViewportStateSync);
+      visualViewport?.removeEventListener("resize", scheduleViewportStateSync);
+      visualViewport?.removeEventListener("scroll", scheduleViewportStateSync);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
   }, []);
 
@@ -454,7 +537,9 @@ export function HalisahaMatchShowcase({
   const heroShell = (
     <div
       className={`halisaha-hero-shell flex flex-col gap-4 pb-2.5 sm:gap-4 sm:pb-3 ${
-        isImmersiveMobileMatchday ? "h-full justify-start border-b-0" : "border-b border-white/10"
+        isImmersiveMobileMatchday
+          ? "relative h-full justify-start border-b-0"
+          : "border-b border-white/10"
       }`}
     >
       <HalisahaShowcaseTabs
@@ -469,6 +554,7 @@ export function HalisahaMatchShowcase({
         venueName={snapshot.match.venueName}
         countdown={countdown}
       />
+      {activeTab === "matchday" && isCompactMobileViewport ? <MobileHeroScrollCue /> : null}
     </div>
   );
 
@@ -691,6 +777,25 @@ function HalisahaHeroSummary({
             </div>
           </div>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function MobileHeroScrollCue() {
+  return (
+    <div className="pointer-events-none absolute inset-x-0 bottom-[max(0.12rem,env(safe-area-inset-bottom,0px))] flex flex-col items-center justify-end px-4 text-center">
+      <div className="text-[0.54rem] font-semibold uppercase tracking-[0.28em] text-white/44">
+        Scroll down
+      </div>
+      <div className="mt-2 flex items-center justify-center">
+        <div className="relative flex h-[2.95rem] w-[1.72rem] items-start justify-center rounded-full border border-white/12 bg-[linear-gradient(180deg,rgba(255,255,255,0.05),rgba(255,255,255,0.015))] px-[0.28rem] py-[0.32rem] shadow-[0_14px_30px_rgba(0,0,0,0.24),inset_0_1px_0_rgba(255,255,255,0.04)]">
+          <span className="halisaha-mobile-scroll-cue-dot h-[0.44rem] w-[0.44rem] rounded-full bg-[rgba(240,247,245,0.82)] shadow-[0_0_10px_rgba(255,255,255,0.16)]" />
+        </div>
+      </div>
+      <div className="halisaha-mobile-scroll-cue-chevron mt-2 h-[0.95rem] w-[1.5rem]" aria-hidden />
+      <div className="mt-1.5 text-[0.46rem] font-medium uppercase tracking-[0.22em] text-white/26">
+        for lineups
       </div>
     </div>
   );
