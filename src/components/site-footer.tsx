@@ -1,4 +1,13 @@
+"use client";
+
+import { usePathname } from "next/navigation";
+
 const LINKEDIN_URL = "https://www.linkedin.com/in/erenayvaz/";
+
+/** Matches public Halisaha app route only (not /admin/halisaha). */
+function isHalisahaPublicRoute(pathname: string | null) {
+  return pathname === "/halisaha" || pathname?.startsWith("/halisaha/");
+}
 
 function LinkedInIcon({ className }: { className?: string }) {
   return (
@@ -17,6 +26,36 @@ function LinkedInIcon({ className }: { className?: string }) {
 }
 
 export function SiteFooter() {
+  const pathname = usePathname();
+  const halisaha = isHalisahaPublicRoute(pathname);
+
+  if (halisaha) {
+    return (
+      <footer
+        className="mt-auto border-t border-white/[0.08] bg-[linear-gradient(180deg,rgba(46,46,46,0.98)_0%,rgba(25,25,25,0.99)_100%)]"
+        role="contentinfo"
+      >
+        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-center gap-x-2 gap-y-1 px-4 py-4 text-center">
+          <span className="text-sm font-light tracking-wide text-white/[0.62]">
+            Designed and built by Eren Ayvaz
+          </span>
+          <span className="text-white/35" aria-hidden>
+            ·
+          </span>
+          <a
+            href={LINKEDIN_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 text-sm font-light tracking-wide text-[#a8c9bf] transition-colors hover:text-[#d4e4df] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#88c0d0]/55 focus-visible:ring-offset-2 focus-visible:ring-offset-[#1a1a1a]"
+          >
+            <LinkedInIcon className="shrink-0 text-[#8fbcbb]" />
+            LinkedIn
+          </a>
+        </div>
+      </footer>
+    );
+  }
+
   return (
     <footer
       className="mt-auto border-t border-nord-polarLighter/20 bg-nord-snow/40"
@@ -26,7 +65,9 @@ export function SiteFooter() {
         <span className="text-sm font-light tracking-wide text-nord-polarLighter">
           Designed and built by Eren Ayvaz
         </span>
-        <span className="text-nord-polarLight/60" aria-hidden>·</span>
+        <span className="text-nord-polarLight/60" aria-hidden>
+          ·
+        </span>
         <a
           href={LINKEDIN_URL}
           target="_blank"

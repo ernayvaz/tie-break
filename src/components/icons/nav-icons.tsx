@@ -12,6 +12,27 @@ export function IconSchedule() {
   );
 }
 
+const iconCompact = "shrink-0 h-4 w-4";
+
+/** Home / Schedule entry — compact for Halisaha tab strip. */
+export function IconHomeCompact() {
+  return (
+    <svg
+      className={iconCompact}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+      <polyline points="9 22 9 12 15 12 15 22" />
+    </svg>
+  );
+}
+
 export function IconLeaderboard() {
   return (
     <svg className={iconClass} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>

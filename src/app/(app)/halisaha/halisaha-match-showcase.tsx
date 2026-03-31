@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import {
   type KeyboardEvent,
@@ -24,6 +25,7 @@ import {
 import { getHalisahaPredictionLockAt } from "@/lib/halisaha/match-state";
 import { shouldRevealWinnerPercentages } from "@/lib/halisaha/rules";
 import type { HalisahaPublicSnapshot } from "@/lib/halisaha/server";
+import { IconHomeCompact } from "@/components/icons/nav-icons";
 import crestAsset from "../../../../2_LOGO-fitted.png";
 import midfieldBallAsset from "../../../../TOP 2.png";
 import trophyAsset from "../../../../kupa.png";
@@ -652,29 +654,39 @@ function HalisahaShowcaseTabs({
   onTabChange: (nextTab: ShowcaseTab) => void;
 }) {
   return (
-    <div className="inline-flex max-w-fit items-center rounded-[1rem] border border-white/12 bg-white/[0.045] p-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
-      <button
-        type="button"
-        onClick={() => onTabChange("matchday")}
-        className={`rounded-[0.8rem] border px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.22em] transition-colors ${
-          activeTab === "matchday"
-            ? "border-white/10 bg-white/[0.07] text-white/82"
-            : "border-transparent bg-transparent text-white/46 hover:text-white/68"
-        }`}
+    <div className="flex max-w-full flex-wrap items-center gap-2">
+      <Link
+        href="/schedule"
+        className="inline-flex h-[calc(1.75rem+2px)] min-w-[2.35rem] items-center justify-center rounded-[1rem] border border-white/12 bg-white/[0.045] px-2 text-white/72 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] transition-colors hover:border-white/18 hover:bg-white/[0.08] hover:text-white/88 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/35 focus-visible:ring-offset-2 focus-visible:ring-offset-[rgba(12,12,12,0.9)]"
+        aria-label="Back to Schedule"
+        title="Schedule"
       >
-        {title}
-      </button>
-      <button
-        type="button"
-        onClick={() => onTabChange("leaderboard")}
-        className={`rounded-[0.8rem] border px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.22em] transition-colors ${
-          activeTab === "leaderboard"
-            ? "border-white/10 bg-white/[0.07] text-white/82"
-            : "border-transparent bg-transparent text-white/46 hover:text-white/68"
-        }`}
-      >
-        Leaderboard
-      </button>
+        <IconHomeCompact />
+      </Link>
+      <div className="inline-flex max-w-fit items-center rounded-[1rem] border border-white/12 bg-white/[0.045] p-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+        <button
+          type="button"
+          onClick={() => onTabChange("matchday")}
+          className={`rounded-[0.8rem] border px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.22em] transition-colors ${
+            activeTab === "matchday"
+              ? "border-white/10 bg-white/[0.07] text-white/82"
+              : "border-transparent bg-transparent text-white/46 hover:text-white/68"
+          }`}
+        >
+          {title}
+        </button>
+        <button
+          type="button"
+          onClick={() => onTabChange("leaderboard")}
+          className={`rounded-[0.8rem] border px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.22em] transition-colors ${
+            activeTab === "leaderboard"
+              ? "border-white/10 bg-white/[0.07] text-white/82"
+              : "border-transparent bg-transparent text-white/46 hover:text-white/68"
+          }`}
+        >
+          Leaderboard
+        </button>
+      </div>
     </div>
   );
 }
