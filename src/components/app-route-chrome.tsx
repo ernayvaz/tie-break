@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { type ReactNode, useEffect } from "react";
+import { type ReactNode, useLayoutEffect } from "react";
 
 function isHalisahaAppRoute(pathname: string | null) {
   return pathname === "/halisaha" || pathname?.startsWith("/halisaha/");
@@ -20,22 +20,53 @@ export function AppRouteChrome({ header, children }: Props) {
   const pathname = usePathname();
   const halisaha = isHalisahaAppRoute(pathname);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const { body, documentElement } = document;
     const visualViewport = window.visualViewport;
+    let frameId = 0;
+    let settleTimeoutIds: number[] = [];
     const syncHalisahaViewportHeight = () => {
       const viewportHeight = Math.round(visualViewport?.height ?? window.innerHeight);
       documentElement.style.setProperty("--halisaha-page-viewport-height", `${viewportHeight}px`);
+    };
+    const clearSettlingTimers = () => {
+      if (frameId) {
+        window.cancelAnimationFrame(frameId);
+        frameId = 0;
+      }
+      settleTimeoutIds.forEach((timeoutId) => window.clearTimeout(timeoutId));
+      settleTimeoutIds = [];
+    };
+    const scheduleViewportSync = () => {
+      clearSettlingTimers();
+      syncHalisahaViewportHeight();
+      frameId = window.requestAnimationFrame(() => {
+        syncHalisahaViewportHeight();
+      });
+      settleTimeoutIds = [120, 320, 760].map((delay) =>
+        window.setTimeout(() => {
+          syncHalisahaViewportHeight();
+        }, delay),
+      );
+    };
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        scheduleViewportSync();
+      }
     };
 
     if (halisaha) {
       documentElement.style.setProperty("--app-header-height", "0px");
       documentElement.classList.add("halisaha-app-route");
       body.classList.add("halisaha-app-route");
-      syncHalisahaViewportHeight();
-      window.addEventListener("resize", syncHalisahaViewportHeight);
-      visualViewport?.addEventListener("resize", syncHalisahaViewportHeight);
-      visualViewport?.addEventListener("scroll", syncHalisahaViewportHeight);
+      scheduleViewportSync();
+      window.addEventListener("resize", scheduleViewportSync);
+      window.addEventListener("orientationchange", scheduleViewportSync);
+      window.addEventListener("load", scheduleViewportSync);
+      window.addEventListener("pageshow", scheduleViewportSync);
+      visualViewport?.addEventListener("resize", scheduleViewportSync);
+      visualViewport?.addEventListener("scroll", scheduleViewportSync);
+      document.addEventListener("visibilitychange", handleVisibilityChange);
     } else {
       documentElement.style.removeProperty("--app-header-height");
       documentElement.style.removeProperty("--halisaha-page-viewport-height");
@@ -44,9 +75,14 @@ export function AppRouteChrome({ header, children }: Props) {
     }
 
     return () => {
-      window.removeEventListener("resize", syncHalisahaViewportHeight);
-      visualViewport?.removeEventListener("resize", syncHalisahaViewportHeight);
-      visualViewport?.removeEventListener("scroll", syncHalisahaViewportHeight);
+      clearSettlingTimers();
+      window.removeEventListener("resize", scheduleViewportSync);
+      window.removeEventListener("orientationchange", scheduleViewportSync);
+      window.removeEventListener("load", scheduleViewportSync);
+      window.removeEventListener("pageshow", scheduleViewportSync);
+      visualViewport?.removeEventListener("resize", scheduleViewportSync);
+      visualViewport?.removeEventListener("scroll", scheduleViewportSync);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
       documentElement.style.removeProperty("--halisaha-page-viewport-height");
       documentElement.classList.remove("halisaha-app-route");
       body.classList.remove("halisaha-app-route");
