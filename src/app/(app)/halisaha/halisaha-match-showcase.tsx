@@ -607,7 +607,7 @@ export function HalisahaMatchShowcase({
     <div
       className={`halisaha-hero-shell flex flex-col gap-4 pb-2.5 sm:gap-4 sm:pb-3 ${
         isImmersiveMobileMatchday
-          ? "relative h-full justify-start border-b-0"
+          ? "relative h-full min-h-0 flex-1 justify-between border-b-0"
           : "border-b border-white/10"
       }`}
     >
@@ -622,6 +622,7 @@ export function HalisahaMatchShowcase({
         kickoffLabel={snapshot.match.kickoffLabel}
         venueName={snapshot.match.venueName}
         countdown={countdown}
+        immersiveMobileLayout={isImmersiveMobileMatchday}
       />
       {activeTab === "matchday" && isCompactMobileViewport ? <MobileHeroScrollCue /> : null}
     </div>
@@ -650,7 +651,7 @@ export function HalisahaMatchShowcase({
   );
 
   const leaderboardPanel = (
-    <div className="mt-1 rounded-[1.3rem] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.07),rgba(255,255,255,0.02))] p-3 shadow-[0_20px_54px_rgba(0,0,0,0.24)] sm:rounded-[1.55rem] sm:p-4">
+    <div className="mt-1 flex min-h-0 flex-1 flex-col overflow-hidden rounded-[1.3rem] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.07),rgba(255,255,255,0.02))] p-3 shadow-[0_20px_54px_rgba(0,0,0,0.24)] sm:rounded-[1.55rem] sm:p-4">
       {snapshot.gate.requiresPostMatchVote && !snapshot.gate.canRevealResults ? (
         <HalisahaResultsGateCard
           title={snapshot.gate.title}
@@ -795,16 +796,22 @@ function HalisahaHeroSummary({
   kickoffLabel,
   venueName,
   countdown,
+  immersiveMobileLayout = false,
 }: {
   homeTeamName: string;
   awayTeamName: string;
   kickoffLabel: string;
   venueName: string;
   countdown: string;
+  immersiveMobileLayout?: boolean;
 }) {
   return (
-    <div className="halisaha-hero relative flex flex-col gap-1.25 sm:gap-1.5 lg:pr-[25.25rem] xl:pr-[28.5rem]">
-      <div className="halisaha-hero-primary min-w-0">
+    <div
+      className={`halisaha-hero relative flex min-h-0 flex-col gap-1.25 sm:gap-1.5 lg:pr-[25.25rem] xl:pr-[28.5rem] ${
+        immersiveMobileLayout ? "flex-1 justify-between pb-[5.2rem]" : ""
+      }`}
+    >
+      <div className="halisaha-hero-primary min-w-0 shrink-0">
         <h1 className="halisaha-team-name text-[clamp(2.55rem,6.8vw,5.7rem)] font-semibold uppercase leading-[0.78] tracking-[0.015em] text-white">
           {homeTeamName}
         </h1>
@@ -921,6 +928,7 @@ function PitchBoard({
   const usePortraitMobilePitch = useMobileScreen2Layout;
   const useCompactMobileChallengeLayout =
     useMobileScreen2Layout && showChallengeSurface;
+  const useClosedPortraitPitchLayout = usePortraitMobilePitch && !showLineups;
   const renderInlineMobileBall = useCompactMobileChallengeLayout;
   const renderCenteredPitchBall = !renderInlineMobileBall;
   const [renderChallengeOverlay, setRenderChallengeOverlay] = useState(showChallengeSurface);
@@ -967,7 +975,7 @@ function PitchBoard({
         useMobileScreen2Layout ? "gap-[0.42rem]" : "gap-1.5"
       }`}
     >
-      <div className="halisaha-pitch-caption flex items-center justify-between gap-3 text-[10px] uppercase tracking-[0.18em] text-white/52 sm:text-[11px]">
+      <div className="halisaha-pitch-caption flex items-start justify-between gap-3 uppercase text-white/52">
         <div className="flex items-center gap-2.5">
           {renderInlineMobileBall ? (
             <MidfieldBallButton
@@ -985,9 +993,13 @@ function PitchBoard({
               onToggle={onToggle}
             />
           ) : null}
-          <span>7V7</span>
+          <span className="halisaha-pitch-format-label text-[0.5rem] font-medium leading-none tracking-[0.18em] sm:text-[0.55rem]">
+            7V7
+          </span>
         </div>
-        <span>{statusLabel}</span>
+        <span className="halisaha-pitch-status-label max-w-[68%] text-right text-[0.46rem] font-medium leading-[1.16] tracking-[0.18em] sm:max-w-none sm:text-[0.5rem]">
+          {statusLabel}
+        </span>
       </div>
 
       <div
@@ -1020,7 +1032,11 @@ function PitchBoard({
           }`}
         />
 
-        <div className="relative flex h-full min-h-[15.75rem] w-full min-w-0 items-center justify-center sm:min-h-[19.25rem]">
+        <div
+          className={`relative flex h-full min-h-[15.75rem] w-full min-w-0 justify-center sm:min-h-[19.25rem] ${
+            useClosedPortraitPitchLayout ? "items-end pb-[0.28rem]" : "items-center"
+          }`}
+        >
           {/* Match SVG viewBox 1000×620: contain in parent so letterboxing is even (same band top/bottom as left/right). */}
           <div
             data-mobile-pitch-stage={usePortraitMobilePitch ? "portrait" : undefined}

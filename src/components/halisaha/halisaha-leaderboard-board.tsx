@@ -339,7 +339,7 @@ export function HalisahaLeaderboardBoard({
   const isPlaceholder = results.length === 0;
 
   return (
-    <div className="rounded-[1.35rem] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.06),rgba(255,255,255,0.02))] p-3 shadow-[0_20px_54px_rgba(0,0,0,0.24)] sm:rounded-[1.55rem] sm:p-4">
+    <div className="flex h-full min-h-0 flex-col rounded-[1.35rem] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.06),rgba(255,255,255,0.02))] p-3 shadow-[0_20px_54px_rgba(0,0,0,0.24)] sm:rounded-[1.55rem] sm:p-4">
       <div className="mb-4 border-b border-white/8 pb-3">
         <div className="text-[0.66rem] font-semibold uppercase tracking-[0.3em] text-[#d5e6e1]/74">
           Halisaha Leaderboard
@@ -354,7 +354,7 @@ export function HalisahaLeaderboardBoard({
               : "Showing a temporary podium preview until players start answering."}
           </div>
         ) : (
-          <ul className="space-y-3 sm:hidden">
+          <ul className="min-h-0 flex-1 space-y-3 overflow-y-auto pr-1 sm:hidden">
             {displayResults.map((result) => (
               <HalisahaLeaderboardMobileCard
                 key={result.userId}
@@ -364,7 +364,7 @@ export function HalisahaLeaderboardBoard({
           </ul>
         )}
 
-        <div className="hidden overflow-x-auto sm:block">
+        <div className="hidden min-h-0 flex-1 overflow-x-auto sm:block">
           <table className="w-full min-w-[60rem] text-sm">
             <thead>
               <tr className="border-b border-white/10 text-[0.7rem] uppercase tracking-[0.18em] text-white/34">
