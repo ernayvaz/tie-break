@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   finalizeHalisahaAnswersAction,
   unlockHalisahaAnswersAction,
@@ -366,6 +366,40 @@ function WinnerVoteButton({
 }) {
   const visualFillWidth = Math.min(100, fillPercentage * WHO_WINS_BAR_FILL_EXTEND);
 
+  const percentageNode = (
+    <span
+      className={`shrink-0 self-center font-black leading-none text-white tabular-nums ${
+        compact ? "text-[0.96rem]" : "text-[1.04rem]"
+      }`}
+    >
+      {percentageLabel === null ? (
+        reservePercentageSpace ? (
+          <span
+            aria-hidden="true"
+            className={`inline-block text-right opacity-0 ${
+              compact ? "min-w-[1.8rem]" : "min-w-[2.6rem]"
+            }`}
+          >
+            100%
+          </span>
+        ) : null
+      ) : (
+        `${percentageLabel}%`
+      )}
+    </span>
+  );
+
+  const nameNode = (
+    <span
+      className={`block min-w-0 flex-1 truncate self-center font-semibold uppercase text-white/92 ${
+        compact ? "text-[0.76rem] tracking-[0.05em]" : "text-[0.72rem] tracking-[0.08em]"
+      } ${align === "right" ? "text-right" : ""}`}
+      title={label}
+    >
+      {displayLabel}
+    </span>
+  );
+
   return (
     <button
       type="button"
@@ -410,34 +444,17 @@ function WinnerVoteButton({
           compact ? "min-h-[2.72rem] gap-2 px-3 py-[0.58rem]" : "min-h-[3.02rem] gap-3 px-4 py-[0.72rem]"
         }`}
       >
-        <span
-          className={`block min-w-0 flex-1 truncate self-center font-semibold uppercase text-white/92 ${
-            compact ? "text-[0.76rem] tracking-[0.05em]" : "text-[0.72rem] tracking-[0.08em]"
-          }`}
-          title={label}
-        >
-          {displayLabel}
-        </span>
-        <span
-          className={`shrink-0 self-center font-black leading-none text-white tabular-nums ${
-            compact ? "text-[0.96rem]" : "text-[1.04rem]"
-          }`}
-        >
-          {percentageLabel === null ? (
-            reservePercentageSpace ? (
-              <span
-                aria-hidden="true"
-                className={`inline-block text-right opacity-0 ${
-                  compact ? "min-w-[1.8rem]" : "min-w-[2.6rem]"
-                }`}
-              >
-                100%
-              </span>
-            ) : null
-          ) : (
-            `${percentageLabel}%`
-          )}
-        </span>
+        {align === "right" ? (
+          <>
+            {percentageNode}
+            {nameNode}
+          </>
+        ) : (
+          <>
+            {nameNode}
+            {percentageNode}
+          </>
+        )}
       </span>
     </button>
   );
@@ -477,20 +494,11 @@ export function HalisahaChallengeOverlay({
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [isRefreshing, startRefreshTransition] = useTransition();
   const [animateBars, setAnimateBars] = useState(false);
   const [showFinalizePrompt, setShowFinalizePrompt] = useState(false);
-  const [optimisticAnswersLocked, setOptimisticAnswersLocked] = useState<boolean | null>(null);
-  const [optimisticWinnerPercentagesVisible, setOptimisticWinnerPercentagesVisible] = useState<
-    boolean | null
-  >(null);
   const [activePlayerPickerQuestionId, setActivePlayerPickerQuestionId] = useState<string | null>(
     null,
   );
-  const effectiveAnswersLocked = optimisticAnswersLocked ?? answersLocked;
-  const canRevealWinnerPercentages =
-    optimisticWinnerPercentagesVisible ?? winnerPercentagesVisible;
-  const interactionPending = busy || isRefreshing;
 
   const initialSelections = useMemo(
     () =>
@@ -516,14 +524,6 @@ export function HalisahaChallengeOverlay({
   useEffect(() => {
     setSelectedAnswers(initialSelections);
   }, [initialSelections]);
-
-  useEffect(() => {
-    setOptimisticAnswersLocked(null);
-  }, [answersLocked]);
-
-  useEffect(() => {
-    setOptimisticWinnerPercentagesVisible(null);
-  }, [winnerPercentagesVisible]);
 
   useEffect(() => {
     onFinalizePromptVisibilityChange?.(showFinalizePrompt);
@@ -552,10 +552,10 @@ export function HalisahaChallengeOverlay({
       return;
     }
 
-    if (effectiveAnswersLocked || answersResolved) {
+    if (answersLocked || answersResolved) {
       setActivePlayerPickerQuestionId(null);
     }
-  }, [activePlayerPickerQuestionId, answersResolved, effectiveAnswersLocked]);
+  }, [activePlayerPickerQuestionId, answersLocked, answersResolved]);
 
   useEffect(() => {
     setAnimateBars(false);
@@ -590,13 +590,11 @@ export function HalisahaChallengeOverlay({
       customScoreAway: selectedAnswers[question.id].customScoreAway,
     }));
   const hasSelections = stagedSelections.length > 0;
+  const canRevealWinnerPercentages = winnerPercentagesVisible;
   const viewerCanUnlockAnswers =
-    viewerCanManageOwnAnswerLock && effectiveAnswersLocked && !answersResolved;
+    viewerCanManageOwnAnswerLock && answersLocked && !answersResolved;
   const predictionsClosed =
-    predictionWindowClosed &&
-    !effectiveAnswersLocked &&
-    !answersResolved &&
-    !viewerCanUnlockAnswers;
+    predictionWindowClosed && !answersLocked && !answersResolved && !viewerCanUnlockAnswers;
   const effectiveWinnerVoteSummary = useMemo(() => {
     if (winnerVoteSummary) {
       return winnerVoteSummary;
@@ -707,7 +705,7 @@ export function HalisahaChallengeOverlay({
       : "Lock answers";
   const centerPillLabel = answersResolved
     ? "Answers resolved"
-    : effectiveAnswersLocked
+    : answersLocked
       ? "Answers locked"
       : primaryButtonLabel;
 
@@ -730,18 +728,14 @@ export function HalisahaChallengeOverlay({
     setBusy(true);
     setError(null);
     const result = await unlockHalisahaAnswersAction(matchId);
+    setBusy(false);
+
     if (!result.ok) {
-      setBusy(false);
       setError(result.error);
       return;
     }
 
-    setOptimisticAnswersLocked(false);
-    setOptimisticWinnerPercentagesVisible(false);
-    setBusy(false);
-    startRefreshTransition(() => {
-      router.refresh();
-    });
+    router.refresh();
   };
 
   const handleFinalizeAnswers = async () => {
@@ -749,18 +743,14 @@ export function HalisahaChallengeOverlay({
     setBusy(true);
     setError(null);
     const result = await finalizeHalisahaAnswersAction(stagedSelections);
+    setBusy(false);
+
     if (!result.ok) {
-      setBusy(false);
       setError(result.error);
       return;
     }
 
-    setOptimisticAnswersLocked(true);
-    setOptimisticWinnerPercentagesVisible(true);
-    setBusy(false);
-    startRefreshTransition(() => {
-      router.refresh();
-    });
+    router.refresh();
   };
 
   if (questions.length === 0) {
@@ -801,7 +791,7 @@ export function HalisahaChallengeOverlay({
             : undefined
         }
         answersResolved={answersResolved}
-        answersLocked={effectiveAnswersLocked}
+        answersLocked={answersLocked}
         predictionWindowClosed={predictionsClosed}
         showSaveButton={false}
         layoutMode="overlay"
@@ -861,7 +851,7 @@ export function HalisahaChallengeOverlay({
                 animated={animateBars}
                 compact={compactMobileLayout}
                 reservePercentageSpace={!compactMobileLayout}
-                disabled={answersResolved || effectiveAnswersLocked || predictionsClosed || interactionPending}
+                disabled={answersResolved || answersLocked || predictionsClosed || busy}
                 onClick={() =>
                   setSelectedAnswers((current) => ({
                     ...current,
@@ -905,7 +895,7 @@ export function HalisahaChallengeOverlay({
                 animated={animateBars}
                 compact={compactMobileLayout}
                 reservePercentageSpace={!compactMobileLayout}
-                disabled={answersResolved || effectiveAnswersLocked || predictionsClosed || interactionPending}
+                disabled={answersResolved || answersLocked || predictionsClosed || busy}
                 onClick={() =>
                   setSelectedAnswers((current) => ({
                     ...current,
@@ -975,15 +965,15 @@ export function HalisahaChallengeOverlay({
               </span>
               <span className="h-[3px] rounded-full bg-[linear-gradient(90deg,rgba(255,255,255,0.3),rgba(255,255,255,0.16)_62%,rgba(255,255,255,0))]" />
             </div>
-            {!answersResolved && !effectiveAnswersLocked && predictionsClosed ? (
+            {!answersResolved && !answersLocked && predictionsClosed ? (
               <div className="absolute left-1/2 top-0 z-[4] -translate-x-1/2 -translate-y-[38%] rounded-full border border-[rgba(215,231,227,0.12)] bg-[linear-gradient(180deg,rgba(8,15,14,0.82),rgba(10,17,16,0.58))] px-4 py-[0.46rem] text-[0.52rem] font-semibold uppercase tracking-[0.18em] text-[#f4fbf8] shadow-[inset_0_1px_0_rgba(255,255,255,0.06),0_10px_22px_rgba(0,0,0,0.18)] backdrop-blur-md">
                 Predictions closed
               </div>
-            ) : !answersResolved && (!effectiveAnswersLocked || viewerCanUnlockAnswers) ? (
+            ) : !answersResolved && (!answersLocked || viewerCanUnlockAnswers) ? (
               <button
                 type="button"
                 onClick={viewerCanUnlockAnswers ? handleUnlockAnswers : openFinalizePrompt}
-                disabled={interactionPending || (!hasSelections && !viewerCanUnlockAnswers)}
+                disabled={busy || (!hasSelections && !viewerCanUnlockAnswers)}
                 className="halisaha-challenge-save absolute left-1/2 top-0 z-[4] min-h-0 min-w-[7.1rem] -translate-x-1/2 -translate-y-[38%] overflow-hidden rounded-full border px-3.5 py-[0.46rem] text-[0.49rem] font-semibold uppercase tracking-[0.18em] shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_14px_28px_rgba(0,0,0,0.24)] backdrop-blur-none transition-[border-color,box-shadow,transform] duration-500 hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_12px_26px_rgba(0,0,0,0.22)] disabled:cursor-default"
                 style={{
                   borderColor: saveButtonStyle.borderColor,
@@ -1072,7 +1062,7 @@ export function HalisahaChallengeOverlay({
               ? "Answers have been resolved. Saved picks now show their final result."
               : predictionsClosed
                 ? "Predictions closed 5 minutes before kickoff. Saved picks can no longer be updated or locked."
-              : effectiveAnswersLocked
+              : answersLocked
                 ? "Your picks are locked. WHO WINS now reflects the finalized user percentages."
                 : "Questions stay editable until 5 minutes before kickoff, until you lock your answers, or until the admin resolves the match."}
           </div>

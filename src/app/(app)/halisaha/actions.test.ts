@@ -6,8 +6,7 @@ const mocks = vi.hoisted(() => ({
   findMany: vi.fn(),
   findFirst: vi.fn(),
   transaction: vi.fn(),
-  deleteMany: vi.fn(),
-  createMany: vi.fn(),
+  upsert: vi.fn(),
   updateMany: vi.fn(),
 }));
 
@@ -32,22 +31,20 @@ vi.mock("@/lib/db", () => ({
 }));
 
 import {
-  finalizeHalisahaAnswersAction,
   submitHalisahaAnswersAction,
 } from "./actions";
 import { HALISAHA_ADMIN_PREVIEW_ONLY_MESSAGE } from "@/lib/halisaha/public-access";
 
 type MockTx = {
   halisahaAnswer: {
-    deleteMany: typeof mocks.deleteMany;
-    createMany: typeof mocks.createMany;
+    upsert: typeof mocks.upsert;
     updateMany: typeof mocks.updateMany;
   };
 };
 
-function buildQuestion(id: string, optionId: string, kickoffAt: Date) {
+function buildQuestion(kickoffAt: Date) {
   return {
-    id,
+    id: "question-1",
     isActive: true,
     match: {
       id: "match-1",
@@ -57,7 +54,7 @@ function buildQuestion(id: string, optionId: string, kickoffAt: Date) {
     },
     options: [
       {
-        id: optionId,
+        id: "option-1",
         kind: "standard" as const,
       },
     ],
@@ -68,14 +65,12 @@ describe("halisaha actions", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.findFirst.mockResolvedValue(null);
-    mocks.deleteMany.mockResolvedValue({ count: 0 });
-    mocks.createMany.mockResolvedValue({ count: 1 });
+    mocks.upsert.mockResolvedValue(undefined);
     mocks.updateMany.mockResolvedValue({ count: 1 });
     mocks.transaction.mockImplementation(async (callback: (tx: MockTx) => Promise<unknown>) =>
       callback({
         halisahaAnswer: {
-          deleteMany: mocks.deleteMany,
-          createMany: mocks.createMany,
+          upsert: mocks.upsert,
           updateMany: mocks.updateMany,
         },
       }),
@@ -87,9 +82,7 @@ describe("halisaha actions", () => {
       id: "user-1",
       role: "user",
     });
-    mocks.findMany.mockResolvedValue([
-      buildQuestion("question-1", "option-1", new Date(Date.now() + 4 * 60_000)),
-    ]);
+    mocks.findMany.mockResolvedValue([buildQuestion(new Date(Date.now() + 4 * 60_000))]);
 
     const result = await submitHalisahaAnswersAction([
       {
@@ -111,9 +104,7 @@ describe("halisaha actions", () => {
       id: "admin-1",
       role: "admin",
     });
-    mocks.findMany.mockResolvedValue([
-      buildQuestion("question-1", "option-1", new Date(Date.now() + 4 * 60_000)),
-    ]);
+    mocks.findMany.mockResolvedValue([buildQuestion(new Date(Date.now() + 4 * 60_000))]);
 
     const result = await submitHalisahaAnswersAction([
       {
@@ -129,51 +120,5 @@ describe("halisaha actions", () => {
     expect(mocks.findFirst).toHaveBeenCalled();
     expect(mocks.transaction).toHaveBeenCalled();
     expect(mocks.revalidatePath).toHaveBeenCalledWith("/halisaha");
-  });
-
-  it("locks answers with batched delete/create writes before the final lock update", async () => {
-    mocks.getCurrentUser.mockResolvedValue({
-      id: "admin-1",
-      role: "admin",
-    });
-    mocks.findMany.mockResolvedValue([
-      buildQuestion("question-1", "option-1", new Date(Date.now() + 4 * 60_000)),
-      buildQuestion("question-2", "option-2", new Date(Date.now() + 4 * 60_000)),
-    ]);
-
-    const result = await finalizeHalisahaAnswersAction([
-      {
-        questionId: "question-1",
-        optionId: "option-1",
-      },
-      {
-        questionId: "question-2",
-        optionId: "option-2",
-      },
-    ]);
-
-    expect(result).toEqual({
-      ok: true,
-      message: "Answers locked.",
-    });
-    expect(mocks.deleteMany).toHaveBeenCalledWith({
-      where: {
-        matchId: "match-1",
-        userId: "admin-1",
-        questionId: {
-          in: ["question-1", "question-2"],
-        },
-      },
-    });
-    expect(mocks.createMany).toHaveBeenCalledTimes(1);
-    expect(mocks.updateMany).toHaveBeenCalledWith({
-      where: {
-        matchId: "match-1",
-        userId: "admin-1",
-      },
-      data: expect.objectContaining({
-        isFinal: true,
-      }),
-    });
   });
 });

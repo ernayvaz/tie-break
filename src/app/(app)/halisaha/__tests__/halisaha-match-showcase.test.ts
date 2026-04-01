@@ -5,6 +5,9 @@ import type { HalisahaPublicSnapshot } from "@/lib/halisaha/server";
 
 vi.mock("next/navigation", () => ({
   useSearchParams: () => new URLSearchParams(),
+  useRouter: () => ({
+    prefetch: () => Promise.resolve(),
+  }),
 }));
 
 vi.mock("next/link", () => ({
@@ -15,7 +18,12 @@ vi.mock("next/link", () => ({
   }: {
     href: string;
     children?: ReactNode;
-  }) => createElement("a", { href, ...props }, children),
+    prefetch?: boolean;
+  }) => {
+    const { prefetch, ...anchorProps } = props;
+    void prefetch;
+    return createElement("a", { href, ...anchorProps }, children);
+  },
 }));
 
 vi.mock("next/image", () => ({
@@ -148,8 +156,6 @@ describe("HalisahaMatchShowcase mobile render", () => {
 
     expect(html).toContain("Swipe up");
     expect(html).toContain("for lineups");
-    expect(html).toContain('data-hero-layout="immersive-portrait"');
-    expect(html).not.toContain('data-hero-layout="compact-horizontal"');
     expect(html).not.toContain("Scroll down");
     expect(html).not.toContain("Share lineup image");
   });

@@ -371,6 +371,7 @@ export async function addHalisahaRegisteredParticipantAction(
     null,
     `${user.name} ${user.surname}`,
   );
+  await syncHalisahaMvpPredictionQuestion(match.id);
   revalidateHalisahaPaths();
 
   return {
@@ -405,6 +406,7 @@ export async function addHalisahaGuestParticipantAction(
     null,
     normalizedGuestName,
   );
+  await syncHalisahaMvpPredictionQuestion(match.id);
   revalidateHalisahaPaths();
 
   return {
@@ -477,6 +479,7 @@ export async function updateHalisahaParticipantAssignmentAction(
     `${data.teamSide ?? "unassigned"} / ${data.positionKey ?? "unassigned"}`,
   );
 
+  await syncHalisahaMvpPredictionQuestion(participant.matchId);
   revalidateHalisahaPaths();
 
   return {
@@ -521,6 +524,7 @@ export async function removeHalisahaParticipantAction(
     label,
     null,
   );
+  await syncHalisahaMvpPredictionQuestion(participant.matchId);
   revalidateHalisahaPaths();
 
   return {

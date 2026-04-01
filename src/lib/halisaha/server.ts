@@ -1336,6 +1336,13 @@ export async function purgeArchivedHalisahaMatchesBefore(
 }
 
 export async function ensureActiveHalisahaMatch() {
+  const existingMatch = await prisma.halisahaMatch.findUnique({
+    where: { singletonKey: HALISAHA_MATCH_SINGLETON_KEY },
+  });
+  if (existingMatch) {
+    return existingMatch;
+  }
+
   const match = await prisma.halisahaMatch.upsert({
     where: { singletonKey: HALISAHA_MATCH_SINGLETON_KEY },
     update: {},
@@ -1419,6 +1426,12 @@ export async function getHalisahaMvpGateState(
 export async function getHalisahaAdminSnapshot(): Promise<HalisahaAdminSnapshot> {
   const activeMatch = await ensureActiveHalisahaMatch();
   await ensureResolvedHalisahaMvp(activeMatch.id);
+  await syncHalisahaWinnerQuestion({
+    id: activeMatch.id,
+    homeTeamName: activeMatch.homeTeamName,
+    awayTeamName: activeMatch.awayTeamName,
+  });
+  await syncHalisahaMvpPredictionQuestion(activeMatch.id);
 
   const match = await prisma.halisahaMatch.findUnique({
     where: { id: activeMatch.id },
@@ -1585,68 +1598,83 @@ export async function getHalisahaPublicSnapshot(
   const activeMatch = await ensureActiveHalisahaMatch();
   await ensureResolvedHalisahaMvp(activeMatch.id);
 
-  const match = await prisma.halisahaMatch.findUnique({
-    where: { id: activeMatch.id },
-    include: {
-      participants: {
-        include: {
-          user: {
-            select: {
-              name: true,
-              surname: true,
-            },
-          },
-        },
-      },
-      questions: {
-        where: { isActive: true },
-        include: {
-          options: {
-            include: {
-              participant: {
-                select: {
-                  teamSide: true,
-                },
+  const readPublicMatch = () =>
+    prisma.halisahaMatch.findUnique({
+      where: { id: activeMatch.id },
+      include: {
+        participants: {
+          include: {
+            user: {
+              select: {
+                name: true,
+                surname: true,
               },
             },
-            orderBy: { sortOrder: "asc" },
           },
         },
-        orderBy: { sortOrder: "asc" },
-      },
-      answers: {
-        where: { userId },
-        select: {
-          questionId: true,
-          selectedOptionId: true,
-          customScoreHome: true,
-          customScoreAway: true,
-          isCorrect: true,
-          awardedPoints: true,
-          isFinal: true,
-          finalizedAt: true,
+        questions: {
+          where: { isActive: true },
+          include: {
+            options: {
+              include: {
+                participant: {
+                  select: {
+                    teamSide: true,
+                  },
+                },
+              },
+              orderBy: { sortOrder: "asc" },
+            },
+          },
+          orderBy: { sortOrder: "asc" },
         },
-      },
-      mvpVotes: {
-        where: { userId },
-        select: {
-          participantId: true,
-          createdAt: true,
+        answers: {
+          where: { userId },
+          select: {
+            questionId: true,
+            selectedOptionId: true,
+            customScoreHome: true,
+            customScoreAway: true,
+            isCorrect: true,
+            awardedPoints: true,
+            isFinal: true,
+            finalizedAt: true,
+          },
         },
-        take: 1,
-      },
-      resolvedMvpParticipant: {
-        include: {
-          user: {
-            select: {
-              name: true,
-              surname: true,
+        mvpVotes: {
+          where: { userId },
+          select: {
+            participantId: true,
+            createdAt: true,
+          },
+          take: 1,
+        },
+        resolvedMvpParticipant: {
+          include: {
+            user: {
+              select: {
+                name: true,
+                surname: true,
+              },
             },
           },
         },
       },
-    },
-  });
+    });
+
+  let match = await readPublicMatch();
+  const hasWinnerQuestion = match?.questions.some((question) => question.kind === "winner") ?? false;
+  const hasMvpPredictionQuestion =
+    match?.questions.some((question) => question.kind === "mvp_prediction") ?? false;
+  if (match && (!hasWinnerQuestion || !hasMvpPredictionQuestion)) {
+    await syncHalisahaWinnerQuestion({
+      id: activeMatch.id,
+      homeTeamName: activeMatch.homeTeamName,
+      awayTeamName: activeMatch.awayTeamName,
+    });
+    await syncHalisahaMvpPredictionQuestion(activeMatch.id);
+    match = await readPublicMatch();
+  }
 
   const fallback = getDefaultMatchState();
   const baseMatch = match ?? fallback;
