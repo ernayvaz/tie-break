@@ -18,6 +18,7 @@ import { HalisahaLeaderboardBoard } from "@/components/halisaha/halisaha-leaderb
 import { HalisahaChallengeOverlay } from "@/components/halisaha/halisaha-challenge-overlay";
 import { HalisahaPostMatchMvpVote } from "@/components/halisaha/halisaha-post-match-mvp-vote";
 import { HalisahaResultsGateCard } from "@/components/halisaha/halisaha-results-gate-card";
+import type { HalisahaPositionKey } from "@prisma/client";
 import { getPitchSpot } from "@/lib/halisaha/config";
 import {
   HALISAHA_MOBILE_VIEWPORT_FALLBACK_LONG_SIDE_PX,
@@ -37,6 +38,7 @@ type PlayerSpot = {
   name: string;
   x: number;
   y: number;
+  positionKey: HalisahaPositionKey;
 };
 
 type ShowcaseTab = "matchday" | "leaderboard";
@@ -989,7 +991,7 @@ function PitchBoard({
           <span
             className={`halisaha-pitch-format-label font-medium leading-none tracking-[0.18em] ${
               renderInlineMobileBall
-                ? "text-[calc(3.15rem/2)] sm:text-[calc(3.15rem/2)]"
+                ? "text-[calc(3.15rem/6)] sm:text-[calc(3.15rem/6)]"
                 : "text-[0.5rem] sm:text-[0.55rem]"
             }`}
           >
@@ -1090,6 +1092,9 @@ function PitchBoard({
                     awayLineup={awayLineup}
                     portraitClosedLayout={usePortraitMobilePitch}
                     stackThreeWordNames={useClosedPortraitPitchLayout}
+                    closedPortraitDefenderInwardShift={
+                      useClosedPortraitPitchLayout ? CLOSED_PORTRAIT_DEFENDER_INWARD_SVG_UNITS : 0
+                    }
                   />
                 </div>
               ) : null}
@@ -1152,17 +1157,54 @@ function PitchBoard({
   );
 }
 
+const PITCH_VIEWBOX_HEIGHT = 620;
+/** ViewBox units: mobilde slicer kapalıyken defans isimlerini sahada merkeze doğru */
+const CLOSED_PORTRAIT_DEFENDER_INWARD_SVG_UNITS = 10;
+const DEFENSE_POSITION_KEYS: HalisahaPositionKey[] = ["left_defender", "right_defender"];
+const MIDFIELD_POSITION_KEYS: HalisahaPositionKey[] = [
+  "left_wing",
+  "center_midfield",
+  "right_wing",
+];
+
+/** Nudge first-line tspan (em) so stacked 3-word labels in defense/midfield rows share a line. */
+function computeStackedFirstLineDyEmExtra(
+  players: ReadonlyArray<PlayerSpot>,
+): Map<HalisahaPositionKey, number> {
+  const out = new Map<HalisahaPositionKey, number>();
+  for (const keys of [DEFENSE_POSITION_KEYS, MIDFIELD_POSITION_KEYS]) {
+    const inGroup = players.filter((p) => keys.includes(p.positionKey));
+    if (inGroup.length < 2) continue;
+    const avgY = inGroup.reduce((sum, p) => sum + p.y, 0) / inGroup.length;
+    for (const p of inGroup) {
+      out.set(p.positionKey, ((avgY - p.y) / PITCH_VIEWBOX_HEIGHT) * 2.6);
+    }
+  }
+  return out;
+}
+
 function PitchOverlay({
   homeLineup,
   awayLineup,
   portraitClosedLayout = false,
   stackThreeWordNames = false,
+  closedPortraitDefenderInwardShift = 0,
 }: {
   homeLineup: PlayerSpot[];
   awayLineup: PlayerSpot[];
   portraitClosedLayout?: boolean;
   stackThreeWordNames?: boolean;
+  closedPortraitDefenderInwardShift?: number;
 }) {
+  const homeLine1DyExtra = useMemo(
+    () => (stackThreeWordNames ? computeStackedFirstLineDyEmExtra(homeLineup) : new Map()),
+    [homeLineup, stackThreeWordNames],
+  );
+  const awayLine1DyExtra = useMemo(
+    () => (stackThreeWordNames ? computeStackedFirstLineDyEmExtra(awayLineup) : new Map()),
+    [awayLineup, stackThreeWordNames],
+  );
+
   return (
     <svg
       viewBox="0 0 1000 620"
@@ -1177,6 +1219,8 @@ function PitchOverlay({
           side="left"
           portraitClosedLayout={portraitClosedLayout}
           stackThreeWordNames={stackThreeWordNames}
+          stackedFirstLineDyEmExtra={homeLine1DyExtra}
+          defenderInwardShiftSvgUnits={closedPortraitDefenderInwardShift}
         />
       ))}
 
@@ -1187,6 +1231,8 @@ function PitchOverlay({
           side="right"
           portraitClosedLayout={portraitClosedLayout}
           stackThreeWordNames={stackThreeWordNames}
+          stackedFirstLineDyEmExtra={awayLine1DyExtra}
+          defenderInwardShiftSvgUnits={closedPortraitDefenderInwardShift}
         />
       ))}
     </svg>
@@ -1242,7 +1288,7 @@ function MidfieldBallButton({
           : showLineups
             ? "calc(50% + 4px)"
             : closedPortraitNudgeUp
-              ? "calc(50% + 2.5px)"
+              ? "calc(50% + 1.5px)"
               : "calc(50% + 4.5px)",
         transform: inlineCompactBall
           ? undefined
@@ -1513,20 +1559,30 @@ function PitchPlayerLabel({
   side,
   portraitClosedLayout = false,
   stackThreeWordNames = false,
+  stackedFirstLineDyEmExtra,
+  defenderInwardShiftSvgUnits = 0,
 }: {
   player: PlayerSpot;
   side: "left" | "right";
   portraitClosedLayout?: boolean;
   stackThreeWordNames?: boolean;
+  stackedFirstLineDyEmExtra?: ReadonlyMap<HalisahaPositionKey, number>;
+  defenderInwardShiftSvgUnits?: number;
 }) {
   const labelRotation = portraitClosedLayout ? -90 : side === "left" ? -90 : 90;
   const fontSize = portraitClosedLayout ? 17.85 : 11.9;
   const strokeWidth = portraitClosedLayout ? 0.63 : 0.42;
   const letterSpacing = portraitClosedLayout ? 1.65 : 1.1;
   const lines = splitThreeWordPlayerName(player.name, stackThreeWordNames);
+  const line1DyExtraEm =
+    lines.mode === "stack" ? (stackedFirstLineDyEmExtra?.get(player.positionKey) ?? 0) : 0;
+  const line1DyEm = -0.55 + line1DyExtraEm;
+  const isDefender = DEFENSE_POSITION_KEYS.includes(player.positionKey);
+  const inward = defenderInwardShiftSvgUnits > 0 && isDefender ? defenderInwardShiftSvgUnits : 0;
+  const labelX = player.x + (side === "left" ? inward : -inward);
 
   return (
-    <g transform={`translate(${player.x} ${player.y}) rotate(${labelRotation})`}>
+    <g transform={`translate(${labelX} ${player.y}) rotate(${labelRotation})`}>
       <text
         x="0"
         y="0"
@@ -1545,7 +1601,7 @@ function PitchPlayerLabel({
           lines.text
         ) : (
           <>
-            <tspan x="0" dy="-0.55em">
+            <tspan x="0" dy={`${line1DyEm}em`}>
               {lines.first}
             </tspan>
             <tspan x="0" dy="1.12em">
@@ -1582,6 +1638,7 @@ function buildTeamLineup(
         name: participant.displayName,
         x: spot.x,
         y: spot.y,
+        positionKey: participant.positionKey,
       } satisfies PlayerSpot;
     })
     .filter((player): player is PlayerSpot => player !== null);
