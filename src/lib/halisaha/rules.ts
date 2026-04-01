@@ -14,29 +14,72 @@ export type HalisahaGateAnswerState = {
   finalizedAtIso: string | null;
 };
 
+export type HalisahaMvpGateMode =
+  | "open"
+  | "vote_required"
+  | "waiting_for_vote_window";
+
 export function buildHalisahaMvpGateState(input: {
   phase: HalisahaMatchPhase;
   hasSubmittedPostMatchVote: boolean;
-  shouldRequireVote?: boolean;
+  voteEligible?: boolean;
 }) {
+  const voteEligible = input.voteEligible ?? true;
+  const waitingForVoteWindow =
+    input.phase === "post_match_mvp_voting" && !voteEligible;
   const requiresPostMatchVote =
-    input.phase !== "pre_match" && (input.shouldRequireVote ?? true);
-  const canRevealResults = !requiresPostMatchVote || input.hasSubmittedPostMatchVote;
+    input.phase === "post_match_mvp_voting" &&
+    voteEligible &&
+    !input.hasSubmittedPostMatchVote;
+  const canRevealResults =
+    input.phase === "pre_match" ||
+    input.phase === "results_unlocked" ||
+    (input.phase === "post_match_mvp_voting" &&
+      voteEligible &&
+      input.hasSubmittedPostMatchVote);
+  const mode: HalisahaMvpGateMode = requiresPostMatchVote
+    ? "vote_required"
+    : waitingForVoteWindow
+      ? "waiting_for_vote_window"
+      : "open";
+
+  const content =
+    mode === "vote_required"
+      ? {
+          title: "Vote for the post-match MVP first",
+          description:
+            "The 24-hour MVP voting window is live for the admin and the players who took part in the match. Submit your MVP vote to unlock Halisaha results and leaderboard view immediately.",
+          buttonLabel: "Go to MVP vote",
+          ctaHref: "/halisaha?postMatchVote=1",
+        }
+      : mode === "waiting_for_vote_window"
+        ? {
+            title: "Results unlock after MVP voting",
+            description:
+              "The 24-hour MVP voting window is active for the admin and the players who took part in the match. Once that window ends, the final MVP, correct answers, and leaderboard will become visible for everyone.",
+            buttonLabel: "Open Matchday",
+            ctaHref: "/halisaha",
+          }
+        : {
+            title: "Results available",
+            description:
+              input.phase === "pre_match"
+                ? "Your saved answers stay visible here until the match ends."
+                : "The final MVP is locked and Halisaha results are available.",
+            buttonLabel: "Open Matchday",
+            ctaHref: "/halisaha",
+          };
 
   return {
     phase: input.phase,
+    mode,
     requiresPostMatchVote,
     hasSubmittedPostMatchVote: input.hasSubmittedPostMatchVote,
     canRevealResults,
-    title: "Vote for the post-match MVP first",
-    description:
-      input.phase === "pre_match"
-        ? "Results are available after the match begins."
-        : input.phase === "post_match_mvp_voting"
-          ? "The 24-hour MVP vote is live. Submit your MVP vote to unlock your Halisaha results and leaderboard view."
-          : "The MVP window has closed and the final MVP is locked. Submit your MVP vote to unlock your Halisaha results and leaderboard view.",
-    buttonLabel: "Go to MVP vote",
-    ctaHref: "/halisaha?postMatchVote=1",
+    title: content.title,
+    description: content.description,
+    buttonLabel: content.buttonLabel,
+    ctaHref: content.ctaHref,
   };
 }
 
@@ -46,7 +89,15 @@ export function shouldRevealWinnerPercentages(input: {
   canRevealResults: boolean;
   hasWinnerVoteSummary: boolean;
 }) {
-  return input.userAnswersLocked && input.hasWinnerVoteSummary;
+  if (!input.hasWinnerVoteSummary) {
+    return false;
+  }
+
+  if (input.phase === "pre_match") {
+    return input.userAnswersLocked;
+  }
+
+  return input.canRevealResults;
 }
 
 export function maskHalisahaAnswerForGate<T extends HalisahaGateAnswerState>(

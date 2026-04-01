@@ -214,12 +214,7 @@ export function HalisahaMatchShowcase({
     forcePostMatchMvpVote &&
     snapshot.postMatchMvpVote.requiresVote &&
     !snapshot.postMatchMvpVote.hasUserVoted;
-  const shouldPreviewAdminMvpVote =
-    viewerCanManageOwnAnswerLock &&
-    snapshot.userAnswersLocked &&
-    !snapshot.postMatchMvpVote.hasUserVoted &&
-    !snapshot.postMatchMvpVote.requiresVote;
-  const shouldAutoOpenVoteOverlay = shouldForceVoteOverlay || shouldPreviewAdminMvpVote;
+  const shouldAutoOpenVoteOverlay = shouldForceVoteOverlay;
   const [showLineups, setShowLineups] = useState(shouldAutoOpenVoteOverlay);
   const [activeTab, setActiveTab] = useState<ShowcaseTab>("matchday");
   const [isTabTransitionPending, startTabTransition] = useTransition();
@@ -239,9 +234,20 @@ export function HalisahaMatchShowcase({
     [snapshot.match.kickoffAtIso],
   );
   const [countdown, setCountdown] = useState(() => formatCountdown(kickoffAt));
-  const [predictionWindowClosed, setPredictionWindowClosed] = useState(() =>
-    viewerCanManageOwnAnswerLock ? false : new Date() >= getHalisahaPredictionLockAt({ kickoffAt }),
+  const [predictionWindowClosed, setPredictionWindowClosed] = useState(
+    () => new Date() >= getHalisahaPredictionLockAt({ kickoffAt }),
   );
+  const observerVoteNoticeStorageKey = useMemo(
+    () =>
+      snapshot.match.id && snapshot.postMatchMvpVote.voteEndsAtIso
+        ? `halisaha-observer-vote-notice:${snapshot.match.id}:${snapshot.postMatchMvpVote.voteEndsAtIso}`
+        : null,
+    [snapshot.match.id, snapshot.postMatchMvpVote.voteEndsAtIso],
+  );
+  const shouldShowObserverVoteNotice =
+    snapshot.gate.mode === "waiting_for_vote_window" &&
+    snapshot.match.phase === "post_match_mvp_voting";
+  const [showObserverVoteNotice, setShowObserverVoteNotice] = useState(false);
   const homeLineup = useMemo(() => buildTeamLineup(snapshot, "home"), [snapshot]);
   const awayLineup = useMemo(() => buildTeamLineup(snapshot, "away"), [snapshot]);
   const viewerCanRevealWinnerPercentages = shouldRevealWinnerPercentages({
@@ -252,14 +258,8 @@ export function HalisahaMatchShowcase({
   });
 
   const hasPublishedHalisahaQuestions = snapshot.questions.length > 0;
-  const shouldPreviewAdminMvpVoteForLayout =
-    viewerCanManageOwnAnswerLock &&
-    snapshot.userAnswersLocked &&
-    !snapshot.postMatchMvpVote.hasUserVoted &&
-    !snapshot.postMatchMvpVote.requiresVote;
   const shouldShowPostMatchMvpVoteForLayout =
-    (snapshot.postMatchMvpVote.requiresVote || shouldPreviewAdminMvpVoteForLayout) &&
-    !snapshot.postMatchMvpVote.hasUserVoted;
+    snapshot.postMatchMvpVote.requiresVote && !snapshot.postMatchMvpVote.hasUserVoted;
   const halisahaPitchOverlayOpen =
     activeTab === "matchday" &&
     showLineups &&
@@ -295,11 +295,6 @@ export function HalisahaMatchShowcase({
   }, [kickoffAt]);
 
   useEffect(() => {
-    if (viewerCanManageOwnAnswerLock) {
-      setPredictionWindowClosed(false);
-      return;
-    }
-
     const predictionLockAt = getHalisahaPredictionLockAt({ kickoffAt });
     const updateState = () => {
       setPredictionWindowClosed(new Date() >= predictionLockAt);
@@ -312,7 +307,37 @@ export function HalisahaMatchShowcase({
 
     const timeoutId = window.setTimeout(updateState, predictionLockAt.getTime() - Date.now());
     return () => window.clearTimeout(timeoutId);
-  }, [kickoffAt, viewerCanManageOwnAnswerLock]);
+  }, [kickoffAt]);
+
+  useEffect(() => {
+    if (!shouldShowObserverVoteNotice || !observerVoteNoticeStorageKey) {
+      setShowObserverVoteNotice(false);
+      return;
+    }
+
+    try {
+      if (window.localStorage.getItem(observerVoteNoticeStorageKey) === "1") {
+        setShowObserverVoteNotice(false);
+        return;
+      }
+    } catch {
+      // Persisting the notice is best-effort.
+    }
+
+    setShowObserverVoteNotice(true);
+  }, [observerVoteNoticeStorageKey, shouldShowObserverVoteNotice]);
+
+  const dismissObserverVoteNotice = useCallback(() => {
+    if (observerVoteNoticeStorageKey) {
+      try {
+        window.localStorage.setItem(observerVoteNoticeStorageKey, "1");
+      } catch {
+        // Persisting the notice is best-effort.
+      }
+    }
+
+    setShowObserverVoteNotice(false);
+  }, [observerVoteNoticeStorageKey]);
 
   useEffect(() => {
     const { documentElement, body } = document;
@@ -676,8 +701,9 @@ export function HalisahaMatchShowcase({
 
   const leaderboardPanel = (
     <div className="mt-1 flex min-h-0 flex-1 flex-col overflow-hidden">
-      {snapshot.gate.requiresPostMatchVote && !snapshot.gate.canRevealResults ? (
+      {!snapshot.gate.canRevealResults ? (
         <HalisahaResultsGateCard
+          eyebrow={getGateEyebrow(snapshot.gate.mode)}
           title={snapshot.gate.title}
           description={snapshot.gate.description}
           href={snapshot.gate.ctaHref}
@@ -706,6 +732,10 @@ export function HalisahaMatchShowcase({
       }`}
     >
       <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.005),transparent_26%,transparent_78%,rgba(255,255,255,0.006)_100%)]" />
+      <ObserverVoteWindowNotice
+        open={showObserverVoteNotice}
+        onDismiss={dismissObserverVoteNotice}
+      />
 
       {isImmersiveMobileMatchday ? (
         <div
@@ -969,6 +999,51 @@ function MobileHeroScrollCue() {
   );
 }
 
+function getGateEyebrow(mode: HalisahaPublicSnapshot["gate"]["mode"]) {
+  return mode === "waiting_for_vote_window"
+    ? "MVP voting in progress"
+    : "MVP vote required";
+}
+
+function ObserverVoteWindowNotice({
+  open,
+  onDismiss,
+}: {
+  open: boolean;
+  onDismiss: () => void;
+}) {
+  if (!open) {
+    return null;
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(3,8,8,0.72)] px-4 backdrop-blur-[8px]">
+      <div className="w-full max-w-[28rem] rounded-[1.2rem] border border-white/12 bg-[linear-gradient(180deg,rgba(9,16,15,0.96),rgba(7,12,12,0.92))] p-5 text-white shadow-[0_26px_60px_rgba(0,0,0,0.34)]">
+        <div className="text-[0.56rem] font-semibold uppercase tracking-[0.2em] text-white/42">
+          MVP voting update
+        </div>
+        <h3 className="mt-2 text-[1.02rem] font-semibold leading-tight text-white">
+          Match results unlock after the 24-hour MVP vote
+        </h3>
+        <p className="mt-2 text-[0.78rem] leading-[1.65] text-white/68">
+          The admin and the players who took part in this match are voting for the MVP during a
+          24-hour window. When that window ends, the final MVP, correct answers, and leaderboard
+          will become visible here.
+        </p>
+        <div className="mt-4 flex justify-end">
+          <button
+            type="button"
+            onClick={onDismiss}
+            className="rounded-full border border-white/14 bg-white/[0.08] px-4 py-[0.7rem] text-[0.62rem] font-semibold uppercase tracking-[0.18em] text-white transition-colors hover:bg-white/[0.12]"
+          >
+            Understood
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function PitchBoard({
   showLineups,
   onToggle,
@@ -1008,14 +1083,8 @@ function PitchBoard({
 }) {
   const router = useRouter();
   const hasPublishedQuestions = questions.length > 0;
-  const shouldPreviewAdminMvpVote =
-    viewerCanManageOwnAnswerLock &&
-    answersLocked &&
-    !postMatchMvpVote.hasUserVoted &&
-    !postMatchMvpVote.requiresVote;
   const shouldShowPostMatchMvpVote =
-    (postMatchMvpVote.requiresVote || shouldPreviewAdminMvpVote) &&
-    !postMatchMvpVote.hasUserVoted;
+    postMatchMvpVote.requiresVote && !postMatchMvpVote.hasUserVoted;
   const hasOverlayContent = shouldShowPostMatchMvpVote || hasPublishedQuestions;
   const showChallengeSurface = showLineups && hasOverlayContent;
   const usePortraitMobilePitch = useMobileScreen2Layout;
@@ -1249,7 +1318,6 @@ function PitchBoard({
                 <HalisahaPostMatchMvpVote
                   matchId={matchId}
                   voteState={postMatchMvpVote}
-                  previewMode={shouldPreviewAdminMvpVote}
                 />
               ) : (
                 <HalisahaChallengeOverlay

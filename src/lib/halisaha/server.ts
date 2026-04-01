@@ -38,6 +38,7 @@ import {
   getMatchingFixedScoreOptionIds,
   isCustomScoreExactMatch,
   maskHalisahaAnswerForGate,
+  type HalisahaMvpGateMode,
 } from "./rules";
 import {
   composeHalisahaCumulativeLeaderboard,
@@ -295,6 +296,7 @@ export type { HalisahaResultRow } from "./leaderboard";
 
 export type HalisahaMvpGateState = {
   phase: HalisahaMatchPhase;
+  mode: HalisahaMvpGateMode;
   requiresPostMatchVote: boolean;
   hasSubmittedPostMatchVote: boolean;
   canRevealResults: boolean;
@@ -699,7 +701,7 @@ function parseHalisahaRecentAnswers(
 function buildGateState(input: {
   phase: HalisahaMatchPhase;
   hasSubmittedPostMatchVote: boolean;
-  shouldRequireVote?: boolean;
+  voteEligible?: boolean;
 }): HalisahaMvpGateState {
   return buildHalisahaMvpGateState(input);
 }
@@ -1711,7 +1713,7 @@ export async function getHalisahaMvpGateState(
     return buildGateState({
       phase: "pre_match",
       hasSubmittedPostMatchVote: false,
-      shouldRequireVote: false,
+      voteEligible: false,
     });
   }
 
@@ -1719,14 +1721,14 @@ export async function getHalisahaMvpGateState(
     return buildGateState({
       phase: "pre_match",
       hasSubmittedPostMatchVote: false,
-      shouldRequireVote: false,
+      voteEligible: false,
     });
   }
 
   return buildGateState({
     phase: getHalisahaMatchPhase(match),
     hasSubmittedPostMatchVote: match.mvpVotes.length > 0,
-    shouldRequireVote: userRole === "admin" || match.participants.length > 0,
+    voteEligible: userRole === "admin" || match.participants.length > 0,
   });
 }
 
@@ -2094,13 +2096,13 @@ export async function getHalisahaPublicSnapshot(
         );
 
   const userVote = match?.mvpVotes[0] ?? null;
-  const shouldRequirePostMatchVote =
+  const voteEligible =
     userRole === "admin" ||
     persistedParticipants.some((participant) => participant.userId === userId);
   const gate = buildGateState({
     phase: getHalisahaMatchPhase(baseMatch),
     hasSubmittedPostMatchVote: Boolean(userVote),
-    shouldRequireVote: shouldRequirePostMatchVote,
+    voteEligible,
   });
 
   const hideResolvedResults = !gate.canRevealResults;
@@ -2130,11 +2132,13 @@ export async function getHalisahaPublicSnapshot(
   );
   const winnerQuestion = questions.find((question) => question.kind === "winner") ?? null;
   const standardQuestions = questions.filter((question) => question.kind !== "winner");
-  const canRevealWinnerVoteSummary =
-    gate.canRevealResults && getHalisahaMatchPhase(baseMatch) !== "pre_match";
+  const shouldLoadWinnerVoteSummary =
+    getHalisahaMatchPhase(baseMatch) === "pre_match"
+      ? userAnswersLocked
+      : gate.canRevealResults || Boolean(match?.answersResolvedAt);
   const winnerVoteSummary =
     winnerQuestion &&
-    (userAnswersLocked || Boolean(match?.answersResolvedAt) || canRevealWinnerVoteSummary)
+    shouldLoadWinnerVoteSummary
       ? await getHalisahaWinnerVoteSummary(winnerQuestion)
       : null;
 

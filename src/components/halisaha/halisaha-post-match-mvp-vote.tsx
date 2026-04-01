@@ -8,11 +8,9 @@ import type { HalisahaPostMatchMvpVoteState } from "@/lib/halisaha/server";
 export function HalisahaPostMatchMvpVote({
   matchId,
   voteState,
-  previewMode = false,
 }: {
   matchId: string | null;
   voteState: HalisahaPostMatchMvpVoteState;
-  previewMode?: boolean;
 }) {
   const router = useRouter();
   const [selectedParticipantId, setSelectedParticipantId] = useState(
@@ -30,11 +28,6 @@ export function HalisahaPostMatchMvpVote({
   );
 
   const handleSubmit = async () => {
-    if (previewMode) {
-      setError("Admin preview is active. Real MVP voting opens after the match finishes.");
-      return;
-    }
-
     if (!matchId) {
       setError("Match not found.");
       return;
@@ -69,11 +62,13 @@ export function HalisahaPostMatchMvpVote({
             {voteState.prompt}
           </h3>
           <p className="mx-auto mt-2 max-w-[36rem] text-[0.78rem] leading-[1.6] text-white/66">
-            {previewMode
-              ? "Admin preview mode is active. This lets you verify the post-match MVP gate immediately after locking answers. Real MVP voting opens after the match finishes."
-              : voteState.votingWindowOpen
-              ? "The 24-hour community MVP vote is live. Submit one vote to unlock your Halisaha results and leaderboard."
-              : "The community MVP window is closed and the final MVP is locked. Submit your vote to unlock your results; your pick will still be checked against the locked MVP."}
+            {voteState.votingWindowOpen
+              ? "The 24-hour community MVP vote is live. Submit one vote to unlock your Halisaha results and leaderboard now. When the window closes, the final MVP is determined from the submitted votes and the correct answers stay visible here."
+              : "This 24-hour MVP vote is only available after the match ends. Once the window closes, the final MVP is determined from the submitted votes and the correct answers plus leaderboard are revealed."}
+          </p>
+          <p className="mx-auto mt-2 max-w-[36rem] text-[0.72rem] leading-[1.6] text-white/50">
+            Only the admin and the players who took part in this match can vote during this
+            window.
           </p>
         </div>
 
@@ -142,16 +137,10 @@ export function HalisahaPostMatchMvpVote({
           <button
             type="button"
             onClick={handleSubmit}
-            disabled={
-              previewMode || busy || !selectedParticipantId || voteState.participants.length === 0
-            }
+            disabled={busy || !selectedParticipantId || voteState.participants.length === 0}
             className="rounded-full border border-white/12 bg-[linear-gradient(180deg,rgba(212,228,223,0.12),rgba(212,228,223,0.05))] px-4 py-[0.72rem] text-[0.62rem] font-semibold uppercase tracking-[0.18em] text-white shadow-[0_12px_28px_rgba(0,0,0,0.22)] transition-colors hover:bg-white/[0.12] disabled:cursor-default disabled:opacity-60"
           >
-            {previewMode
-              ? "Voting opens after the match"
-              : busy
-                ? "Submitting..."
-                : "Submit MVP vote"}
+            {busy ? "Submitting..." : "Submit MVP vote"}
           </button>
         </div>
       </div>

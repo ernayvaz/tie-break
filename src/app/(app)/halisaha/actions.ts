@@ -159,7 +159,6 @@ export async function submitHalisahaAnswersAction(
   }
 
   if (
-    user.role !== "admin" &&
     !isHalisahaPredictionWindowOpen({
       kickoffAt: match.kickoffAt,
     })
@@ -329,11 +328,19 @@ export async function unlockHalisahaAnswersAction(
       id: true,
       isPublishedToUsers: true,
       answersResolvedAt: true,
+      kickoffAt: true,
     },
   });
 
   if (!match) {
     return { ok: false, error: "Match not found." };
+  }
+
+  if (user.role !== "admin") {
+    return {
+      ok: false,
+      error: "Only admins can unlock locked answers.",
+    };
   }
 
   if (match.answersResolvedAt) {
@@ -343,10 +350,17 @@ export async function unlockHalisahaAnswersAction(
     };
   }
 
-  if (user.role !== "admin" && !match.isPublishedToUsers) {
+  if (!match.isPublishedToUsers) {
     return {
       ok: false,
       error: HALISAHA_MATCH_NOT_PUBLISHED_MESSAGE,
+    };
+  }
+
+  if (!isHalisahaPredictionWindowOpen({ kickoffAt: match.kickoffAt })) {
+    return {
+      ok: false,
+      error: "Answers can only be unlocked before predictions close.",
     };
   }
 
@@ -423,6 +437,7 @@ export async function submitPostMatchMvpVoteAction(
         },
         select: {
           id: true,
+          userId: true,
         },
       },
       mvpVotes: {
@@ -452,6 +467,24 @@ export async function submitPostMatchMvpVoteAction(
     return {
       ok: false,
       error: "MVP voting opens after the match finishes.",
+    };
+  }
+
+  if (getHalisahaMatchPhase(match) === "results_unlocked") {
+    return {
+      ok: false,
+      error: "The 24-hour MVP voting window has closed.",
+    };
+  }
+
+  const voteEligible =
+    user.role === "admin" ||
+    match.participants.some((participant) => participant.userId === user.id);
+
+  if (!voteEligible) {
+    return {
+      ok: false,
+      error: "Only the admin and players who took part in the match can vote for MVP.",
     };
   }
 

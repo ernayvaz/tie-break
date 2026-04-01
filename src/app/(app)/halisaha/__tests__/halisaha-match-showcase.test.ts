@@ -102,7 +102,7 @@ function createSnapshot(input?: {
       mvpVoteEndsAtIso: voteEndsAtIso,
       phase: "pre_match",
       answersResolved: false,
-      canRevealResults: false,
+      canRevealResults: true,
     },
     participants:
       input?.participants ?? [
@@ -129,13 +129,14 @@ function createSnapshot(input?: {
     userAnswersLocked: false,
     gate: {
       phase: "pre_match",
+      mode: "open",
       requiresPostMatchVote: false,
       hasSubmittedPostMatchVote: false,
-      canRevealResults: false,
-      title: "Results locked",
-      description: "Post-match MVP voting unlocks the results.",
-      buttonLabel: "Vote MVP",
-      ctaHref: "/halisaha?postMatchVote=1",
+      canRevealResults: true,
+      title: "Results available",
+      description: "Your saved answers stay visible here until the match ends.",
+      buttonLabel: "Open Matchday",
+      ctaHref: "/halisaha",
     },
     postMatchMvpVote: {
       prompt: "Who was the MVP?",

@@ -637,7 +637,10 @@ export function HalisahaChallengeOverlay({
   const hasSelections = stagedSelections.length > 0;
   const canRevealWinnerPercentages = winnerPercentagesVisible;
   const viewerCanUnlockAnswers =
-    viewerCanManageOwnAnswerLock && answersLocked && !answersResolved;
+    viewerCanManageOwnAnswerLock &&
+    answersLocked &&
+    !answersResolved &&
+    !predictionWindowClosed;
   const predictionsClosed =
     predictionWindowClosed && !answersLocked && !answersResolved && !viewerCanUnlockAnswers;
   const effectiveWinnerVoteSummary = useMemo(() => {

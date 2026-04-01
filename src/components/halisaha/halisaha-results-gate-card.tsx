@@ -3,12 +3,14 @@
 import Link from "next/link";
 
 export function HalisahaResultsGateCard({
+  eyebrow = "MVP vote required",
   title,
   description,
   href,
   buttonLabel,
   compact = false,
 }: {
+  eyebrow?: string;
   title: string;
   description: string;
   href: string;
@@ -22,7 +24,7 @@ export function HalisahaResultsGateCard({
       }`}
     >
       <div className="text-[0.62rem] font-semibold uppercase tracking-[0.22em] text-white/42">
-        MVP vote required
+        {eyebrow}
       </div>
       <h3 className={`mt-2 font-semibold text-white ${compact ? "text-[1rem]" : "text-[1.12rem]"}`}>
         {title}

@@ -106,7 +106,7 @@ describe("halisaha actions", () => {
     expect(mocks.transaction).not.toHaveBeenCalled();
   });
 
-  it("keeps admins exempt from the kickoff-minus-5-minute lock for testing", async () => {
+  it("applies the kickoff-minus-5-minute lock to admins too", async () => {
     mocks.getCurrentUser.mockResolvedValue({
       id: "admin-1",
       role: "admin",
@@ -121,12 +121,11 @@ describe("halisaha actions", () => {
     ]);
 
     expect(result).toEqual({
-      ok: true,
-      message: "Answer saved.",
+      ok: false,
+      error: "Predictions close 5 minutes before kickoff.",
     });
-    expect(mocks.findFirst).toHaveBeenCalled();
-    expect(mocks.transaction).toHaveBeenCalled();
-    expect(mocks.revalidatePath).toHaveBeenCalledWith("/halisaha");
+    expect(mocks.findFirst).not.toHaveBeenCalled();
+    expect(mocks.transaction).not.toHaveBeenCalled();
   });
 
   it("finalizes only the submitted question ids", async () => {
@@ -135,7 +134,7 @@ describe("halisaha actions", () => {
       role: "admin",
     });
     mocks.findMany.mockResolvedValue([
-      buildQuestion("question-1", new Date(Date.now() + 4 * 60_000)),
+      buildQuestion("question-1", new Date(Date.now() + 10 * 60_000)),
     ]);
 
     const result = await submitHalisahaAnswersAction(
@@ -174,7 +173,7 @@ describe("halisaha actions", () => {
       role: "admin",
     });
     mocks.findMany.mockResolvedValue([
-      buildQuestion("question-1", new Date(Date.now() + 4 * 60_000), [
+      buildQuestion("question-1", new Date(Date.now() + 10 * 60_000), [
         {
           id: "option-1",
           kind: "custom_number",

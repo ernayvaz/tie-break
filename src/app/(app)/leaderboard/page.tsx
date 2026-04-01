@@ -72,6 +72,11 @@ export default async function LeaderboardPage({
         <LeaderboardBoard data={data} showPrizes />
       ) : halisahaGate ? (
         <HalisahaResultsGateCard
+          eyebrow={
+            halisahaGate.mode === "waiting_for_vote_window"
+              ? "MVP voting in progress"
+              : "MVP vote required"
+          }
           title={halisahaGate.title}
           description={halisahaGate.description}
           href={halisahaGate.ctaHref}

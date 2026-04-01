@@ -16,9 +16,10 @@ describe("halisaha/rules", () => {
           hasSubmittedPostMatchVote: false,
         }),
       ).toMatchObject({
+        mode: "open",
         requiresPostMatchVote: false,
         canRevealResults: true,
-        buttonLabel: "Go to MVP vote",
+        buttonLabel: "Open Matchday",
       });
     });
 
@@ -29,6 +30,7 @@ describe("halisaha/rules", () => {
           hasSubmittedPostMatchVote: false,
         }),
       ).toMatchObject({
+        mode: "vote_required",
         requiresPostMatchVote: true,
         canRevealResults: false,
       });
@@ -39,34 +41,37 @@ describe("halisaha/rules", () => {
           hasSubmittedPostMatchVote: true,
         }),
       ).toMatchObject({
-        requiresPostMatchVote: true,
-        canRevealResults: true,
-      });
-    });
-
-    it("skips the MVP gate for non-participant non-admin viewers after the match", () => {
-      expect(
-        buildHalisahaMvpGateState({
-          phase: "post_match_mvp_voting",
-          hasSubmittedPostMatchVote: false,
-          shouldRequireVote: false,
-        }),
-      ).toMatchObject({
+        mode: "open",
         requiresPostMatchVote: false,
         canRevealResults: true,
       });
     });
 
-    it("keeps admin and participant viewers gated until they submit the MVP vote", () => {
+    it("keeps non-participant non-admin viewers waiting until the vote window ends", () => {
+      expect(
+        buildHalisahaMvpGateState({
+          phase: "post_match_mvp_voting",
+          hasSubmittedPostMatchVote: false,
+          voteEligible: false,
+        }),
+      ).toMatchObject({
+        mode: "waiting_for_vote_window",
+        requiresPostMatchVote: false,
+        canRevealResults: false,
+      });
+    });
+
+    it("unlocks results for everyone after the 24-hour vote window closes", () => {
       expect(
         buildHalisahaMvpGateState({
           phase: "results_unlocked",
           hasSubmittedPostMatchVote: false,
-          shouldRequireVote: true,
+          voteEligible: true,
         }),
       ).toMatchObject({
-        requiresPostMatchVote: true,
-        canRevealResults: false,
+        mode: "open",
+        requiresPostMatchVote: false,
+        canRevealResults: true,
       });
     });
   });
@@ -116,21 +121,21 @@ describe("halisaha/rules", () => {
       ).toBe(false);
     });
 
-    it("keeps WHO WINS percentages hidden until the user locks answers even after kickoff", () => {
+    it("reveals WHO WINS percentages after kickoff only when result visibility is unlocked", () => {
       expect(
         shouldRevealWinnerPercentages({
           phase: "results_unlocked",
           userAnswersLocked: true,
-          canRevealResults: false,
+          canRevealResults: true,
           hasWinnerVoteSummary: true,
         }),
       ).toBe(true);
 
       expect(
         shouldRevealWinnerPercentages({
-          phase: "results_unlocked",
-          userAnswersLocked: false,
-          canRevealResults: true,
+          phase: "post_match_mvp_voting",
+          userAnswersLocked: true,
+          canRevealResults: false,
           hasWinnerVoteSummary: true,
         }),
       ).toBe(false);
