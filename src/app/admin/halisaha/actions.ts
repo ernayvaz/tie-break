@@ -14,12 +14,13 @@ import {
   createIstanbulDateFromInputs,
   getHalisahaPositionDisplayOrder,
 } from "@/lib/halisaha/config";
-import { formatScoreLabel, parseScoreLabel } from "@/lib/halisaha/match-state";
+import { parseScoreLabel } from "@/lib/halisaha/match-state";
 import {
   archiveHalisahaMatchForNextRound,
   ensureActiveHalisahaMatch,
   resolveHalisahaMvpFromVotes,
   scoreHalisahaAnswers,
+  syncHalisahaPlayerPredictionQuestions,
   syncHalisahaMvpPredictionQuestion,
   syncHalisahaWinnerQuestion,
 } from "@/lib/halisaha/server";
@@ -30,63 +31,65 @@ export type HalisahaAdminActionState =
   | { ok: false; error: string };
 
 const CUSTOM_SCORE_OPTION_LABEL = "Your exact score";
+const CUSTOM_NUMBER_OPTION_LABEL = "Your number guess";
+const QUESTION_SORT_STEP = 10;
+
+type ManagedHalisahaQuestionKind =
+  | "standard"
+  | "player_prediction"
+  | "score_prediction"
+  | "number_prediction";
 
 function normalizeOptions(options: string[]) {
   return options.map((option) => option.trim()).filter(Boolean);
 }
 
+function normalizeManagedQuestionKind(kind: HalisahaQuestionKind): ManagedHalisahaQuestionKind {
+  if (
+    kind === "player_prediction" ||
+    kind === "score_prediction" ||
+    kind === "number_prediction"
+  ) {
+    return kind;
+  }
+  return "standard";
+}
+
 function prepareQuestionOptions(input: {
-  kind: HalisahaQuestionKind;
+  kind: ManagedHalisahaQuestionKind;
   options: string[];
-  includeCustomScoreOption?: boolean;
 }) {
-  if (input.kind === "score_prediction") {
-    const fixedScoreOptions = normalizeOptions(input.options).map((option) => {
-      const parsed = parseScoreLabel(option);
-      return parsed ? formatScoreLabel(parsed) : option;
-    });
-
-    if (fixedScoreOptions.some((option) => parseScoreLabel(option) === null)) {
-      return {
-        ok: false as const,
-        error:
-          'Every fixed score option must use the "home-away" format, for example 6-4.',
-      };
-    }
-
-    const preparedOptions = [
-      ...fixedScoreOptions.map((label) => ({
-        label,
-        kind: "standard" as const,
-      })),
-      ...(input.includeCustomScoreOption
-        ? [
-            {
-              label: CUSTOM_SCORE_OPTION_LABEL,
-              kind: "custom_score" as const,
-            },
-          ]
-        : []),
-    ];
-
-    if (fixedScoreOptions.length < 1) {
-      return {
-        ok: false as const,
-        error: "Add at least one fixed score option for a score prediction question.",
-      };
-    }
-
-    if (preparedOptions.length < 2) {
-      return {
-        ok: false as const,
-        error:
-          "A score prediction question needs at least two answer choices in total.",
-      };
-    }
-
+  if (input.kind === "player_prediction") {
     return {
       ok: true as const,
-      preparedOptions,
+      preparedOptions: [] as Array<{
+        label: string;
+        kind: "standard" | "custom_score" | "custom_number";
+      }>,
+    };
+  }
+
+  if (input.kind === "score_prediction") {
+    return {
+      ok: true as const,
+      preparedOptions: [
+        {
+          label: CUSTOM_SCORE_OPTION_LABEL,
+          kind: "custom_score" as const,
+        },
+      ],
+    };
+  }
+
+  if (input.kind === "number_prediction") {
+    return {
+      ok: true as const,
+      preparedOptions: [
+        {
+          label: CUSTOM_NUMBER_OPTION_LABEL,
+          kind: "custom_number" as const,
+        },
+      ],
     };
   }
 
@@ -114,24 +117,28 @@ async function resetResolutionState(matchId: string) {
     return;
   }
 
-  const questionIds = (
-    await prisma.halisahaQuestion.findMany({
-      where: {
-        matchId,
-        kind: {
-          not: "mvp_prediction",
-        },
-      },
-      select: {
-        id: true,
-      },
-    })
-  ).map((question) => question.id);
+  const questions = await prisma.halisahaQuestion.findMany({
+    where: {
+      matchId,
+    },
+    select: {
+      id: true,
+      kind: true,
+    },
+  });
+  const questionIds = questions.map((question) => question.id);
+  const mvpQuestionIds = questions
+    .filter((question) => question.kind === "mvp_prediction")
+    .map((question) => question.id);
 
   const operations: Array<Prisma.PrismaPromise<unknown>> = [
     prisma.halisahaMatch.update({
       where: { id: matchId },
-      data: { answersResolvedAt: null },
+      data: {
+        answersResolvedAt: null,
+        mvpResolvedParticipantId: null,
+        mvpResolvedAt: null,
+      },
     }),
     prisma.halisahaLeaderboardRound.deleteMany({
       where: {
@@ -157,6 +164,21 @@ async function resetResolutionState(matchId: string) {
         data: {
           isCorrect: null,
           awardedPoints: 0,
+        },
+      }),
+    );
+  }
+
+  if (mvpQuestionIds.length > 0) {
+    operations.push(
+      prisma.halisahaQuestionOption.updateMany({
+        where: {
+          questionId: {
+            in: mvpQuestionIds,
+          },
+        },
+        data: {
+          isCorrect: false,
         },
       }),
     );
@@ -538,18 +560,15 @@ export async function createHalisahaQuestionAction(data: {
   prompt: string;
   points: number;
   options: string[];
-  includeCustomScoreOption?: boolean;
 }): Promise<HalisahaAdminActionState> {
   const admin = await requireAdmin();
   const match = await ensureActiveHalisahaMatch();
-  const kind =
-    data.kind === "score_prediction" ? "score_prediction" : "standard";
+  const kind = normalizeManagedQuestionKind(data.kind);
   const prompt = data.prompt.trim();
   const points = Number(data.points);
   const preparedOptionsResult = prepareQuestionOptions({
     kind,
     options: data.options,
-    includeCustomScoreOption: data.includeCustomScoreOption,
   });
 
   if (!prompt) {
@@ -567,7 +586,7 @@ export async function createHalisahaQuestionAction(data: {
       where: {
         matchId: match.id,
         kind: {
-          in: ["standard", "score_prediction"],
+          not: "winner",
         },
       },
       _max: { sortOrder: true },
@@ -579,17 +598,20 @@ export async function createHalisahaQuestionAction(data: {
       kind,
       prompt,
       points,
-      sortOrder: maxSortOrder + 10,
+      sortOrder: maxSortOrder + QUESTION_SORT_STEP,
       options: {
         create: preparedOptionsResult.preparedOptions.map((option, index) => ({
           label: option.label,
           kind: option.kind,
-          sortOrder: (index + 1) * 10,
+          sortOrder: (index + 1) * QUESTION_SORT_STEP,
         })),
       },
     },
   });
 
+  if (kind === "player_prediction") {
+    await syncHalisahaPlayerPredictionQuestions(match.id);
+  }
   await resetResolutionState(match.id);
   await createAdminLog(
     admin.id,
@@ -607,11 +629,11 @@ export async function createHalisahaQuestionAction(data: {
 export async function updateHalisahaQuestionAction(
   questionId: string,
   data: {
+    kind: HalisahaQuestionKind;
     prompt: string;
     points: number;
     options: string[];
     isActive: boolean;
-    includeCustomScoreOption?: boolean;
   },
 ): Promise<HalisahaAdminActionState> {
   const admin = await requireAdmin();
@@ -640,6 +662,11 @@ export async function updateHalisahaQuestionAction(
 
   const prompt = data.prompt.trim();
   const points = Number(data.points);
+  const nextEditableKind = normalizeManagedQuestionKind(data.kind);
+  const nextKind =
+    question.kind === "winner" || question.kind === "mvp_prediction"
+      ? question.kind
+      : nextEditableKind;
   const preparedOptionsResult =
     question.kind === "winner" || question.kind === "mvp_prediction"
       ? {
@@ -650,9 +677,8 @@ export async function updateHalisahaQuestionAction(
           })),
         }
       : prepareQuestionOptions({
-          kind: question.kind,
+          kind: nextEditableKind,
           options: data.options,
-          includeCustomScoreOption: data.includeCustomScoreOption,
         });
 
   if (!prompt) {
@@ -670,44 +696,36 @@ export async function updateHalisahaQuestionAction(
     kind: option.kind,
   }));
   const nextOptions = preparedOptionsResult.preparedOptions;
+  const questionKindChanged = nextKind !== question.kind;
   const optionSetChanged =
-    nextOptions.length !== existingOptions.length ||
-    nextOptions.some(
-      (option, index) =>
-        option.label !== existingOptions[index]?.label ||
-        option.kind !== existingOptions[index]?.kind,
-    );
-
-  if (
+    nextKind === "player_prediction"
+      ? question.kind !== "player_prediction"
+      : questionKindChanged ||
+        nextOptions.length !== existingOptions.length ||
+        nextOptions.some(
+          (option, index) =>
+            option.label !== existingOptions[index]?.label ||
+            option.kind !== existingOptions[index]?.kind,
+        );
+  const shouldClearExistingAnswers =
     question.kind !== "winner" &&
     question.kind !== "mvp_prediction" &&
     question.answers.length > 0 &&
-    optionSetChanged
-  ) {
-    return {
-      ok: false,
-      error:
-        "Options cannot be changed after users have answered. Create a new question or clear answers first.",
-    };
-  }
+    optionSetChanged;
 
   await prisma.$transaction(async (tx) => {
     await tx.halisahaQuestion.update({
       where: { id: questionId },
       data: {
+        kind: nextKind,
         prompt,
         points,
         isActive:
           question.kind === "winner" || question.kind === "mvp_prediction"
             ? true
             : data.isActive,
-        sortOrder:
-          question.kind === "winner"
-            ? 0
-            : question.kind === "mvp_prediction"
-              ? 5
-              : question.sortOrder,
-        ...(question.kind === "score_prediction" && optionSetChanged
+        sortOrder: question.kind === "winner" ? 0 : question.sortOrder,
+        ...(optionSetChanged
           ? {
               scoreHomeResult: null,
               scoreAwayResult: null,
@@ -721,17 +739,26 @@ export async function updateHalisahaQuestionAction(
       question.kind !== "mvp_prediction" &&
       optionSetChanged
     ) {
+      if (shouldClearExistingAnswers) {
+        await tx.halisahaAnswer.deleteMany({
+          where: {
+            questionId,
+          },
+        });
+      }
       await tx.halisahaQuestionOption.deleteMany({
         where: { questionId },
       });
-      await tx.halisahaQuestionOption.createMany({
-        data: nextOptions.map((option, index) => ({
-          questionId,
-          label: option.label,
-          kind: option.kind,
-          sortOrder: (index + 1) * 10,
-        })),
-      });
+      if (nextKind !== "player_prediction") {
+        await tx.halisahaQuestionOption.createMany({
+          data: nextOptions.map((option, index) => ({
+            questionId,
+            label: option.label,
+            kind: option.kind,
+            sortOrder: (index + 1) * QUESTION_SORT_STEP,
+          })),
+        });
+      }
     }
   });
 
@@ -741,6 +768,9 @@ export async function updateHalisahaQuestionAction(
       homeTeamName: question.match.homeTeamName,
       awayTeamName: question.match.awayTeamName,
     });
+  }
+  if (nextKind === "player_prediction") {
+    await syncHalisahaPlayerPredictionQuestions(question.matchId);
   }
 
   await resetResolutionState(question.matchId);
@@ -754,7 +784,103 @@ export async function updateHalisahaQuestionAction(
   );
   revalidateHalisahaPaths();
 
-  return { ok: true, message: "Question updated." };
+  return {
+    ok: true,
+    message: shouldClearExistingAnswers
+      ? "Question updated. Existing answers for this question were cleared because the option set changed."
+      : "Question updated.",
+  };
+}
+
+export async function moveHalisahaQuestionAction(
+  questionId: string,
+  direction: "up" | "down",
+): Promise<HalisahaAdminActionState> {
+  const admin = await requireAdmin();
+  const question = await prisma.halisahaQuestion.findUnique({
+    where: { id: questionId },
+    select: {
+      id: true,
+      matchId: true,
+      kind: true,
+      prompt: true,
+    },
+  });
+
+  if (!question) {
+    return { ok: false, error: "Question not found." };
+  }
+
+  if (question.kind === "winner") {
+    return {
+      ok: false,
+      error: "The winner strip stays fixed as question 1 on the public Halisaha screen.",
+    };
+  }
+
+  const questions = await prisma.halisahaQuestion.findMany({
+    where: {
+      matchId: question.matchId,
+      kind: {
+        not: "winner",
+      },
+    },
+    select: {
+      id: true,
+    },
+    orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+  });
+  const currentIndex = questions.findIndex((entry) => entry.id === questionId);
+  if (currentIndex === -1) {
+    return { ok: false, error: "Question not found." };
+  }
+
+  const targetIndex = direction === "up" ? currentIndex - 1 : currentIndex + 1;
+  if (targetIndex < 0 || targetIndex >= questions.length) {
+    return {
+      ok: false,
+      error:
+        direction === "up"
+          ? "This question is already at the top of the reorderable list."
+          : "This question is already at the bottom of the reorderable list.",
+    };
+  }
+
+  const reordered = [...questions];
+  const [movedQuestion] = reordered.splice(currentIndex, 1);
+  if (!movedQuestion) {
+    return { ok: false, error: "Question not found." };
+  }
+  reordered.splice(targetIndex, 0, movedQuestion);
+
+  await prisma.$transaction(
+    reordered.map((entry, index) =>
+      prisma.halisahaQuestion.update({
+        where: { id: entry.id },
+        data: {
+          sortOrder: (index + 1) * QUESTION_SORT_STEP,
+        },
+      }),
+    ),
+  );
+
+  await createAdminLog(
+    admin.id,
+    "halisaha_question_reordered",
+    "halisaha_question",
+    question.id,
+    `${question.prompt} (${direction})`,
+    `position:${targetIndex + 1}`,
+  );
+  revalidateHalisahaPaths();
+
+  return {
+    ok: true,
+    message:
+      direction === "up"
+        ? "Question moved up."
+        : "Question moved down.",
+  };
 }
 
 export async function deleteHalisahaQuestionAction(
@@ -818,10 +944,10 @@ export async function setHalisahaQuestionCorrectOptionAction(
     return { ok: false, error: "Question not found." };
   }
 
-  if (question.kind === "score_prediction") {
+  if (question.kind === "score_prediction" || question.kind === "number_prediction") {
     return {
       ok: false,
-      error: "Use the actual score inputs for score prediction questions.",
+      error: "Use the actual result input for numeric prediction questions.",
     };
   }
 
@@ -891,31 +1017,33 @@ export async function setHalisahaScoreQuestionResultAction(
     return { ok: false, error: "Question not found." };
   }
 
-  if (question.kind !== "score_prediction") {
+  if (question.kind !== "score_prediction" && question.kind !== "number_prediction") {
     return {
       ok: false,
-      error: "Only score prediction questions can store an actual score.",
+      error: "Only numeric prediction questions can store an actual result.",
     };
   }
 
   const home = score?.home;
   const away = score?.away;
-  const shouldClear = home === null || away === null;
+  const isSingleNumberQuestion = question.kind === "number_prediction";
+  const shouldClear = home === null || (!isSingleNumberQuestion && away === null);
   const resolvedHome = shouldClear ? null : home;
-  const resolvedAway = shouldClear ? null : away;
+  const resolvedAway = shouldClear ? null : isSingleNumberQuestion ? null : away;
 
   if (!shouldClear) {
     if (
       resolvedHome == null ||
-      resolvedAway == null ||
       !Number.isInteger(resolvedHome) ||
-      !Number.isInteger(resolvedAway) ||
       resolvedHome < 0 ||
-      resolvedAway < 0
+      (!isSingleNumberQuestion &&
+        (resolvedAway == null || !Number.isInteger(resolvedAway) || resolvedAway < 0))
     ) {
       return {
         ok: false,
-        error: "Enter valid whole numbers for the actual home and away scores.",
+        error: isSingleNumberQuestion
+          ? "Enter a valid whole number for the actual result."
+          : "Enter valid whole numbers for the actual home and away scores.",
       };
     }
   }
@@ -935,17 +1063,22 @@ export async function setHalisahaScoreQuestionResultAction(
     });
 
     if (!shouldClear) {
-      const correctOptionIds = question.options
-        .filter((option) => option.kind === "standard")
-        .filter((option) => {
-          const parsed = parseScoreLabel(option.label);
-          return (
-            parsed !== null &&
-            parsed.home === resolvedHome &&
-            parsed.away === resolvedAway
-          );
-        })
-        .map((option) => option.id);
+      const correctOptionIds =
+        question.kind === "score_prediction"
+          ? question.options
+              .filter((option) => option.kind === "standard")
+              .filter((option) => {
+                const parsed = parseScoreLabel(option.label);
+                return (
+                  parsed !== null &&
+                  parsed.home === resolvedHome &&
+                  parsed.away === resolvedAway
+                );
+              })
+              .map((option) => option.id)
+          : question.options
+              .filter((option) => option.kind === "custom_number")
+              .map((option) => option.id);
 
       if (correctOptionIds.length > 0) {
         await tx.halisahaQuestionOption.updateMany({
@@ -975,7 +1108,11 @@ export async function setHalisahaScoreQuestionResultAction(
 
   return {
     ok: true,
-    message: shouldClear ? "Actual score cleared." : "Actual score saved.",
+    message: shouldClear
+      ? "Actual result cleared."
+      : question.kind === "number_prediction"
+        ? "Actual value saved."
+        : "Actual score saved.",
   };
 }
 

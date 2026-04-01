@@ -201,6 +201,13 @@ export async function submitHalisahaAnswersAction(
         };
       }
     }
+
+    if (selectedOption.kind === "custom_number" && selection.customScoreHome === null) {
+      return {
+        ok: false,
+        error: "Enter a whole number for this prediction.",
+      };
+    }
   }
 
   const finalizedAt = options.finalize ? new Date() : null;
@@ -244,6 +251,9 @@ export async function submitHalisahaAnswersAction(
         where: {
           matchId,
           userId: user.id,
+          questionId: {
+            in: normalizedSelections.map((selection) => selection.questionId),
+          },
         },
         data: {
           isFinal: true,

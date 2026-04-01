@@ -42,9 +42,18 @@ type MockTx = {
   };
 };
 
-function buildQuestion(kickoffAt: Date) {
+function buildQuestion(
+  id: string,
+  kickoffAt: Date,
+  options: Array<{ id: string; kind: "standard" | "custom_score" | "custom_number" }> = [
+    {
+      id: "option-1",
+      kind: "standard" as const,
+    },
+  ],
+) {
   return {
-    id: "question-1",
+    id,
     isActive: true,
     match: {
       id: "match-1",
@@ -52,12 +61,7 @@ function buildQuestion(kickoffAt: Date) {
       kickoffAt,
       matchDurationMinutes: 60,
     },
-    options: [
-      {
-        id: "option-1",
-        kind: "standard" as const,
-      },
-    ],
+    options,
   };
 }
 
@@ -82,7 +86,7 @@ describe("halisaha actions", () => {
       id: "user-1",
       role: "user",
     });
-    mocks.findMany.mockResolvedValue([buildQuestion(new Date(Date.now() + 4 * 60_000))]);
+    mocks.findMany.mockResolvedValue([buildQuestion("question-1", new Date(Date.now() + 4 * 60_000))]);
 
     const result = await submitHalisahaAnswersAction([
       {
@@ -104,7 +108,7 @@ describe("halisaha actions", () => {
       id: "admin-1",
       role: "admin",
     });
-    mocks.findMany.mockResolvedValue([buildQuestion(new Date(Date.now() + 4 * 60_000))]);
+    mocks.findMany.mockResolvedValue([buildQuestion("question-1", new Date(Date.now() + 4 * 60_000))]);
 
     const result = await submitHalisahaAnswersAction([
       {
@@ -120,5 +124,72 @@ describe("halisaha actions", () => {
     expect(mocks.findFirst).toHaveBeenCalled();
     expect(mocks.transaction).toHaveBeenCalled();
     expect(mocks.revalidatePath).toHaveBeenCalledWith("/halisaha");
+  });
+
+  it("finalizes only the submitted question ids", async () => {
+    mocks.getCurrentUser.mockResolvedValue({
+      id: "admin-1",
+      role: "admin",
+    });
+    mocks.findMany.mockResolvedValue([
+      buildQuestion("question-1", new Date(Date.now() + 4 * 60_000)),
+    ]);
+
+    const result = await submitHalisahaAnswersAction(
+      [
+        {
+          questionId: "question-1",
+          optionId: "option-1",
+        },
+      ],
+      { finalize: true },
+    );
+
+    expect(result).toEqual({
+      ok: true,
+      message: "Answers locked.",
+    });
+    expect(mocks.updateMany).toHaveBeenCalledTimes(1);
+    expect(mocks.updateMany).toHaveBeenCalledWith({
+      where: {
+        matchId: "match-1",
+        userId: "admin-1",
+        questionId: {
+          in: ["question-1"],
+        },
+      },
+      data: {
+        isFinal: true,
+        finalizedAt: expect.any(Date),
+      },
+    });
+  });
+
+  it("requires a value for single-number prediction questions", async () => {
+    mocks.getCurrentUser.mockResolvedValue({
+      id: "admin-1",
+      role: "admin",
+    });
+    mocks.findMany.mockResolvedValue([
+      buildQuestion("question-1", new Date(Date.now() + 4 * 60_000), [
+        {
+          id: "option-1",
+          kind: "custom_number",
+        },
+      ]),
+    ]);
+
+    const result = await submitHalisahaAnswersAction([
+      {
+        questionId: "question-1",
+        optionId: "option-1",
+      },
+    ]);
+
+    expect(result).toEqual({
+      ok: false,
+      error: "Enter a whole number for this prediction.",
+    });
+    expect(mocks.transaction).not.toHaveBeenCalled();
   });
 });

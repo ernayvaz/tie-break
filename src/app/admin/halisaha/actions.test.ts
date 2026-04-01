@@ -1,0 +1,178 @@
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+const mocks = vi.hoisted(() => ({
+  revalidatePath: vi.fn(),
+  requireAdmin: vi.fn(),
+  createAdminLog: vi.fn(),
+  questionFindUnique: vi.fn(),
+  questionFindMany: vi.fn(),
+  questionUpdate: vi.fn(),
+  questionOptionDeleteMany: vi.fn(),
+  questionOptionCreateMany: vi.fn(),
+  questionOptionUpdateMany: vi.fn(),
+  answerDeleteMany: vi.fn(),
+  answerUpdateMany: vi.fn(),
+  matchFindUnique: vi.fn(),
+  matchUpdate: vi.fn(),
+  leaderboardDeleteMany: vi.fn(),
+  mvpAwardDeleteMany: vi.fn(),
+  transaction: vi.fn(),
+  syncWinnerQuestion: vi.fn(),
+  syncMvpQuestion: vi.fn(),
+  syncPlayerQuestions: vi.fn(),
+}));
+
+vi.mock("next/cache", () => ({
+  revalidatePath: mocks.revalidatePath,
+}));
+
+vi.mock("@/lib/auth/get-user", () => ({
+  requireAdmin: mocks.requireAdmin,
+}));
+
+vi.mock("@/lib/admin-log", () => ({
+  createAdminLog: mocks.createAdminLog,
+}));
+
+vi.mock("@/lib/halisaha/server", () => ({
+  archiveHalisahaMatchForNextRound: vi.fn(),
+  ensureActiveHalisahaMatch: vi.fn(),
+  resolveHalisahaMvpFromVotes: vi.fn(),
+  scoreHalisahaAnswers: vi.fn(),
+  syncHalisahaPlayerPredictionQuestions: mocks.syncPlayerQuestions,
+  syncHalisahaMvpPredictionQuestion: mocks.syncMvpQuestion,
+  syncHalisahaWinnerQuestion: mocks.syncWinnerQuestion,
+}));
+
+vi.mock("@/lib/db", () => ({
+  prisma: {
+    halisahaQuestion: {
+      findUnique: mocks.questionFindUnique,
+      findMany: mocks.questionFindMany,
+      update: mocks.questionUpdate,
+    },
+    halisahaQuestionOption: {
+      deleteMany: mocks.questionOptionDeleteMany,
+      createMany: mocks.questionOptionCreateMany,
+      updateMany: mocks.questionOptionUpdateMany,
+    },
+    halisahaAnswer: {
+      deleteMany: mocks.answerDeleteMany,
+      updateMany: mocks.answerUpdateMany,
+    },
+    halisahaMatch: {
+      findUnique: mocks.matchFindUnique,
+      update: mocks.matchUpdate,
+    },
+    halisahaLeaderboardRound: {
+      deleteMany: mocks.leaderboardDeleteMany,
+    },
+    halisahaMvpRoundAward: {
+      deleteMany: mocks.mvpAwardDeleteMany,
+    },
+    $transaction: mocks.transaction,
+  },
+}));
+
+import { updateHalisahaQuestionAction } from "./actions";
+
+describe("admin halisaha question actions", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.requireAdmin.mockResolvedValue({ id: "admin-1" });
+    mocks.questionUpdate.mockResolvedValue(undefined);
+    mocks.questionOptionDeleteMany.mockResolvedValue({ count: 2 });
+    mocks.questionOptionCreateMany.mockResolvedValue({ count: 3 });
+    mocks.questionOptionUpdateMany.mockResolvedValue({ count: 0 });
+    mocks.answerDeleteMany.mockResolvedValue({ count: 2 });
+    mocks.answerUpdateMany.mockResolvedValue({ count: 2 });
+    mocks.matchFindUnique.mockResolvedValue({ roundNumber: 1 });
+    mocks.matchUpdate.mockResolvedValue(undefined);
+    mocks.questionFindMany.mockResolvedValue([{ id: "question-1", kind: "standard" }]);
+    mocks.leaderboardDeleteMany.mockResolvedValue({ count: 1 });
+    mocks.mvpAwardDeleteMany.mockResolvedValue({ count: 0 });
+    mocks.transaction.mockImplementation(async (arg: unknown) => {
+      if (typeof arg === "function") {
+        return arg({
+          halisahaQuestion: {
+            update: mocks.questionUpdate,
+          },
+          halisahaQuestionOption: {
+            deleteMany: mocks.questionOptionDeleteMany,
+            createMany: mocks.questionOptionCreateMany,
+          },
+          halisahaAnswer: {
+            deleteMany: mocks.answerDeleteMany,
+          },
+        });
+      }
+      return arg;
+    });
+  });
+
+  it("replaces option sets by clearing existing answers for that question", async () => {
+    mocks.questionFindUnique.mockResolvedValue({
+      id: "question-1",
+      kind: "standard",
+      prompt: "Old question?",
+      points: 1,
+      sortOrder: 20,
+      matchId: "match-1",
+      match: {
+        id: "match-1",
+        homeTeamName: "Home",
+        awayTeamName: "Away",
+      },
+      options: [
+        { id: "opt-1", label: "Old A", kind: "standard" },
+        { id: "opt-2", label: "Old B", kind: "standard" },
+      ],
+      answers: [{ id: "answer-1" }],
+    });
+
+    const result = await updateHalisahaQuestionAction("question-1", {
+      kind: "standard",
+      prompt: "Updated question?",
+      points: 3,
+      options: ["New A", "New B", "New C"],
+      isActive: true,
+    });
+
+    expect(result).toEqual({
+      ok: true,
+      message:
+        "Question updated. Existing answers for this question were cleared because the option set changed.",
+    });
+    expect(mocks.answerDeleteMany).toHaveBeenCalledWith({
+      where: {
+        questionId: "question-1",
+      },
+    });
+    expect(mocks.questionOptionDeleteMany).toHaveBeenCalledWith({
+      where: { questionId: "question-1" },
+    });
+    expect(mocks.questionOptionCreateMany).toHaveBeenCalledWith({
+      data: [
+        {
+          questionId: "question-1",
+          label: "New A",
+          kind: "standard",
+          sortOrder: 10,
+        },
+        {
+          questionId: "question-1",
+          label: "New B",
+          kind: "standard",
+          sortOrder: 20,
+        },
+        {
+          questionId: "question-1",
+          label: "New C",
+          kind: "standard",
+          sortOrder: 30,
+        },
+      ],
+    });
+    expect(mocks.revalidatePath).toHaveBeenCalledWith("/halisaha");
+  });
+});

@@ -26,6 +26,27 @@ type DraftAnswerState = {
   customScoreAway: number | null;
 };
 
+function getEmptyDraftAnswer(): DraftAnswerState {
+  return {
+    selectedOptionId: "",
+    customScoreHome: null,
+    customScoreAway: null,
+  };
+}
+
+function areDraftAnswersEqual(
+  left: DraftAnswerState | undefined,
+  right: DraftAnswerState | undefined,
+) {
+  const normalizedLeft = left ?? getEmptyDraftAnswer();
+  const normalizedRight = right ?? getEmptyDraftAnswer();
+  return (
+    normalizedLeft.selectedOptionId === normalizedRight.selectedOptionId &&
+    normalizedLeft.customScoreHome === normalizedRight.customScoreHome &&
+    normalizedLeft.customScoreAway === normalizedRight.customScoreAway
+  );
+}
+
 type WinnerSelectionTone = "home" | "away" | "neutral";
 
 const OPAQUE_WINNER_SAVE_BUTTON_STYLES: Record<
@@ -248,6 +269,7 @@ function PlayerPickerModal({
   const homeOptions = question.options.filter((option) => option.teamSide === "home");
   const awayOptions = question.options.filter((option) => option.teamSide === "away");
   const unassignedOptions = question.options.filter((option) => !option.teamSide);
+  const isMvpPickerQuestion = question.kind === "mvp_prediction";
 
   return (
     <div className="pointer-events-auto absolute inset-0 z-[30] flex items-center justify-center px-4 py-4">
@@ -260,11 +282,13 @@ function PlayerPickerModal({
       <div className="relative flex max-h-[calc(100%-0.75rem)] w-full max-w-[35rem] flex-col overflow-hidden rounded-[1.18rem] border border-white/12 bg-[linear-gradient(180deg,rgba(10,18,17,0.98),rgba(8,14,14,0.94))] shadow-[0_28px_66px_rgba(0,0,0,0.36)]">
         <div className="border-b border-white/8 px-4 pb-3 pt-4">
           <div className="text-[0.56rem] font-semibold uppercase tracking-[0.2em] text-white/42">
-            MVP picker
+            {isMvpPickerQuestion ? "MVP picker" : "Player picker"}
           </div>
           <div className="mt-2 flex items-start justify-between gap-3">
             <div>
-              <h4 className="text-[1rem] font-semibold text-white">Choose your MVP candidate</h4>
+              <h4 className="text-[1rem] font-semibold text-white">
+                {isMvpPickerQuestion ? "Choose your MVP candidate" : "Choose one player"}
+              </h4>
               <p className="mt-1 text-[0.72rem] leading-[1.5] text-white/62">
                 All available players are grouped by team so you can pick quickly without the
                 list being cut off by the question layout.
@@ -474,6 +498,7 @@ export function HalisahaChallengeOverlay({
   winnerPercentagesVisible = false,
   onFinalizePromptVisibilityChange,
   onPlayerPickerVisibilityChange,
+  onDraftStateChange,
   compactMobileLayout = false,
 }: {
   matchId: string | null;
@@ -489,6 +514,7 @@ export function HalisahaChallengeOverlay({
   winnerPercentagesVisible?: boolean;
   onFinalizePromptVisibilityChange?: (visible: boolean) => void;
   onPlayerPickerVisibilityChange?: (visible: boolean) => void;
+  onDraftStateChange?: (dirty: boolean) => void;
   compactMobileLayout?: boolean;
 }) {
   const router = useRouter();
@@ -545,6 +571,25 @@ export function HalisahaChallengeOverlay({
       onPlayerPickerVisibilityChange?.(false);
     },
     [onPlayerPickerVisibilityChange],
+  );
+
+  const hasUnsavedDraftChanges = useMemo(
+    () =>
+      questions.some(
+        (question) => !areDraftAnswersEqual(initialSelections[question.id], selectedAnswers[question.id]),
+      ),
+    [initialSelections, questions, selectedAnswers],
+  );
+
+  useEffect(() => {
+    onDraftStateChange?.(hasUnsavedDraftChanges);
+  }, [hasUnsavedDraftChanges, onDraftStateChange]);
+
+  useEffect(
+    () => () => {
+      onDraftStateChange?.(false);
+    },
+    [onDraftStateChange],
   );
 
   useEffect(() => {
@@ -640,7 +685,8 @@ export function HalisahaChallengeOverlay({
     () =>
       standardQuestions.find(
         (question) =>
-          question.id === activePlayerPickerQuestionId && question.kind === "mvp_prediction",
+          question.id === activePlayerPickerQuestionId &&
+          (question.kind === "mvp_prediction" || question.kind === "player_prediction"),
       ) ?? null,
     [activePlayerPickerQuestionId, standardQuestions],
   );
@@ -773,11 +819,7 @@ export function HalisahaChallengeOverlay({
         questionNumber={questionNumber}
         initialAnswer={userAnswers[question.id]}
         selectedAnswer={
-          selectedAnswers[question.id] ?? {
-            selectedOptionId: "",
-            customScoreHome: null,
-            customScoreAway: null,
-          }
+          selectedAnswers[question.id] ?? getEmptyDraftAnswer()
         }
         onSelectAnswer={(answer) =>
           setSelectedAnswers((current) => ({
@@ -786,7 +828,7 @@ export function HalisahaChallengeOverlay({
           }))
         }
         onRequestPlayerPicker={
-          question.kind === "mvp_prediction"
+          question.kind === "mvp_prediction" || question.kind === "player_prediction"
             ? () => setActivePlayerPickerQuestionId(question.id)
             : undefined
         }

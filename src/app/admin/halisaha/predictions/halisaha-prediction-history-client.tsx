@@ -93,7 +93,9 @@ const QUESTION_KINDS = [
   { value: "", label: "All kinds" },
   { value: "winner", label: "Who wins" },
   { value: "mvp_prediction", label: "MVP" },
+  { value: "player_prediction", label: "Player picker" },
   { value: "score_prediction", label: "Score" },
+  { value: "number_prediction", label: "Single number" },
   { value: "standard", label: "Standard" },
 ] as const;
 
@@ -151,7 +153,9 @@ function kindLabel(kind: string) {
   const map: Record<string, string> = {
     winner: "WHO WINS",
     mvp_prediction: "MVP",
+    player_prediction: "Player picker",
     score_prediction: "Score",
+    number_prediction: "Single number",
     standard: "Standard",
   };
   return map[kind] ?? kind;
@@ -164,6 +168,9 @@ function displaySelection(row: HalisahaAnswerRow): string {
     row.customScoreAway !== null
   ) {
     return `${row.customScoreHome}–${row.customScoreAway} (${row.selectedOption.label})`;
+  }
+  if (row.selectedOption.kind === "custom_number" && row.customScoreHome !== null) {
+    return `${row.customScoreHome} (${row.selectedOption.label})`;
   }
   return row.selectedOption.label;
 }

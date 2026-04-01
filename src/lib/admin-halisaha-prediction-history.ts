@@ -2,7 +2,9 @@ export type HalisahaHistoryQuestionKind =
   | ""
   | "winner"
   | "mvp_prediction"
+  | "player_prediction"
   | "score_prediction"
+  | "number_prediction"
   | "standard";
 
 export type AdminHalisahaPredictionHistoryFilters = {
@@ -138,7 +140,9 @@ const VALID_KINDS = new Set<HalisahaHistoryQuestionKind>([
   "",
   "winner",
   "mvp_prediction",
+  "player_prediction",
   "score_prediction",
+  "number_prediction",
   "standard",
 ]);
 const VALID_STATUS_FILTERS = new Set<

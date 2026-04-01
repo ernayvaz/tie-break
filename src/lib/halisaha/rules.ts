@@ -64,7 +64,7 @@ export function getMatchingFixedScoreOptionIds(input: {
   options: Array<{
     id: string;
     label: string;
-    kind: "standard" | "custom_score";
+    kind: "standard" | "custom_score" | "custom_number";
   }>;
   actualScore: ParsedScore;
 }) {
@@ -90,4 +90,11 @@ export function isCustomScoreExactMatch(input: {
     input.customScoreHome === input.actualScore.home &&
     input.customScoreAway === input.actualScore.away
   );
+}
+
+export function isCustomNumberExactMatch(input: {
+  actualValue: number;
+  customScoreHome: number | null;
+}) {
+  return input.customScoreHome === input.actualValue;
 }

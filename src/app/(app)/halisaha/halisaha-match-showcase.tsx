@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   type KeyboardEvent,
   type TouchEvent as ReactTouchEvent,
@@ -1001,6 +1001,7 @@ function PitchBoard({
   viewerCanRevealWinnerPercentages: boolean;
   useMobileScreen2Layout: boolean;
 }) {
+  const router = useRouter();
   const hasPublishedQuestions = questions.length > 0;
   const shouldPreviewAdminMvpVote =
     viewerCanManageOwnAnswerLock &&
@@ -1021,6 +1022,8 @@ function PitchBoard({
   const [renderChallengeOverlay, setRenderChallengeOverlay] = useState(showChallengeSurface);
   const [isFinalizePromptOpen, setIsFinalizePromptOpen] = useState(false);
   const [isPlayerPickerOpen, setIsPlayerPickerOpen] = useState(false);
+  const [hasUnsavedChallengeDrafts, setHasUnsavedChallengeDrafts] = useState(false);
+  const lastSnapshotRefreshAtRef = useRef(Date.now());
   const overlayBlocksBall =
     isFinalizePromptOpen || isPlayerPickerOpen || shouldShowPostMatchMvpVote;
   const shouldRenderMatchdayPitchOverlay =
@@ -1055,6 +1058,36 @@ function PitchBoard({
       setIsPlayerPickerOpen(false);
     }
   }, [showChallengeSurface]);
+
+  const refreshSnapshotIfSafe = useCallback(() => {
+    if (hasUnsavedChallengeDrafts || overlayBlocksBall) {
+      return;
+    }
+    const now = Date.now();
+    if (now - lastSnapshotRefreshAtRef.current < 1500) {
+      return;
+    }
+    lastSnapshotRefreshAtRef.current = now;
+    router.refresh();
+  }, [hasUnsavedChallengeDrafts, overlayBlocksBall, router]);
+
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        refreshSnapshotIfSafe();
+      }
+    };
+
+    window.addEventListener("focus", refreshSnapshotIfSafe, { passive: true });
+    window.addEventListener("pageshow", refreshSnapshotIfSafe, { passive: true });
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener("focus", refreshSnapshotIfSafe);
+      window.removeEventListener("pageshow", refreshSnapshotIfSafe);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [refreshSnapshotIfSafe]);
 
   return (
     <div
@@ -1228,6 +1261,7 @@ function PitchBoard({
                   winnerPercentagesVisible={viewerCanRevealWinnerPercentages}
                   onFinalizePromptVisibilityChange={setIsFinalizePromptOpen}
                   onPlayerPickerVisibilityChange={setIsPlayerPickerOpen}
+                  onDraftStateChange={setHasUnsavedChallengeDrafts}
                   compactMobileLayout={useCompactMobileChallengeLayout}
                 />
               )}

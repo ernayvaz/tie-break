@@ -61,9 +61,15 @@ export function HalisahaQuestionCard({
   const isOverlayLayout = layoutMode === "overlay";
   const useCompactOverlayLayout = isOverlayLayout && compactOverlayLayout;
   const correctOption = question.options.find((option) => option.isCorrect) ?? null;
-  const customScoreOption = question.options.find((option) => option.kind === "custom_score");
+  const customNumericOption =
+    question.options.find((option) => option.kind === "custom_number") ??
+    question.options.find((option) => option.kind === "custom_score");
   const isScoreQuestion = question.kind === "score_prediction";
+  const isNumberPredictionQuestion = question.kind === "number_prediction";
+  const isNumericQuestion = isScoreQuestion || isNumberPredictionQuestion;
   const isMvpPredictionQuestion = question.kind === "mvp_prediction";
+  const isPlayerPickerQuestion =
+    question.kind === "mvp_prediction" || question.kind === "player_prediction";
   const isPredictionWindowClosed =
     predictionWindowClosed && !answersLocked && !answersResolved;
   const isReadOnly = answersResolved || answersLocked || isPredictionWindowClosed || busy;
@@ -102,26 +108,32 @@ export function HalisahaQuestionCard({
   };
 
   const handleSelectOption = (optionId: string) => {
+    const nextOption = question.options.find((option) => option.id === optionId);
+    const keepsNumericValues =
+      nextOption?.kind === "custom_score" || nextOption?.kind === "custom_number";
     updateAnswer({
       selectedOptionId: optionId,
-      customScoreHome:
-        customScoreOption?.id === optionId ? selectedAnswer.customScoreHome : null,
+      customScoreHome: keepsNumericValues ? selectedAnswer.customScoreHome : null,
       customScoreAway:
-        customScoreOption?.id === optionId ? selectedAnswer.customScoreAway : null,
+        nextOption?.kind === "custom_score" ? selectedAnswer.customScoreAway : null,
     });
   };
 
-  const handleCustomScoreChange = (side: "home" | "away", rawValue: string) => {
+  const handleCustomNumericChange = (side: "home" | "away", rawValue: string) => {
     const trimmedValue = rawValue.trim();
     const nextValue =
       trimmedValue === "" ? null : /^\d+$/.test(trimmedValue) ? Number(trimmedValue) : null;
 
     updateAnswer({
-      selectedOptionId: customScoreOption?.id ?? "",
+      selectedOptionId: customNumericOption?.id ?? "",
       customScoreHome:
         side === "home" ? nextValue : selectedAnswer.customScoreHome,
       customScoreAway:
-        side === "away" ? nextValue : selectedAnswer.customScoreAway,
+        customNumericOption?.kind === "custom_score" && side === "away"
+          ? nextValue
+          : customNumericOption?.kind === "custom_score"
+            ? selectedAnswer.customScoreAway
+            : null,
     });
   };
 
@@ -131,12 +143,23 @@ export function HalisahaQuestionCard({
       return;
     }
 
-    if (
-      customScoreOption?.id === selectedOptionId &&
-      (selectedAnswer.customScoreHome === null || selectedAnswer.customScoreAway === null)
-    ) {
-      onError?.("Enter both home and away values for your custom score.");
-      return;
+    if (customNumericOption?.id === selectedOptionId) {
+      if (selectedAnswer.customScoreHome === null) {
+        onError?.(
+          customNumericOption.kind === "custom_score"
+            ? "Enter both home and away values for your custom score."
+            : "Enter a whole number for your prediction.",
+        );
+        return;
+      }
+
+      if (
+        customNumericOption.kind === "custom_score" &&
+        selectedAnswer.customScoreAway === null
+      ) {
+        onError?.("Enter both home and away values for your custom score.");
+        return;
+      }
     }
 
     setBusy(true);
@@ -178,6 +201,9 @@ export function HalisahaQuestionCard({
         ) {
           return `Actual score: ${question.scoreHomeResult}-${question.scoreAwayResult}.`;
         }
+        if (isNumberPredictionQuestion && question.scoreHomeResult !== null) {
+          return `Actual value: ${question.scoreHomeResult}.`;
+        }
         return "This answer did not score.";
       }
       return "No answer submitted.";
@@ -195,13 +221,23 @@ export function HalisahaQuestionCard({
       return "";
     }
 
-    if (isMvpPredictionQuestion) {
+    if (isPlayerPickerQuestion) {
       return selectedOptionId
-        ? "You can still change your MVP pick until answers are locked."
-        : "Choose one player and save your MVP pick.";
+        ? isMvpPredictionQuestion
+          ? "You can still change your MVP pick until answers are locked."
+          : "You can still change this player pick until answers are locked."
+        : isMvpPredictionQuestion
+          ? "Choose one player and save your MVP pick."
+          : "Choose one player and save your answer.";
     }
 
-    if (isScoreQuestion && customScoreOption?.id === selectedOptionId) {
+    if (isNumericQuestion && customNumericOption?.id === selectedOptionId) {
+      if (customNumericOption.kind === "custom_number") {
+        return selectedAnswer.customScoreHome !== null
+          ? "You can still change this numeric prediction until answers are locked."
+          : "Enter one whole number to save this prediction.";
+      }
+
       return selectedAnswer.customScoreHome !== null &&
         selectedAnswer.customScoreAway !== null
         ? "You can still change your exact-score pick until answers are locked."
@@ -215,10 +251,14 @@ export function HalisahaQuestionCard({
     answersLocked,
     answersResolved,
     correctOption,
-    customScoreOption?.id,
+    customNumericOption?.id,
+    customNumericOption?.kind,
     initialAnswer,
+    isNumberPredictionQuestion,
+    isNumericQuestion,
     isPredictionWindowClosed,
     isMvpPredictionQuestion,
+    isPlayerPickerQuestion,
     isScoreQuestion,
     question.resolved,
     question.scoreAwayResult,
@@ -249,13 +289,17 @@ export function HalisahaQuestionCard({
   const overlayOptionTextClass = useCompactOverlayLayout
     ? "text-center text-[0.62rem] leading-[1.04]"
     : "text-center text-[0.66rem] leading-[1.08]";
+  const fixedOptionCount = question.options.filter((option) => option.kind === "standard").length;
+  const hasCustomNumericOption = question.options.some(
+    (option) => option.kind === "custom_score" || option.kind === "custom_number",
+  );
   const overlayOptionGridStyle = isOverlayLayout
-    ? isScoreQuestion && question.options.some((option) => option.kind === "custom_score")
+    ? isNumericQuestion && hasCustomNumericOption
       ? {
-          gridTemplateColumns: `${Array.from(
-            { length: Math.max(question.options.length - 1, 1) },
-            () => "minmax(0, 0.76fr)",
-          ).join(" ")} minmax(0, 1.72fr)`,
+          gridTemplateColumns:
+            fixedOptionCount > 0
+              ? `${Array.from({ length: fixedOptionCount }, () => "minmax(0, 0.76fr)").join(" ")} minmax(0, 1.72fr)`
+              : "minmax(0, 1fr)",
         }
       : {
           gridTemplateColumns: `repeat(${Math.max(question.options.length, 1)}, minmax(0, 1fr))`,
@@ -339,7 +383,7 @@ export function HalisahaQuestionCard({
               : "mt-[clamp(0.3rem,0.82vh,0.46rem)]"
         }`}
       >
-        {isMvpPredictionQuestion ? (
+        {isPlayerPickerQuestion ? (
           <>
             <div
               className={`grid ${overlayOptionGapClass} ${
@@ -394,10 +438,10 @@ export function HalisahaQuestionCard({
                 />
                 <div className="relative w-full max-w-[26rem] rounded-[1rem] border border-white/12 bg-[linear-gradient(180deg,rgba(10,18,17,0.96),rgba(8,14,14,0.92))] p-4 shadow-[0_24px_56px_rgba(0,0,0,0.34)]">
                   <div className="text-[0.54rem] font-semibold uppercase tracking-[0.2em] text-white/42">
-                    MVP picker
+                    {isMvpPredictionQuestion ? "MVP picker" : "Player picker"}
                   </div>
                   <h4 className="mt-2 text-[0.96rem] font-semibold text-white">
-                    Choose your MVP candidate
+                    {isMvpPredictionQuestion ? "Choose your MVP candidate" : "Choose one player"}
                   </h4>
                   <div className="mt-3 grid gap-3 md:grid-cols-2">
                     {[
@@ -461,7 +505,7 @@ export function HalisahaQuestionCard({
               </div>
             ) : null}
           </>
-        ) : isScoreQuestion ? (
+        ) : isNumericQuestion ? (
           <div
             className={
               isOverlayLayout
@@ -477,7 +521,8 @@ export function HalisahaQuestionCard({
                 question.resolved &&
                 initialAnswer?.selectedOptionId === option.id &&
                 initialAnswer.isCorrect === false;
-              const isCustom = option.kind === "custom_score";
+              const isCustom =
+                option.kind === "custom_score" || option.kind === "custom_number";
 
               if (isCustom) {
                 return (
@@ -519,7 +564,7 @@ export function HalisahaQuestionCard({
                       <input
                         value={selectedOptionId === option.id ? (selectedAnswer.customScoreHome ?? "").toString() : ""}
                         onFocus={() => handleSelectOption(option.id)}
-                        onChange={(event) => handleCustomScoreChange("home", event.target.value)}
+                        onChange={(event) => handleCustomNumericChange("home", event.target.value)}
                         inputMode="numeric"
                         disabled={isReadOnly}
                         className={`rounded-[0.6rem] border ${compactOverlayScoreInputClass} px-1 text-center font-semibold text-white outline-none placeholder:text-white/24 ${
@@ -529,20 +574,36 @@ export function HalisahaQuestionCard({
                         }`}
                         placeholder="0"
                       />
-                      <span className={`shrink-0 text-white/42 ${isOverlayLayout ? "text-[0.62rem]" : ""}`}>-</span>
-                      <input
-                        value={selectedOptionId === option.id ? (selectedAnswer.customScoreAway ?? "").toString() : ""}
-                        onFocus={() => handleSelectOption(option.id)}
-                        onChange={(event) => handleCustomScoreChange("away", event.target.value)}
-                        inputMode="numeric"
-                        disabled={isReadOnly}
-                        className={`rounded-[0.6rem] border ${compactOverlayScoreInputClass} px-1 text-center font-semibold text-white outline-none placeholder:text-white/24 ${
-                          isOverlayLayout
-                            ? "h-[1.3rem] w-[2.18rem] text-[0.66rem]"
-                            : "h-8 w-12 px-2 text-[0.78rem]"
-                        }`}
-                        placeholder="0"
-                      />
+                      {option.kind === "custom_score" ? (
+                        <>
+                          <span
+                            className={`shrink-0 text-white/42 ${
+                              isOverlayLayout ? "text-[0.62rem]" : ""
+                            }`}
+                          >
+                            -
+                          </span>
+                          <input
+                            value={
+                              selectedOptionId === option.id
+                                ? (selectedAnswer.customScoreAway ?? "").toString()
+                                : ""
+                            }
+                            onFocus={() => handleSelectOption(option.id)}
+                            onChange={(event) =>
+                              handleCustomNumericChange("away", event.target.value)
+                            }
+                            inputMode="numeric"
+                            disabled={isReadOnly}
+                            className={`rounded-[0.6rem] border ${compactOverlayScoreInputClass} px-1 text-center font-semibold text-white outline-none placeholder:text-white/24 ${
+                              isOverlayLayout
+                                ? "h-[1.3rem] w-[2.18rem] text-[0.66rem]"
+                                : "h-8 w-12 px-2 text-[0.78rem]"
+                            }`}
+                            placeholder="0"
+                          />
+                        </>
+                      ) : null}
                     </div>
                   </label>
                 );
@@ -558,7 +619,7 @@ export function HalisahaQuestionCard({
               key={option.id}
                   className={`group flex ${isOverlayLayout ? overlayOptionHeightClass : overlayOptionMinHeightClass} max-w-full cursor-pointer items-center overflow-hidden ${
                     isOverlayLayout
-                      ? isScoreQuestion
+                      ? isNumericQuestion
                         ? "min-w-0 w-full px-[0.52rem] py-[0.24rem]"
                         : "min-w-0 w-full px-2 py-[0.24rem]"
                       : "min-w-[5.7rem] flex-[0_1_auto] px-2.5 py-[0.42rem]"

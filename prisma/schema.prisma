@@ -63,13 +63,16 @@ enum HalisahaPositionKey {
 enum HalisahaQuestionKind {
   winner
   mvp_prediction
+  player_prediction
   score_prediction
+  number_prediction
   standard
 }
 
 enum HalisahaQuestionOptionKind {
   standard
   custom_score
+  custom_number
 }
 
 // ---------------------------------------------------------------------------

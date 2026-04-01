@@ -9,6 +9,7 @@ import {
   addHalisahaRegisteredParticipantAction,
   createHalisahaQuestionAction,
   deleteHalisahaQuestionAction,
+  moveHalisahaQuestionAction,
   removeHalisahaParticipantAction,
   resolveHalisahaMvpFromVotesAction,
   saveHalisahaMatchSettingsAction,
@@ -42,8 +43,33 @@ const selectClassName =
 const textareaClassName =
   "w-full rounded-lg border border-nord-polarLighter bg-white px-3 py-2 text-sm text-nord-polar placeholder-nord-polarLighter focus:border-nord-frostDark focus:outline-none focus:ring-1 focus:ring-nord-frostDark";
 const CUSTOM_SCORE_OPTION_LABEL = "Your exact score";
+const CUSTOM_NUMBER_OPTION_LABEL = "Your number guess";
 
-type EditableQuestionKind = "standard" | "score_prediction";
+type EditableQuestionKind =
+  | "standard"
+  | "player_prediction"
+  | "score_prediction"
+  | "number_prediction";
+
+function isEditableQuestionKind(kind: HalisahaAdminQuestionRow["kind"]): kind is EditableQuestionKind {
+  return (
+    kind === "standard" ||
+    kind === "player_prediction" ||
+    kind === "score_prediction" ||
+    kind === "number_prediction"
+  );
+}
+
+function getEditableQuestionKind(question: HalisahaAdminQuestionRow): EditableQuestionKind {
+  return isEditableQuestionKind(question.kind) ? question.kind : "standard";
+}
+
+function getQuestionTypeLabel(kind: EditableQuestionKind) {
+  if (kind === "player_prediction") return "Player picker";
+  if (kind === "score_prediction") return "Two-number prediction";
+  if (kind === "number_prediction") return "Single-number prediction";
+  return "Standard";
+}
 
 function actionError(result: HalisahaAdminActionState) {
   return !result.ok ? result.error : null;
@@ -181,31 +207,34 @@ function ParticipantAssignmentRow({
 
 function QuestionEditorCard({
   question,
+  canMoveUp,
+  canMoveDown,
   onError,
   onSuccess,
 }: {
   question: HalisahaAdminQuestionRow;
+  canMoveUp: boolean;
+  canMoveDown: boolean;
   onError: (message: string) => void;
   onSuccess: (message: string) => void;
 }) {
   const router = useRouter();
   const isWinnerQuestion = question.kind === "winner";
   const isMvpPredictionQuestion = question.kind === "mvp_prediction";
-  const isScoreQuestion = question.kind === "score_prediction";
   const isPinnedQuestion = isWinnerQuestion || isMvpPredictionQuestion;
+  const initialEditableKind = getEditableQuestionKind(question);
   const [prompt, setPrompt] = useState(question.prompt);
   const [points, setPoints] = useState(String(question.points));
+  const [questionKind, setQuestionKind] = useState<EditableQuestionKind>(initialEditableKind);
+  const effectiveQuestionKind = isPinnedQuestion ? question.kind : questionKind;
+  const isScoreQuestion = effectiveQuestionKind === "score_prediction";
+  const isNumberPredictionQuestion = effectiveQuestionKind === "number_prediction";
+  const isPlayerPredictionQuestion = effectiveQuestionKind === "player_prediction";
+  const isNumericQuestion = isScoreQuestion || isNumberPredictionQuestion;
   const [options, setOptions] = useState(
-    question.kind === "score_prediction"
-      ? question.options
-          .filter((option) => option.kind === "standard")
-          .map((option) => option.label)
-      : question.options.map((option) => option.label),
+    question.kind === "standard" ? question.options.map((option) => option.label) : [],
   );
   const [isActive, setIsActive] = useState(question.isActive);
-  const [includeCustomScoreOption, setIncludeCustomScoreOption] = useState(
-    question.options.some((option) => option.kind === "custom_score"),
-  );
   const [scoreHomeResult, setScoreHomeResult] = useState(
     question.scoreHomeResult?.toString() ?? "",
   );
@@ -220,17 +249,9 @@ function QuestionEditorCard({
   useEffect(() => {
     setPrompt(question.prompt);
     setPoints(String(question.points));
-    setOptions(
-      question.kind === "score_prediction"
-        ? question.options
-            .filter((option) => option.kind === "standard")
-            .map((option) => option.label)
-        : question.options.map((option) => option.label),
-    );
+    setQuestionKind(getEditableQuestionKind(question));
+    setOptions(question.kind === "standard" ? question.options.map((option) => option.label) : []);
     setIsActive(question.isActive);
-    setIncludeCustomScoreOption(
-      question.options.some((option) => option.kind === "custom_score"),
-    );
     setScoreHomeResult(question.scoreHomeResult?.toString() ?? "");
     setScoreAwayResult(question.scoreAwayResult?.toString() ?? "");
     setCorrectOptionId(
@@ -241,11 +262,11 @@ function QuestionEditorCard({
   const handleSave = async () => {
     setBusy(true);
     const result = await updateHalisahaQuestionAction(question.id, {
+      kind: isPinnedQuestion ? question.kind : questionKind,
       prompt,
       points: Number(points),
-      options,
+      options: questionKind === "standard" ? options : [],
       isActive,
-      includeCustomScoreOption,
     });
     setBusy(false);
 
@@ -273,6 +294,27 @@ function QuestionEditorCard({
     }
 
     onSuccess(actionSuccess(result, "Question deleted.") ?? "Question deleted.");
+    router.refresh();
+  };
+
+  const handleMove = async (direction: "up" | "down") => {
+    setBusy(true);
+    const result = await moveHalisahaQuestionAction(question.id, direction);
+    setBusy(false);
+
+    const error = actionError(result);
+    if (error) {
+      onError(error);
+      return;
+    }
+
+    onSuccess(
+      actionSuccess(
+        result,
+        direction === "up" ? "Question moved up." : "Question moved down.",
+      ) ??
+        (direction === "up" ? "Question moved up." : "Question moved down."),
+    );
     router.refresh();
   };
 
@@ -315,7 +357,9 @@ function QuestionEditorCard({
       return;
     }
 
-    onSuccess(actionSuccess(result, "Actual score saved.") ?? "Actual score saved.");
+    onSuccess(
+      actionSuccess(result, "Actual result saved.") ?? "Actual result saved.",
+    );
     router.refresh();
   };
 
@@ -339,11 +383,19 @@ function QuestionEditorCard({
               </span>
             ) : isMvpPredictionQuestion ? (
               <span className="rounded-full border border-nord-frostDark/25 bg-nord-frostLight/10 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-nord-frostDark">
-                Pinned MVP pick
+                Synced MVP pick
+              </span>
+            ) : isPlayerPredictionQuestion ? (
+              <span className="rounded-full border border-nord-auroraPurple/25 bg-nord-auroraPurple/10 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-nord-auroraPurple">
+                Player picker
               </span>
             ) : isScoreQuestion ? (
               <span className="rounded-full border border-nord-auroraGreen/25 bg-nord-auroraGreen/10 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-nord-auroraGreen">
-                Exact score
+                Two-number prediction
+              </span>
+            ) : isNumberPredictionQuestion ? (
+              <span className="rounded-full border border-nord-auroraYellow/25 bg-nord-auroraYellow/10 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-nord-auroraYellow">
+                Single-number prediction
               </span>
             ) : null}
           </div>
@@ -373,20 +425,24 @@ function QuestionEditorCard({
             {isWinnerQuestion
               ? "Winner question prompt"
               : isMvpPredictionQuestion
-                ? "Pinned MVP prompt"
-                : isScoreQuestion
-                  ? "Score question"
-                  : "Question"}
+                ? "MVP question prompt"
+                : isPlayerPredictionQuestion
+                  ? "Player picker question"
+                  : isScoreQuestion
+                    ? "Two-number prediction question"
+                    : isNumberPredictionQuestion
+                      ? "Single-number prediction question"
+                      : "Question"}
           </label>
           <textarea
             value={prompt}
             onChange={(event) => setPrompt(event.target.value)}
             rows={3}
             className={textareaClassName}
-            disabled={busy || isMvpPredictionQuestion}
+            disabled={busy}
           />
         </div>
-        <div className="grid gap-4 md:grid-cols-[10rem_minmax(0,1fr)]">
+        <div className="grid gap-4 md:grid-cols-2">
           <Input
             label="Points"
             type="number"
@@ -395,110 +451,153 @@ function QuestionEditorCard({
             onChange={(event) => setPoints(event.target.value)}
             disabled={busy}
           />
-          <div>
-            <div className="mb-2 flex items-center justify-between">
-              <label className="text-sm font-medium text-nord-polar">Options</label>
-                {!isPinnedQuestion ? (
-                  <Button size="sm" variant="ghost" onClick={addOption} disabled={busy}>
-                    Add option
-                  </Button>
-                ) : null}
+          {!isPinnedQuestion ? (
+            <div>
+              <label className="mb-1 block text-sm font-medium text-nord-polar">
+                Question type
+              </label>
+              <select
+                value={questionKind}
+                onChange={(event) =>
+                  setQuestionKind(event.target.value as EditableQuestionKind)
+                }
+                className={selectClassName}
+                disabled={busy}
+              >
+                <option value="standard">Standard multiple choice</option>
+                <option value="player_prediction">Player picker</option>
+                <option value="score_prediction">Two-number prediction</option>
+                <option value="number_prediction">Single-number prediction</option>
+              </select>
             </div>
-              {isWinnerQuestion ? (
-                <p className="mb-2 text-xs text-nord-polarLight">
-                  Winner strip team labels stay synced with the home and away team names
-                  from match setup.
-                </p>
-              ) : isMvpPredictionQuestion ? (
-                <p className="mb-2 text-xs text-nord-polarLight">
-                  This pinned MVP prediction is synced from the current squad and always stays
-                  active for users.
-                </p>
-              ) : isScoreQuestion ? (
-                <div className="mb-3 space-y-2">
-                  <p className="text-xs text-nord-polarLight">
-                    Add fixed score choices such as 6-4. Users can also get one editable custom
-                    score choice if you keep it enabled below.
-                  </p>
-                  <label className="inline-flex items-center gap-2 text-xs text-nord-polarLight">
-                    <input
-                      type="checkbox"
-                      checked={includeCustomScoreOption}
-                      onChange={(event) =>
-                        setIncludeCustomScoreOption(event.target.checked)
-                      }
-                      className="rounded border-nord-polarLighter"
-                      disabled={busy}
-                    />
-                    Include user-editable custom score option
-                  </label>
-                </div>
-              ) : null}
-              <div className="space-y-2">
-                {options.map((option, index) => (
-                  <div key={`${question.id}-option-${index}`} className="flex gap-2">
-                    <input
-                      value={option}
-                      onChange={(event) =>
-                        setOptions((current) =>
-                          current.map((item, currentIndex) =>
-                            currentIndex === index ? event.target.value : item,
-                          ),
-                        )
-                      }
-                      className={selectClassName}
-                      disabled={busy || isPinnedQuestion}
-                      placeholder={isScoreQuestion ? "e.g. 6-4" : undefined}
-                    />
-                    {!isPinnedQuestion &&
-                    options.length > (isScoreQuestion ? 1 : 2) ? (
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => removeOption(index)}
-                        disabled={busy}
-                      >
-                        Remove
-                      </Button>
-                    ) : null}
-                  </div>
-                ))}
-                {isScoreQuestion && includeCustomScoreOption ? (
-                  <div className="rounded-lg border border-dashed border-nord-polarLighter/40 bg-nord-snow/45 px-3 py-2 text-xs text-nord-polarLight">
-                    Custom score choice preview: <strong>{CUSTOM_SCORE_OPTION_LABEL}</strong>
-                  </div>
-                ) : null}
-              </div>
+          ) : (
+            <div className="rounded-lg border border-nord-polarLighter/30 bg-nord-snow/45 px-4 py-3 text-sm text-nord-polarLight">
+              {isWinnerQuestion
+                ? "This question stays pinned to the winner strip."
+                : "This MVP question keeps its synced player-picker type."}
             </div>
+          )}
+        </div>
+        <div>
+          <div className="mb-2 flex items-center justify-between">
+            <label className="text-sm font-medium text-nord-polar">
+              {isPinnedQuestion || questionKind === "standard" ? "Options" : "Answer model"}
+            </label>
+            {!isPinnedQuestion && questionKind === "standard" ? (
+              <Button size="sm" variant="ghost" onClick={addOption} disabled={busy}>
+                Add option
+              </Button>
+            ) : null}
           </div>
+          {isWinnerQuestion ? (
+            <p className="mb-2 text-xs text-nord-polarLight">
+              Winner strip team labels stay synced with the home and away team names from
+              match setup.
+            </p>
+          ) : isMvpPredictionQuestion ? (
+            <p className="mb-2 text-xs text-nord-polarLight">
+              Player choices stay synced from the current squad. You can still edit this
+              question&apos;s text, points and order.
+            </p>
+          ) : questionKind === "player_prediction" ? (
+            <p className="mb-2 text-xs text-nord-polarLight">
+              Users will open a team-based player picker. The available players stay synced
+              from the current assigned squads automatically.
+            </p>
+          ) : questionKind === "score_prediction" ? (
+            <p className="mb-2 text-xs text-nord-polarLight">
+              Users will enter two whole numbers such as 6 and 4. This type is ideal for
+              exact score predictions.
+            </p>
+          ) : questionKind === "number_prediction" ? (
+            <p className="mb-2 text-xs text-nord-polarLight">
+              Users will enter one whole number. Use this for questions like goal count,
+              save count or another single numeric estimate.
+            </p>
+          ) : null}
+          {!isPinnedQuestion && question.answerCount > 0 ? (
+            <p className="mb-2 text-xs text-amber-700">
+              Changing the type or option set will clear the existing saved answers for this
+              question so the new choices can be published safely.
+            </p>
+          ) : null}
+          {isPinnedQuestion || questionKind === "standard" ? (
+            <div className="space-y-2">
+              {options.map((option, index) => (
+                <div key={`${question.id}-option-${index}`} className="flex gap-2">
+                  <input
+                    value={option}
+                    onChange={(event) =>
+                      setOptions((current) =>
+                        current.map((item, currentIndex) =>
+                          currentIndex === index ? event.target.value : item,
+                        ),
+                      )
+                    }
+                    className={selectClassName}
+                    disabled={busy || isPinnedQuestion}
+                  />
+                  {!isPinnedQuestion && options.length > 2 ? (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => removeOption(index)}
+                      disabled={busy}
+                    >
+                      Remove
+                    </Button>
+                  ) : null}
+                </div>
+              ))}
+            </div>
+          ) : questionKind === "score_prediction" ? (
+            <div className="rounded-lg border border-dashed border-nord-polarLighter/40 bg-nord-snow/45 px-3 py-2 text-xs text-nord-polarLight">
+              User input preview: <strong>{CUSTOM_SCORE_OPTION_LABEL}</strong>
+            </div>
+          ) : questionKind === "number_prediction" ? (
+            <div className="rounded-lg border border-dashed border-nord-polarLighter/40 bg-nord-snow/45 px-3 py-2 text-xs text-nord-polarLight">
+              User input preview: <strong>{CUSTOM_NUMBER_OPTION_LABEL}</strong>
+            </div>
+          ) : (
+            <div className="rounded-lg border border-dashed border-nord-polarLighter/40 bg-nord-snow/45 px-3 py-2 text-xs text-nord-polarLight">
+              The player list is built automatically from the current squads.
+            </div>
+          )}
+        </div>
 
-        {isScoreQuestion ? (
+        {isNumericQuestion ? (
           <div className="rounded-lg border border-nord-polarLighter/30 bg-nord-snow/45 p-3">
             <div className="mb-2 text-sm font-medium text-nord-polar">
-              Actual score after the match
+              Actual result after the match
             </div>
             <p className="mb-3 text-xs text-nord-polarLight">
-              Fixed score options that exactly match the real result will be marked correct. The
-              custom score option also scores if the user-entered result matches these values
-              exactly.
+              {isNumberPredictionQuestion
+                ? "Enter the single real value for this question. Finalized answers that match it exactly will score."
+                : "Enter the real home and away values. Finalized answers that match them exactly will score."}
             </p>
-            <div className="grid gap-3 md:grid-cols-2">
+            <div
+              className={`grid gap-3 ${
+                isNumberPredictionQuestion ? "md:grid-cols-1" : "md:grid-cols-2"
+              }`}
+            >
               <Input
-                label="Actual home score"
+                label={isNumberPredictionQuestion ? "Actual value" : "Actual home score"}
                 type="number"
                 min={0}
                 value={scoreHomeResult}
                 onChange={(event) => setScoreHomeResult(event.target.value)}
                 disabled={busy}
               />
-              <Input
-                label="Actual away score"
-                type="number"
-                min={0}
-                value={scoreAwayResult}
-                onChange={(event) => setScoreAwayResult(event.target.value)}
-                disabled={busy}
-              />
+              {!isNumberPredictionQuestion ? (
+                <Input
+                  label="Actual away score"
+                  type="number"
+                  min={0}
+                  value={scoreAwayResult}
+                  onChange={(event) => setScoreAwayResult(event.target.value)}
+                  disabled={busy}
+                />
+              ) : null}
             </div>
             <div className="mt-3 flex flex-wrap justify-end gap-2">
               <Button
@@ -507,10 +606,10 @@ function QuestionEditorCard({
                 onClick={() => handleSaveActualScore(true)}
                 disabled={busy}
               >
-                Clear actual score
+                Clear actual result
               </Button>
               <Button size="sm" variant="secondary" onClick={() => handleSaveActualScore()} disabled={busy}>
-                Save actual score
+                Save actual result
               </Button>
             </div>
           </div>
@@ -556,16 +655,34 @@ function QuestionEditorCard({
         )}
 
         <div className="flex flex-wrap justify-end gap-2">
+          {!isWinnerQuestion ? (
+            <>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => handleMove("up")}
+                disabled={busy || !canMoveUp}
+              >
+                Move up
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => handleMove("down")}
+                disabled={busy || !canMoveDown}
+              >
+                Move down
+              </Button>
+            </>
+          ) : null}
           <Button size="sm" variant="secondary" onClick={handleSave} disabled={busy}>
             {isWinnerQuestion
               ? "Save winner question"
               : isMvpPredictionQuestion
                 ? "Save MVP question"
-                : isScoreQuestion
-                  ? "Save score question"
-                  : "Save question"}
+                : `Save ${getQuestionTypeLabel(questionKind).toLowerCase()} question`}
           </Button>
-          {!isScoreQuestion && !isMvpPredictionQuestion ? (
+          {!isNumericQuestion && !isMvpPredictionQuestion ? (
             <Button size="sm" variant="ghost" onClick={handleSetCorrectOption} disabled={busy}>
               Save correct answer
             </Button>
@@ -604,8 +721,10 @@ export function HalisahaAdminClient({
     "",
     "",
   ]);
-  const [newQuestionIncludeCustomScoreOption, setNewQuestionIncludeCustomScoreOption] =
-    useState(true);
+  const reorderableQuestionIds = useMemo(
+    () => snapshot.questions.filter((question) => question.kind !== "winner").map((question) => question.id),
+    [snapshot.questions],
+  );
 
   const clearFeedback = () => {
     setError(null);
@@ -693,8 +812,7 @@ export function HalisahaAdminClient({
           kind: newQuestionKind,
           prompt: newQuestionPrompt,
           points: Number(newQuestionPoints),
-          options: newQuestionOptions,
-          includeCustomScoreOption: newQuestionIncludeCustomScoreOption,
+          options: newQuestionKind === "standard" ? newQuestionOptions : [],
         }),
       "Question created.",
       () => {
@@ -702,7 +820,6 @@ export function HalisahaAdminClient({
         setNewQuestionPrompt("");
         setNewQuestionPoints("1");
         setNewQuestionOptions(["", "", "", ""]);
-        setNewQuestionIncludeCustomScoreOption(true);
       },
     );
   };
@@ -1014,42 +1131,26 @@ export function HalisahaAdminClient({
               Add a new Halisaha question
             </h3>
             <p className="mt-1 text-sm text-nord-polarLight">
-              The pinned winner strip and pinned MVP prediction question are managed
-              automatically. Add extra match questions here, including exact score
-              questions with a custom score option.
+              The winner strip remains fixed as question 1. Extra questions can be added here,
+              and the existing non-winner questions can be reordered below.
             </p>
             <div className="mt-4 space-y-4">
-              <div className="grid gap-4 md:grid-cols-2">
-                <div>
-                  <label className="mb-1 block text-sm font-medium text-nord-polar">
-                    Question type
-                  </label>
-                  <select
-                    value={newQuestionKind}
-                    onChange={(event) =>
-                      setNewQuestionKind(event.target.value as EditableQuestionKind)
-                    }
-                    className={selectClassName}
-                  >
-                    <option value="standard">Standard multiple choice</option>
-                    <option value="score_prediction">Exact score prediction</option>
-                  </select>
-                </div>
-                {newQuestionKind === "score_prediction" ? (
-                  <div className="flex items-end">
-                    <label className="inline-flex items-center gap-2 text-sm text-nord-polarLight">
-                      <input
-                        type="checkbox"
-                        checked={newQuestionIncludeCustomScoreOption}
-                        onChange={(event) =>
-                          setNewQuestionIncludeCustomScoreOption(event.target.checked)
-                        }
-                        className="rounded border-nord-polarLighter"
-                      />
-                      Include user-editable custom score option
-                    </label>
-                  </div>
-                ) : null}
+              <div>
+                <label className="mb-1 block text-sm font-medium text-nord-polar">
+                  Question type
+                </label>
+                <select
+                  value={newQuestionKind}
+                  onChange={(event) =>
+                    setNewQuestionKind(event.target.value as EditableQuestionKind)
+                  }
+                  className={selectClassName}
+                >
+                  <option value="standard">Standard multiple choice</option>
+                  <option value="player_prediction">Player picker</option>
+                  <option value="score_prediction">Two-number prediction</option>
+                  <option value="number_prediction">Single-number prediction</option>
+                </select>
               </div>
               <div>
                 <label className="mb-1 block text-sm font-medium text-nord-polar">
@@ -1073,51 +1174,67 @@ export function HalisahaAdminClient({
                 <div>
                   <div className="mb-2 flex items-center justify-between">
                     <label className="text-sm font-medium text-nord-polar">
-                      Options
+                      {newQuestionKind === "standard" ? "Options" : "Answer model"}
                     </label>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() =>
-                        setNewQuestionOptions((current) => [...current, ""])
-                      }
-                    >
-                      Add option
-                    </Button>
+                    {newQuestionKind === "standard" ? (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() =>
+                          setNewQuestionOptions((current) => [...current, ""])
+                        }
+                      >
+                        Add option
+                      </Button>
+                    ) : null}
                   </div>
-                  <div className="space-y-2">
-                    {newQuestionOptions.map((option, index) => (
-                      <div key={`new-option-${index}`} className="flex gap-2">
-                        <input
-                          value={option}
-                          onChange={(event) =>
-                            setNewQuestionOptions((current) =>
-                              current.map((item, currentIndex) =>
-                                currentIndex === index ? event.target.value : item,
-                              ),
-                            )
-                          }
-                          className={selectClassName}
-                          placeholder={
-                            newQuestionKind === "score_prediction" ? "e.g. 6-4" : undefined
-                          }
-                        />
-                        {newQuestionOptions.length > (newQuestionKind === "score_prediction" ? 1 : 2) ? (
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() =>
+                  {newQuestionKind === "standard" ? (
+                    <div className="space-y-2">
+                      {newQuestionOptions.map((option, index) => (
+                        <div key={`new-option-${index}`} className="flex gap-2">
+                          <input
+                            value={option}
+                            onChange={(event) =>
                               setNewQuestionOptions((current) =>
-                                current.filter((_, currentIndex) => currentIndex !== index),
+                                current.map((item, currentIndex) =>
+                                  currentIndex === index ? event.target.value : item,
+                                ),
                               )
                             }
-                          >
-                            Remove
-                          </Button>
-                        ) : null}
-                      </div>
-                    ))}
-                  </div>
+                            className={selectClassName}
+                          />
+                          {newQuestionOptions.length > 2 ? (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() =>
+                                setNewQuestionOptions((current) =>
+                                  current.filter((_, currentIndex) => currentIndex !== index),
+                                )
+                              }
+                            >
+                              Remove
+                            </Button>
+                          ) : null}
+                        </div>
+                      ))}
+                    </div>
+                  ) : newQuestionKind === "player_prediction" ? (
+                    <div className="rounded-lg border border-dashed border-nord-polarLighter/40 bg-nord-snow/45 px-3 py-2 text-xs text-nord-polarLight">
+                      The player list will be created automatically from the current home and
+                      away squads.
+                    </div>
+                  ) : newQuestionKind === "score_prediction" ? (
+                    <div className="rounded-lg border border-dashed border-nord-polarLighter/40 bg-nord-snow/45 px-3 py-2 text-xs text-nord-polarLight">
+                      Users will enter two whole numbers. Preview:{" "}
+                      <strong>{CUSTOM_SCORE_OPTION_LABEL}</strong>
+                    </div>
+                  ) : (
+                    <div className="rounded-lg border border-dashed border-nord-polarLighter/40 bg-nord-snow/45 px-3 py-2 text-xs text-nord-polarLight">
+                      Users will enter one whole number. Preview:{" "}
+                      <strong>{CUSTOM_NUMBER_OPTION_LABEL}</strong>
+                    </div>
+                  )}
                 </div>
               </div>
               <div className="flex justify-end">
@@ -1134,14 +1251,21 @@ export function HalisahaAdminClient({
                 No questions yet. Create the first Halisaha question above.
               </div>
             ) : (
-              snapshot.questions.map((question) => (
+              snapshot.questions.map((question) => {
+                const reorderIndex = reorderableQuestionIds.indexOf(question.id);
+                return (
                 <QuestionEditorCard
                   key={question.id}
                   question={question}
+                  canMoveUp={reorderIndex > 0}
+                  canMoveDown={
+                    reorderIndex !== -1 && reorderIndex < reorderableQuestionIds.length - 1
+                  }
                   onError={setError}
                   onSuccess={setSuccess}
                 />
-              ))
+                );
+              })
             )}
           </div>
         </CardContent>
