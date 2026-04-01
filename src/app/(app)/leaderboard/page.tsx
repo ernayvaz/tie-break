@@ -5,8 +5,10 @@ import { HalisahaResultsGateCard } from "@/components/halisaha/halisaha-results-
 import { PageHeroBand } from "@/components/page-hero-band";
 import { LeaderboardBoard } from "@/components/leaderboard/leaderboard-board";
 import { getLeaderboardBoardData, normalizeLeaderboardCompetitionId } from "@/lib/leaderboard";
-import { canAccessHalisahaMode } from "@/lib/halisaha/public-access";
-import { getHalisahaMvpGateState } from "@/lib/halisaha/server";
+import {
+  canUserAccessPublishedHalisahaMatch,
+  getHalisahaMvpGateState,
+} from "@/lib/halisaha/server";
 
 export default async function LeaderboardPage({
   searchParams,
@@ -16,7 +18,7 @@ export default async function LeaderboardPage({
   const currentUser = await requireAuth();
   const params = await searchParams;
   const competitionId = normalizeLeaderboardCompetitionId(params.competition);
-  const halisahaGate = canAccessHalisahaMode(currentUser.role)
+  const halisahaGate = (await canUserAccessPublishedHalisahaMatch(currentUser.role))
     ? await getHalisahaMvpGateState(currentUser.id, currentUser.role)
     : null;
   const data =

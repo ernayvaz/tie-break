@@ -33,7 +33,7 @@ vi.mock("@/lib/db", () => ({
 import {
   submitHalisahaAnswersAction,
 } from "./actions";
-import { HALISAHA_ADMIN_PREVIEW_ONLY_MESSAGE } from "@/lib/halisaha/public-access";
+import { HALISAHA_MATCH_NOT_PUBLISHED_MESSAGE } from "@/lib/halisaha/public-access";
 
 type MockTx = {
   halisahaAnswer: {
@@ -57,6 +57,7 @@ function buildQuestion(
     isActive: true,
     match: {
       id: "match-1",
+      isPublishedToUsers: true,
       answersResolvedAt: null,
       kickoffAt,
       matchDurationMinutes: 60,
@@ -81,12 +82,14 @@ describe("halisaha actions", () => {
     );
   });
 
-  it("rejects non-admin submissions while Halisaha is admin-preview only", async () => {
+  it("rejects non-admin submissions before the match is published", async () => {
     mocks.getCurrentUser.mockResolvedValue({
       id: "user-1",
       role: "user",
     });
-    mocks.findMany.mockResolvedValue([buildQuestion("question-1", new Date(Date.now() + 4 * 60_000))]);
+    const unpublishedQuestion = buildQuestion("question-1", new Date(Date.now() + 4 * 60_000));
+    unpublishedQuestion.match.isPublishedToUsers = false;
+    mocks.findMany.mockResolvedValue([unpublishedQuestion]);
 
     const result = await submitHalisahaAnswersAction([
       {
@@ -97,7 +100,7 @@ describe("halisaha actions", () => {
 
     expect(result).toEqual({
       ok: false,
-      error: HALISAHA_ADMIN_PREVIEW_ONLY_MESSAGE,
+      error: HALISAHA_MATCH_NOT_PUBLISHED_MESSAGE,
     });
     expect(mocks.findFirst).not.toHaveBeenCalled();
     expect(mocks.transaction).not.toHaveBeenCalled();

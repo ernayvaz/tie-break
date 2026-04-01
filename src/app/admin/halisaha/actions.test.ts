@@ -17,6 +17,7 @@ const mocks = vi.hoisted(() => ({
   leaderboardDeleteMany: vi.fn(),
   mvpAwardDeleteMany: vi.fn(),
   transaction: vi.fn(),
+  ensureActiveMatch: vi.fn(),
   syncWinnerQuestion: vi.fn(),
   syncMvpQuestion: vi.fn(),
   syncPlayerQuestions: vi.fn(),
@@ -36,7 +37,7 @@ vi.mock("@/lib/admin-log", () => ({
 
 vi.mock("@/lib/halisaha/server", () => ({
   archiveHalisahaMatchForNextRound: vi.fn(),
-  ensureActiveHalisahaMatch: vi.fn(),
+  ensureActiveHalisahaMatch: mocks.ensureActiveMatch,
   resolveHalisahaMvpFromVotes: vi.fn(),
   scoreHalisahaAnswers: vi.fn(),
   syncHalisahaPlayerPredictionQuestions: mocks.syncPlayerQuestions,
@@ -74,7 +75,10 @@ vi.mock("@/lib/db", () => ({
   },
 }));
 
-import { updateHalisahaQuestionAction } from "./actions";
+import {
+  setHalisahaMatchPublishedAction,
+  updateHalisahaQuestionAction,
+} from "./actions";
 
 describe("admin halisaha question actions", () => {
   beforeEach(() => {
@@ -86,6 +90,10 @@ describe("admin halisaha question actions", () => {
     mocks.questionOptionUpdateMany.mockResolvedValue({ count: 0 });
     mocks.answerDeleteMany.mockResolvedValue({ count: 2 });
     mocks.answerUpdateMany.mockResolvedValue({ count: 2 });
+    mocks.ensureActiveMatch.mockResolvedValue({
+      id: "match-1",
+      isPublishedToUsers: false,
+    });
     mocks.matchFindUnique.mockResolvedValue({ roundNumber: 1 });
     mocks.matchUpdate.mockResolvedValue(undefined);
     mocks.questionFindMany.mockResolvedValue([{ id: "question-1", kind: "standard" }]);
@@ -172,6 +180,24 @@ describe("admin halisaha question actions", () => {
           sortOrder: 30,
         },
       ],
+    });
+    expect(mocks.revalidatePath).toHaveBeenCalledWith("/halisaha");
+  });
+
+  it("publishes the active match for users", async () => {
+    const result = await setHalisahaMatchPublishedAction(true);
+
+    expect(result).toEqual({
+      ok: true,
+      message: "Halisaha match is now visible to users.",
+    });
+    expect(mocks.matchUpdate).toHaveBeenCalledWith({
+      where: {
+        id: "match-1",
+      },
+      data: {
+        isPublishedToUsers: true,
+      },
     });
     expect(mocks.revalidatePath).toHaveBeenCalledWith("/halisaha");
   });

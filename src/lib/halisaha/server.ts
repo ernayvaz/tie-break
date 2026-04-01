@@ -44,6 +44,7 @@ import {
   type HalisahaResultRow,
   type HalisahaResultRowSeed,
 } from "./leaderboard";
+import { canAccessHalisahaMode } from "./public-access";
 
 const DEFAULT_KICKOFF_AT = createIstanbulDateFromParts(2026, 3, 27, 20, 0);
 const DEFAULT_WINNER_QUESTION_PROMPT = "Who wins?";
@@ -316,6 +317,7 @@ export type HalisahaAdminSnapshot = {
     matchEndAtIso: string;
     mvpVoteEndsAtIso: string;
     phase: HalisahaMatchPhase;
+    isPublishedToUsers: boolean;
     answersResolvedAtIso: string | null;
     mvpResolvedParticipantId: string | null;
     mvpResolvedParticipantName: string | null;
@@ -364,10 +366,38 @@ function getDefaultMatchState() {
     kickoffAt: DEFAULT_KICKOFF_AT,
     kickoffTimezone: HALISAHA_TIMEZONE,
     matchDurationMinutes: HALISAHA_DEFAULT_MATCH_DURATION_MINUTES,
+    isPublishedToUsers: false,
     answersResolvedAt: null as Date | null,
     mvpResolvedParticipantId: null as string | null,
     mvpResolvedAt: null as Date | null,
   };
+}
+
+function isHalisahaPublishedToUsers(match: { isPublishedToUsers?: boolean | null } | null | undefined) {
+  return Boolean(match?.isPublishedToUsers);
+}
+
+export async function canUserAccessPublishedHalisahaMatch(
+  userRole: string | null | undefined,
+) {
+  if (!canAccessHalisahaMode(userRole)) {
+    return false;
+  }
+
+  if (userRole === "admin") {
+    return true;
+  }
+
+  const match = await prisma.halisahaMatch.findUnique({
+    where: {
+      singletonKey: HALISAHA_MATCH_SINGLETON_KEY,
+    },
+    select: {
+      isPublishedToUsers: true,
+    },
+  });
+
+  return isHalisahaPublishedToUsers(match);
 }
 
 function getParticipantDisplayName(participant: {
@@ -1303,6 +1333,7 @@ async function archiveHalisahaMatchForNextRoundTx(
       kickoffAt: input.kickoffAt,
       kickoffTimezone: sourceMatch.kickoffTimezone,
       matchDurationMinutes: input.matchDurationMinutes,
+      isPublishedToUsers: false,
     },
   });
 
@@ -1489,6 +1520,7 @@ export async function ensureActiveHalisahaMatch() {
       kickoffAt: DEFAULT_KICKOFF_AT,
       kickoffTimezone: HALISAHA_TIMEZONE,
       matchDurationMinutes: HALISAHA_DEFAULT_MATCH_DURATION_MINUTES,
+      isPublishedToUsers: false,
     },
   });
 
@@ -1514,6 +1546,7 @@ export async function getHalisahaMvpGateState(
   const match = await prisma.halisahaMatch.findUnique({
     where: { id: activeMatch.id },
     select: {
+      isPublishedToUsers: true,
       kickoffAt: true,
       matchDurationMinutes: true,
       mvpVotes: {
@@ -1547,6 +1580,15 @@ export async function getHalisahaMvpGateState(
     return buildGateState({
       phase: "pre_match",
       hasSubmittedPostMatchVote: false,
+      shouldRequireVote: false,
+    });
+  }
+
+  if (!isHalisahaPublishedToUsers(match) && userRole !== "admin") {
+    return buildGateState({
+      phase: "pre_match",
+      hasSubmittedPostMatchVote: false,
+      shouldRequireVote: false,
     });
   }
 
@@ -1641,6 +1683,7 @@ export async function getHalisahaAdminSnapshot(): Promise<HalisahaAdminSnapshot>
       matchEndAtIso: getHalisahaMatchEndAt(baseMatch).toISOString(),
       mvpVoteEndsAtIso: getHalisahaMvpVoteEndsAt(baseMatch).toISOString(),
       phase: getHalisahaMatchPhase(baseMatch),
+      isPublishedToUsers: isHalisahaPublishedToUsers(baseMatch),
       answersResolvedAtIso: baseMatch.answersResolvedAt?.toISOString() ?? null,
       mvpResolvedParticipantId: match?.mvpResolvedParticipantId ?? null,
       mvpResolvedParticipantName: match?.resolvedMvpParticipant

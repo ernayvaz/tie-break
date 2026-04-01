@@ -25,9 +25,20 @@ export default async function AdminHalisahaPage() {
 
   return (
     <div>
-      <h1 className="text-xl font-semibold text-nord-polar">
-        Halisaha Management
-      </h1>
+      <div className="flex flex-wrap items-center gap-3">
+        <h1 className="text-xl font-semibold text-nord-polar">
+          Halisaha Management
+        </h1>
+        <span
+          className={`rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] ${
+            snapshot.match.isPublishedToUsers
+              ? "border-emerald-300 bg-emerald-50 text-emerald-700"
+              : "border-amber-300 bg-amber-50 text-amber-700"
+          }`}
+        >
+          {snapshot.match.isPublishedToUsers ? "Live for users" : "Hidden from users"}
+        </span>
+      </div>
       <p className="mt-2 text-sm text-nord-polarLight">
         Configure the active Halisaha match, assign registered players or guests,
         manage question sets, and score results after the match.

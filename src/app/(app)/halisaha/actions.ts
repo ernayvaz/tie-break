@@ -6,6 +6,7 @@ import { prisma } from "@/lib/db";
 import {
   canAccessHalisahaMode,
   HALISAHA_ADMIN_PREVIEW_ONLY_MESSAGE,
+  HALISAHA_MATCH_NOT_PUBLISHED_MESSAGE,
 } from "@/lib/halisaha/public-access";
 import {
   getHalisahaMatchPhase,
@@ -101,6 +102,7 @@ export async function submitHalisahaAnswersAction(
       match: {
         select: {
           id: true,
+          isPublishedToUsers: true,
           answersResolvedAt: true,
           kickoffAt: true,
           matchDurationMinutes: true,
@@ -147,6 +149,13 @@ export async function submitHalisahaAnswersAction(
   const match = questions[0]?.match;
   if (!match) {
     return { ok: false, error: "Match not found." };
+  }
+
+  if (user.role !== "admin" && !match.isPublishedToUsers) {
+    return {
+      ok: false,
+      error: HALISAHA_MATCH_NOT_PUBLISHED_MESSAGE,
+    };
   }
 
   if (
@@ -318,6 +327,7 @@ export async function unlockHalisahaAnswersAction(
     where: { id: normalizedMatchId },
     select: {
       id: true,
+      isPublishedToUsers: true,
       answersResolvedAt: true,
     },
   });
@@ -330,6 +340,13 @@ export async function unlockHalisahaAnswersAction(
     return {
       ok: false,
       error: "Resolved answers cannot be unlocked.",
+    };
+  }
+
+  if (user.role !== "admin" && !match.isPublishedToUsers) {
+    return {
+      ok: false,
+      error: HALISAHA_MATCH_NOT_PUBLISHED_MESSAGE,
     };
   }
 
@@ -392,6 +409,7 @@ export async function submitPostMatchMvpVoteAction(
     where: { id: normalizedMatchId },
     select: {
       id: true,
+      isPublishedToUsers: true,
       kickoffAt: true,
       matchDurationMinutes: true,
       participants: {
@@ -421,6 +439,13 @@ export async function submitPostMatchMvpVoteAction(
 
   if (!match) {
     return { ok: false, error: "Match not found." };
+  }
+
+  if (user.role !== "admin" && !match.isPublishedToUsers) {
+    return {
+      ok: false,
+      error: HALISAHA_MATCH_NOT_PUBLISHED_MESSAGE,
+    };
   }
 
   if (getHalisahaMatchPhase(match) === "pre_match") {

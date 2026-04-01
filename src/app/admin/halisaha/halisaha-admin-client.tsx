@@ -14,6 +14,7 @@ import {
   resolveHalisahaMvpFromVotesAction,
   saveHalisahaMatchSettingsAction,
   scoreHalisahaAnswersAction,
+  setHalisahaMatchPublishedAction,
   setHalisahaScoreQuestionResultAction,
   setHalisahaQuestionCorrectOptionAction,
   updateHalisahaParticipantAssignmentAction,
@@ -838,6 +839,15 @@ export function HalisahaAdminClient({
     );
   };
 
+  const handleToggleMatchVisibility = async () => {
+    await runAction(
+      () => setHalisahaMatchPublishedAction(!snapshot.match.isPublishedToUsers),
+      snapshot.match.isPublishedToUsers
+        ? "Halisaha match hidden from users."
+        : "Halisaha match published to users.",
+    );
+  };
+
   return (
     <div className="mt-6 space-y-6">
       {error ? (
@@ -920,6 +930,36 @@ export function HalisahaAdminClient({
               </Button>
             </div>
           </form>
+          <div
+            className={`rounded-lg border px-4 py-4 ${
+              snapshot.match.isPublishedToUsers
+                ? "border-emerald-200 bg-emerald-50/70"
+                : "border-amber-200 bg-amber-50/70"
+            }`}
+          >
+            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <div>
+                <div className="text-sm font-semibold text-nord-polar">
+                  {snapshot.match.isPublishedToUsers
+                    ? "Match is visible to users"
+                    : "Match is hidden from users"}
+                </div>
+                <p className="mt-1 text-sm text-nord-polarLight">
+                  Users cannot see the active Halisaha event until you confirm that the match
+                  setup and question set are ready. New rounds start hidden by default.
+                </p>
+              </div>
+              <Button
+                variant={snapshot.match.isPublishedToUsers ? "ghost" : "secondary"}
+                onClick={handleToggleMatchVisibility}
+                disabled={busy}
+              >
+                {snapshot.match.isPublishedToUsers
+                  ? "Hide from users"
+                  : "Publish to users"}
+              </Button>
+            </div>
+          </div>
         </CardContent>
       </Card>
 

@@ -13,7 +13,7 @@ import {
 } from "@/components/icons/nav-icons";
 import { AppHeaderOffset } from "@/components/app-header-offset";
 import { AppRouteChrome } from "@/components/app-route-chrome";
-import { canAccessHalisahaMode } from "@/lib/halisaha/public-access";
+import { canUserAccessPublishedHalisahaMatch } from "@/lib/halisaha/server";
 
 export default async function AppLayout({
   children,
@@ -21,6 +21,7 @@ export default async function AppLayout({
   children: React.ReactNode;
 }) {
   const user = await requireAuth();
+  const canSeeHalisahaMode = await canUserAccessPublishedHalisahaMatch(user.role);
   const navLinkClass =
     "flex shrink-0 snap-start items-center gap-2 whitespace-nowrap rounded-[0.95rem] border border-nord-polarLighter/20 bg-white/78 px-3 py-1.5 text-[12px] font-medium text-nord-polar shadow-[0_5px_16px_rgba(46,52,64,0.035)] transition-[transform,color,border-color,box-shadow] active:scale-[0.98] hover:border-nord-frostDark/35 hover:text-nord-frostDark md:rounded-none md:border-0 md:bg-transparent md:px-0 md:py-0 md:text-sm md:shadow-none";
   const turfNavLinkClass =
@@ -74,7 +75,7 @@ export default async function AppLayout({
                     <IconHighlights />
                     Highlights
                   </PrefetchLink>
-                  {canAccessHalisahaMode(user.role) && (
+                  {canSeeHalisahaMode && (
                     <PrefetchLink href="/halisaha" className={turfNavLinkClass}>
                       <IconHalisaha />
                       Halisaha Mode

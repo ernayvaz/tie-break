@@ -350,6 +350,7 @@ model HalisahaMatch {
   kickoffAt                DateTime  @map("kickoff_at")
   kickoffTimezone          String    @default("Europe/Istanbul") @map("kickoff_timezone")
   matchDurationMinutes     Int       @default(60) @map("match_duration_minutes")
+  isPublishedToUsers       Boolean   @default(false) @map("is_published_to_users")
   answersResolvedAt        DateTime? @map("answers_resolved_at")
   mvpResolvedParticipantId String?   @map("mvp_resolved_participant_id")
   mvpResolvedAt            DateTime? @map("mvp_resolved_at")

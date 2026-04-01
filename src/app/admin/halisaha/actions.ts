@@ -344,6 +344,40 @@ export async function saveHalisahaMatchSettingsAction(data: {
   };
 }
 
+export async function setHalisahaMatchPublishedAction(
+  publishToUsers: boolean,
+): Promise<HalisahaAdminActionState> {
+  const admin = await requireAdmin();
+  const match = await ensureActiveHalisahaMatch();
+
+  await prisma.halisahaMatch.update({
+    where: {
+      id: match.id,
+    },
+    data: {
+      isPublishedToUsers: publishToUsers,
+    },
+  });
+
+  await createAdminLog(
+    admin.id,
+    "halisaha_match_visibility_updated",
+    "halisaha_match",
+    match.id,
+    match.isPublishedToUsers ? "published" : "hidden",
+    publishToUsers ? "published" : "hidden",
+  );
+
+  revalidateHalisahaPaths();
+
+  return {
+    ok: true,
+    message: publishToUsers
+      ? "Halisaha match is now visible to users."
+      : "Halisaha match is now hidden from users.",
+  };
+}
+
 export async function addHalisahaRegisteredParticipantAction(
   userId: string,
 ): Promise<HalisahaAdminActionState> {
