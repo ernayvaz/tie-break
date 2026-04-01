@@ -1,5 +1,6 @@
 import {
   Prisma,
+  type HalisahaFormation,
   type HalisahaParticipant,
   type HalisahaPositionKey,
   type HalisahaQuestionKind,
@@ -14,6 +15,7 @@ import {
   formatHalisahaKickoffLabel,
   getHalisahaPositionDisplayOrder,
   getHalisahaPositionLabel,
+  HALISAHA_DEFAULT_FORMATION,
   HALISAHA_DEFAULT_AWAY_TEAM,
   HALISAHA_DEFAULT_HOME_TEAM,
   HALISAHA_DEFAULT_VENUE,
@@ -154,6 +156,11 @@ const FALLBACK_PARTICIPANTS: Array<{
 type DbClient = typeof prisma | Prisma.TransactionClient;
 
 type ParticipantWithUser = HalisahaParticipant & {
+  guest: {
+    id: string;
+    displayName: string;
+    isActive: boolean;
+  } | null;
   user: {
     id: string;
     name: string;
@@ -220,6 +227,7 @@ export type HalisahaPublicAnswerState = {
 export type HalisahaAdminParticipantRow = {
   id: string;
   userId: string | null;
+  guestId: string | null;
   guestName: string | null;
   displayName: string;
   isGuest: boolean;
@@ -227,6 +235,13 @@ export type HalisahaAdminParticipantRow = {
   positionKey: HalisahaPositionKey | null;
   positionLabel: string | null;
   displayOrder: number;
+};
+
+export type HalisahaAdminGuestRegistryRow = {
+  id: string;
+  displayName: string;
+  linkedMatchCount: number;
+  lastUsedAtIso: string | null;
 };
 
 export type HalisahaPublicParticipant = {
@@ -310,6 +325,8 @@ export type HalisahaAdminSnapshot = {
     homeTeamName: string;
     awayTeamName: string;
     venueName: string;
+    homeFormation: HalisahaFormation;
+    awayFormation: HalisahaFormation;
     kickoffAtIso: string;
     kickoffDateInput: string;
     kickoffTimeInput: string;
@@ -328,6 +345,7 @@ export type HalisahaAdminSnapshot = {
     mvpVoteCount: number;
   };
   participants: HalisahaAdminParticipantRow[];
+  guestRegistry: HalisahaAdminGuestRegistryRow[];
   questions: HalisahaAdminQuestionRow[];
   results: HalisahaResultRow[];
 };
@@ -339,6 +357,8 @@ export type HalisahaPublicSnapshot = {
     homeTeamName: string;
     awayTeamName: string;
     venueName: string;
+    homeFormation: HalisahaFormation;
+    awayFormation: HalisahaFormation;
     kickoffAtIso: string;
     kickoffLabel: string;
     matchDurationMinutes: number;
@@ -367,6 +387,8 @@ function getDefaultMatchState() {
     homeTeamName: HALISAHA_DEFAULT_HOME_TEAM,
     awayTeamName: HALISAHA_DEFAULT_AWAY_TEAM,
     venueName: HALISAHA_DEFAULT_VENUE,
+    homeFormation: HALISAHA_DEFAULT_FORMATION,
+    awayFormation: HALISAHA_DEFAULT_FORMATION,
     kickoffAt: DEFAULT_KICKOFF_AT,
     kickoffTimezone: HALISAHA_TIMEZONE,
     matchDurationMinutes: HALISAHA_DEFAULT_MATCH_DURATION_MINUTES,
@@ -379,6 +401,51 @@ function getDefaultMatchState() {
 
 function isHalisahaPublishedToUsers(match: { isPublishedToUsers?: boolean | null } | null | undefined) {
   return Boolean(match?.isPublishedToUsers);
+}
+
+type HalisahaFormationPair = {
+  homeFormation: HalisahaFormation;
+  awayFormation: HalisahaFormation;
+};
+
+function getHalisahaFormationForSide(
+  match: HalisahaFormationPair,
+  teamSide: HalisahaTeamSide,
+) {
+  return teamSide === "home" ? match.homeFormation : match.awayFormation;
+}
+
+function getParticipantFormation(
+  match: HalisahaFormationPair,
+  participant: {
+    teamSide?: HalisahaTeamSide | null;
+  },
+) {
+  if (!participant.teamSide) {
+    return null;
+  }
+
+  return getHalisahaFormationForSide(match, participant.teamSide);
+}
+
+function getParticipantResolvedDisplayOrder(
+  match: HalisahaFormationPair,
+  participant: {
+    teamSide?: HalisahaTeamSide | null;
+    positionKey?: HalisahaPositionKey | null;
+    displayOrder: number;
+  },
+) {
+  if (participant.displayOrder > 0) {
+    return participant.displayOrder;
+  }
+
+  const formation = getParticipantFormation(match, participant);
+  if (!formation || !participant.positionKey) {
+    return Number.MAX_SAFE_INTEGER;
+  }
+
+  return getHalisahaPositionDisplayOrder(participant.positionKey, formation);
 }
 
 export async function canUserAccessPublishedHalisahaMatch(
@@ -406,13 +473,14 @@ export async function canUserAccessPublishedHalisahaMatch(
 
 function getParticipantDisplayName(participant: {
   guestName?: string | null;
+  guest?: { displayName: string } | null;
   user?: { name: string; surname: string } | null;
 }) {
   if (participant.user) {
     return `${participant.user.name} ${participant.user.surname}`.trim();
   }
 
-  return participant.guestName?.trim() || "Guest";
+  return participant.guestName?.trim() || participant.guest?.displayName?.trim() || "Guest";
 }
 
 function normalizeWinnerQuestionPrompt(prompt: string) {
@@ -434,37 +502,45 @@ function sortParticipantsForDisplay<T extends { displayOrder: number; displayNam
   );
 }
 
-function toAdminParticipantRow(participant: ParticipantWithUser): HalisahaAdminParticipantRow {
+function toAdminParticipantRow(
+  participant: ParticipantWithUser,
+  match: HalisahaFormationPair,
+): HalisahaAdminParticipantRow {
+  const formation = getParticipantFormation(match, participant);
   return {
     id: participant.id,
     userId: participant.userId,
+    guestId: participant.guestId,
     guestName: participant.guestName,
     displayName: getParticipantDisplayName(participant),
     isGuest: !participant.userId,
     teamSide: participant.teamSide,
     positionKey: participant.positionKey,
-    positionLabel: participant.positionKey
-      ? getHalisahaPositionLabel(participant.positionKey)
-      : null,
-    displayOrder: participant.displayOrder,
+    positionLabel:
+      formation && participant.positionKey
+        ? getHalisahaPositionLabel(participant.positionKey, formation)
+        : null,
+    displayOrder: getParticipantResolvedDisplayOrder(match, participant),
   };
 }
 
 function toPublicParticipantRow(participant: {
   id: string;
   guestName?: string | null;
+  guest?: { displayName: string } | null;
   user?: { name: string; surname: string } | null;
   teamSide: HalisahaTeamSide;
   positionKey: HalisahaPositionKey;
   displayOrder: number;
-}): HalisahaPublicParticipant {
+}, match: HalisahaFormationPair): HalisahaPublicParticipant {
+  const formation = getHalisahaFormationForSide(match, participant.teamSide);
   return {
     id: participant.id,
     displayName: getParticipantDisplayName(participant),
     teamSide: participant.teamSide,
     positionKey: participant.positionKey,
-    positionLabel: getHalisahaPositionLabel(participant.positionKey),
-    displayOrder: participant.displayOrder,
+    positionLabel: getHalisahaPositionLabel(participant.positionKey, formation),
+    displayOrder: getParticipantResolvedDisplayOrder(match, participant),
   };
 }
 
@@ -684,38 +760,52 @@ async function syncHalisahaMvpPredictionResolution(
 }
 
 async function getSyncedParticipantOptionRows(matchId: string) {
-  const participants = await prisma.halisahaParticipant.findMany({
-    where: {
-      matchId,
-      teamSide: {
-        not: null,
+  const [match, participants] = await Promise.all([
+    prisma.halisahaMatch.findUnique({
+      where: { id: matchId },
+      select: {
+        homeFormation: true,
+        awayFormation: true,
       },
-      positionKey: {
-        not: null,
-      },
-    },
-    include: {
-      user: {
-        select: {
-          name: true,
-          surname: true,
+    }),
+    prisma.halisahaParticipant.findMany({
+      where: {
+        matchId,
+        teamSide: {
+          not: null,
+        },
+        positionKey: {
+          not: null,
         },
       },
-    },
-    orderBy: {
-      displayOrder: "asc",
-    },
-  });
+      include: {
+        guest: {
+          select: {
+            id: true,
+            displayName: true,
+            isActive: true,
+          },
+        },
+        user: {
+          select: {
+            name: true,
+            surname: true,
+          },
+        },
+      },
+      orderBy: {
+        displayOrder: "asc",
+      },
+    }),
+  ]);
+
+  const formationMatch = match ?? getDefaultMatchState();
 
   return sortParticipantsForDisplay(
     participants.map((participant) => ({
       id: participant.id,
       displayName: getParticipantDisplayName(participant),
-      displayOrder:
-        participant.displayOrder ||
-        (participant.positionKey
-          ? getHalisahaPositionDisplayOrder(participant.positionKey)
-          : Number.MAX_SAFE_INTEGER),
+      displayOrder: getParticipantResolvedDisplayOrder(formationMatch, participant),
     })),
   );
 }
@@ -766,14 +856,21 @@ export async function syncHalisahaPlayerPredictionQuestions(matchId: string) {
       for (const [index, participant] of optionRows.entries()) {
         const existingOption = optionByParticipantId.get(participant.id);
         if (existingOption) {
-          await tx.halisahaQuestionOption.update({
-            where: { id: existingOption.id },
-            data: {
-              label: participant.displayName,
-              kind: "standard",
-              sortOrder: (index + 1) * 10,
-            },
-          });
+          const nextSortOrder = (index + 1) * 10;
+          if (
+            existingOption.label !== participant.displayName ||
+            existingOption.kind !== "standard" ||
+            existingOption.sortOrder !== nextSortOrder
+          ) {
+            await tx.halisahaQuestionOption.update({
+              where: { id: existingOption.id },
+              data: {
+                label: participant.displayName,
+                kind: "standard",
+                sortOrder: nextSortOrder,
+              },
+            });
+          }
         } else {
           await tx.halisahaQuestionOption.create({
             data: {
@@ -875,6 +972,8 @@ async function ensureResolvedHalisahaMvp(matchId: string) {
     select: {
       id: true,
       roundNumber: true,
+      homeFormation: true,
+      awayFormation: true,
       kickoffAt: true,
       matchDurationMinutes: true,
       answersResolvedAt: true,
@@ -919,6 +1018,13 @@ async function ensureResolvedHalisahaMvp(matchId: string) {
       },
     },
     include: {
+      guest: {
+        select: {
+          id: true,
+          displayName: true,
+          isActive: true,
+        },
+      },
       user: {
         select: {
           name: true,
@@ -939,7 +1045,9 @@ async function ensureResolvedHalisahaMvp(matchId: string) {
         participantId: group.participantId,
         voteCount: group._count._all,
         displayName: participant ? getParticipantDisplayName(participant) : "Player",
-        displayOrder: participant?.displayOrder ?? Number.MAX_SAFE_INTEGER,
+        displayOrder: participant
+          ? getParticipantResolvedDisplayOrder(match, participant)
+          : Number.MAX_SAFE_INTEGER,
       };
     })
     .sort((a, b) => {
@@ -993,6 +1101,8 @@ export async function syncHalisahaMvpPredictionQuestion(matchId: string) {
       where: { id: matchId },
       select: {
         id: true,
+        homeFormation: true,
+        awayFormation: true,
         mvpResolvedParticipantId: true,
       },
     }),
@@ -1007,6 +1117,13 @@ export async function syncHalisahaMvpPredictionQuestion(matchId: string) {
         },
       },
       include: {
+        guest: {
+          select: {
+            id: true,
+            displayName: true,
+            isActive: true,
+          },
+        },
         user: {
           select: {
             name: true,
@@ -1049,11 +1166,7 @@ export async function syncHalisahaMvpPredictionQuestion(matchId: string) {
     participants.map((participant) => ({
       id: participant.id,
       displayName: getParticipantDisplayName(participant),
-      displayOrder:
-        participant.displayOrder ||
-        (participant.positionKey
-          ? getHalisahaPositionDisplayOrder(participant.positionKey)
-          : Number.MAX_SAFE_INTEGER),
+      displayOrder: getParticipantResolvedDisplayOrder(match, participant),
     })),
   );
 
@@ -1108,14 +1221,21 @@ export async function syncHalisahaMvpPredictionQuestion(matchId: string) {
     for (const [index, participant] of optionRows.entries()) {
       const existingOption = optionByParticipantId.get(participant.id);
       if (existingOption) {
-        await tx.halisahaQuestionOption.update({
-          where: { id: existingOption.id },
-          data: {
-            label: participant.displayName,
-            kind: "standard",
-            sortOrder: (index + 1) * 10,
-          },
-        });
+        const nextSortOrder = (index + 1) * 10;
+        if (
+          existingOption.label !== participant.displayName ||
+          existingOption.kind !== "standard" ||
+          existingOption.sortOrder !== nextSortOrder
+        ) {
+          await tx.halisahaQuestionOption.update({
+            where: { id: existingOption.id },
+            data: {
+              label: participant.displayName,
+              kind: "standard",
+              sortOrder: nextSortOrder,
+            },
+          });
+        }
       } else {
         await tx.halisahaQuestionOption.create({
           data: {
@@ -1277,6 +1397,8 @@ type ArchiveHalisahaMatchInput = {
   homeTeamName: string;
   awayTeamName: string;
   venueName: string;
+  homeFormation: HalisahaFormation;
+  awayFormation: HalisahaFormation;
   kickoffAt: Date;
   matchDurationMinutes: number;
 };
@@ -1334,6 +1456,8 @@ async function archiveHalisahaMatchForNextRoundTx(
       homeTeamName: input.homeTeamName,
       awayTeamName: input.awayTeamName,
       venueName: input.venueName,
+      homeFormation: input.homeFormation,
+      awayFormation: input.awayFormation,
       kickoffAt: input.kickoffAt,
       kickoffTimezone: sourceMatch.kickoffTimezone,
       matchDurationMinutes: input.matchDurationMinutes,
@@ -1347,6 +1471,7 @@ async function archiveHalisahaMatchForNextRoundTx(
       data: {
         matchId: nextMatch.id,
         userId: participant.userId,
+        guestId: participant.guestId,
         guestName: participant.guestName,
         teamSide: participant.teamSide,
         positionKey: participant.positionKey,
@@ -1521,6 +1646,8 @@ export async function ensureActiveHalisahaMatch() {
       homeTeamName: HALISAHA_DEFAULT_HOME_TEAM,
       awayTeamName: HALISAHA_DEFAULT_AWAY_TEAM,
       venueName: HALISAHA_DEFAULT_VENUE,
+      homeFormation: HALISAHA_DEFAULT_FORMATION,
+      awayFormation: HALISAHA_DEFAULT_FORMATION,
       kickoffAt: DEFAULT_KICKOFF_AT,
       kickoffTimezone: HALISAHA_TIMEZONE,
       matchDurationMinutes: HALISAHA_DEFAULT_MATCH_DURATION_MINUTES,
@@ -1611,62 +1738,99 @@ export async function getHalisahaAdminSnapshot(): Promise<HalisahaAdminSnapshot>
     homeTeamName: activeMatch.homeTeamName,
     awayTeamName: activeMatch.awayTeamName,
   });
-  await syncHalisahaMvpPredictionQuestion(activeMatch.id);
-  await syncHalisahaPlayerPredictionQuestions(activeMatch.id);
-
-  const match = await prisma.halisahaMatch.findUnique({
-    where: { id: activeMatch.id },
-    include: {
-      participants: {
-        include: {
-          user: {
-            select: {
-              id: true,
-              name: true,
-              surname: true,
-              username: true,
+  const [match, guestRegistry] = await Promise.all([
+    prisma.halisahaMatch.findUnique({
+      where: { id: activeMatch.id },
+      include: {
+        participants: {
+          include: {
+            guest: {
+              select: {
+                id: true,
+                displayName: true,
+                isActive: true,
+              },
+            },
+            user: {
+              select: {
+                id: true,
+                name: true,
+                surname: true,
+                username: true,
+              },
             },
           },
         },
-      },
-      questions: {
-        include: {
-          options: {
-            include: {
-              participant: {
-                include: {
-                  user: {
-                    select: {
-                      name: true,
-                      surname: true,
+        questions: {
+          include: {
+            options: {
+              include: {
+                participant: {
+                  include: {
+                    guest: {
+                      select: {
+                        id: true,
+                        displayName: true,
+                        isActive: true,
+                      },
+                    },
+                    user: {
+                      select: {
+                        name: true,
+                        surname: true,
+                      },
                     },
                   },
                 },
               },
+              orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
             },
-            orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
-          },
-          answers: {
-            select: { id: true },
-          },
-        },
-        orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
-      },
-      mvpVotes: {
-        select: { id: true },
-      },
-      resolvedMvpParticipant: {
-        include: {
-          user: {
-            select: {
-              name: true,
-              surname: true,
+            answers: {
+              select: { id: true },
             },
           },
+          orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+        },
+        mvpVotes: {
+          select: { id: true },
+        },
+        resolvedMvpParticipant: {
+          include: {
+            guest: {
+              select: {
+                id: true,
+                displayName: true,
+                isActive: true,
+              },
+            },
+            user: {
+              select: {
+                name: true,
+                surname: true,
+              },
+            },
+          },
         },
       },
-    },
-  });
+    }),
+    prisma.halisahaGuest.findMany({
+      where: {
+        isActive: true,
+      },
+      include: {
+        participants: {
+          select: {
+            id: true,
+            createdAt: true,
+          },
+          orderBy: {
+            createdAt: "desc",
+          },
+        },
+      },
+      orderBy: [{ displayName: "asc" }, { createdAt: "asc" }],
+    }),
+  ]);
 
   const results = match ? await getHalisahaResults(match.id) : [];
   const fallback = getDefaultMatchState();
@@ -1681,6 +1845,8 @@ export async function getHalisahaAdminSnapshot(): Promise<HalisahaAdminSnapshot>
       homeTeamName: baseMatch.homeTeamName,
       awayTeamName: baseMatch.awayTeamName,
       venueName: baseMatch.venueName,
+      homeFormation: baseMatch.homeFormation,
+      awayFormation: baseMatch.awayFormation,
       kickoffAtIso: baseMatch.kickoffAt.toISOString(),
       kickoffDateInput: toIstanbulDateInput(baseMatch.kickoffAt),
       kickoffTimeInput: toIstanbulTimeInput(baseMatch.kickoffAt),
@@ -1703,8 +1869,16 @@ export async function getHalisahaAdminSnapshot(): Promise<HalisahaAdminSnapshot>
       mvpVoteCount: match?.mvpVotes.length ?? 0,
     },
     participants: sortParticipantsForDisplay(
-      (match?.participants ?? []).map(toAdminParticipantRow),
+      (match?.participants ?? []).map((participant) =>
+        toAdminParticipantRow(participant, baseMatch),
+      ),
     ),
+    guestRegistry: guestRegistry.map((guest) => ({
+      id: guest.id,
+      displayName: guest.displayName,
+      linkedMatchCount: guest.participants.length,
+      lastUsedAtIso: guest.participants[0]?.createdAt.toISOString() ?? null,
+    })),
     questions: (match?.questions ?? []).map((question) => ({
       id: question.id,
       kind: question.kind,
@@ -1794,6 +1968,13 @@ export async function getHalisahaPublicSnapshot(
       include: {
         participants: {
           include: {
+            guest: {
+              select: {
+                id: true,
+                displayName: true,
+                isActive: true,
+              },
+            },
             user: {
               select: {
                 name: true,
@@ -1841,6 +2022,13 @@ export async function getHalisahaPublicSnapshot(
         },
         resolvedMvpParticipant: {
           include: {
+            guest: {
+              select: {
+                id: true,
+                displayName: true,
+                isActive: true,
+              },
+            },
             user: {
               select: {
                 name: true,
@@ -1884,22 +2072,24 @@ export async function getHalisahaPublicSnapshot(
           persistedParticipants.map((participant) =>
             toPublicParticipantRow({
               id: participant.id,
+              guest: participant.guest,
               guestName: participant.guestName,
               user: participant.user,
               teamSide: participant.teamSide,
               positionKey: participant.positionKey,
-              displayOrder:
-                participant.displayOrder ||
-                getHalisahaPositionDisplayOrder(participant.positionKey),
-            }),
+              displayOrder: participant.displayOrder,
+            }, baseMatch),
           ),
         )
       : sortParticipantsForDisplay(
           FALLBACK_PARTICIPANTS.map((participant) =>
             toPublicParticipantRow({
               ...participant,
-              displayOrder: getHalisahaPositionDisplayOrder(participant.positionKey),
-            }),
+              displayOrder: getHalisahaPositionDisplayOrder(
+                participant.positionKey,
+                HALISAHA_DEFAULT_FORMATION,
+              ),
+            }, baseMatch),
           ),
         );
 
@@ -1954,14 +2144,13 @@ export async function getHalisahaPublicSnapshot(
           persistedParticipants.map((participant) =>
             toPublicParticipantRow({
               id: participant.id,
+              guest: participant.guest,
               guestName: participant.guestName,
               user: participant.user,
               teamSide: participant.teamSide,
               positionKey: participant.positionKey,
-              displayOrder:
-                participant.displayOrder ||
-                getHalisahaPositionDisplayOrder(participant.positionKey),
-            }),
+              displayOrder: participant.displayOrder,
+            }, baseMatch),
           ),
         )
       : [];
@@ -1973,6 +2162,8 @@ export async function getHalisahaPublicSnapshot(
       homeTeamName: baseMatch.homeTeamName,
       awayTeamName: baseMatch.awayTeamName,
       venueName: baseMatch.venueName,
+      homeFormation: baseMatch.homeFormation,
+      awayFormation: baseMatch.awayFormation,
       kickoffAtIso: baseMatch.kickoffAt.toISOString(),
       kickoffLabel: formatHalisahaKickoffLabel(baseMatch.kickoffAt),
       matchDurationMinutes: baseMatch.matchDurationMinutes,

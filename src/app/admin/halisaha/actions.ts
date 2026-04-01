@@ -2,6 +2,7 @@
 
 import {
   Prisma,
+  type HalisahaFormation,
   type HalisahaPositionKey,
   type HalisahaQuestionKind,
   type HalisahaTeamSide,
@@ -12,7 +13,9 @@ import { prisma } from "@/lib/db";
 import { createAdminLog } from "@/lib/admin-log";
 import {
   createIstanbulDateFromInputs,
+  getHalisahaFormationLabel,
   getHalisahaPositionDisplayOrder,
+  isHalisahaPositionAllowed,
 } from "@/lib/halisaha/config";
 import { parseScoreLabel } from "@/lib/halisaha/match-state";
 import {
@@ -44,6 +47,14 @@ function normalizeOptions(options: string[]) {
   return options.map((option) => option.trim()).filter(Boolean);
 }
 
+function normalizeGuestDisplayName(value: string) {
+  return value.trim().replace(/\s+/g, " ");
+}
+
+function normalizeGuestLookupKey(value: string) {
+  return normalizeGuestDisplayName(value).toLocaleLowerCase("tr-TR");
+}
+
 function normalizeManagedQuestionKind(kind: HalisahaQuestionKind): ManagedHalisahaQuestionKind {
   if (
     kind === "player_prediction" ||
@@ -53,6 +64,67 @@ function normalizeManagedQuestionKind(kind: HalisahaQuestionKind): ManagedHalisa
     return kind;
   }
   return "standard";
+}
+
+function getFormationForTeamSide(
+  match: {
+    homeFormation: HalisahaFormation;
+    awayFormation: HalisahaFormation;
+  },
+  teamSide: HalisahaTeamSide,
+) {
+  return teamSide === "home" ? match.homeFormation : match.awayFormation;
+}
+
+async function clearInvalidParticipantAssignmentsForMatch(match: {
+  id: string;
+  homeFormation: HalisahaFormation;
+  awayFormation: HalisahaFormation;
+}) {
+  const participants = await prisma.halisahaParticipant.findMany({
+    where: {
+      matchId: match.id,
+      teamSide: {
+        not: null,
+      },
+      positionKey: {
+        not: null,
+      },
+    },
+    select: {
+      id: true,
+      teamSide: true,
+      positionKey: true,
+    },
+  });
+
+  const invalidParticipantIds = participants
+    .filter(
+      (participant) =>
+        participant.teamSide &&
+        participant.positionKey &&
+        !isHalisahaPositionAllowed(
+          getFormationForTeamSide(match, participant.teamSide),
+          participant.positionKey,
+        ),
+    )
+    .map((participant) => participant.id);
+
+  if (invalidParticipantIds.length > 0) {
+    await prisma.halisahaParticipant.updateMany({
+      where: {
+        id: {
+          in: invalidParticipantIds,
+        },
+      },
+      data: {
+        positionKey: null,
+        displayOrder: 0,
+      },
+    });
+  }
+
+  return invalidParticipantIds.length;
 }
 
 function prepareQuestionOptions(input: {
@@ -217,17 +289,22 @@ async function hasExistingHalisahaRoundActivity(matchId: string) {
   return answerCount > 0 || voteCount > 0;
 }
 
-function revalidateHalisahaPaths() {
+function revalidateHalisahaPaths(options: { includeLeaderboard?: boolean } = {}) {
+  const { includeLeaderboard = true } = options;
   revalidatePath("/admin/halisaha");
   revalidatePath("/admin/halisaha/predictions");
   revalidatePath("/halisaha");
-  revalidatePath("/leaderboard");
+  if (includeLeaderboard) {
+    revalidatePath("/leaderboard");
+  }
 }
 
 export async function saveHalisahaMatchSettingsAction(data: {
   homeTeamName: string;
   awayTeamName: string;
   venueName: string;
+  homeFormation: HalisahaFormation;
+  awayFormation: HalisahaFormation;
   kickoffDate: string;
   kickoffTime: string;
   matchDurationMinutes: number;
@@ -237,6 +314,8 @@ export async function saveHalisahaMatchSettingsAction(data: {
   const homeTeamName = data.homeTeamName.trim();
   const awayTeamName = data.awayTeamName.trim();
   const venueName = data.venueName.trim();
+  const homeFormation = data.homeFormation;
+  const awayFormation = data.awayFormation;
   const kickoffAt = createIstanbulDateFromInputs(data.kickoffDate, data.kickoffTime);
   const matchDurationMinutes = Number(data.matchDurationMinutes);
 
@@ -261,6 +340,13 @@ export async function saveHalisahaMatchSettingsAction(data: {
     };
   }
 
+  if (!homeFormation || !awayFormation) {
+    return {
+      ok: false,
+      error: "Pick a tactic for both teams.",
+    };
+  }
+
   const shouldArchiveForNewMatch =
     hasHalisahaMatchIdentityChanged({
       match,
@@ -282,6 +368,8 @@ export async function saveHalisahaMatchSettingsAction(data: {
       homeTeamName,
       awayTeamName,
       venueName,
+      homeFormation,
+      awayFormation,
       kickoffAt,
       matchDurationMinutes,
     });
@@ -299,11 +387,19 @@ export async function saveHalisahaMatchSettingsAction(data: {
         homeTeamName,
         awayTeamName,
         venueName,
+        homeFormation,
+        awayFormation,
         kickoffAt,
         matchDurationMinutes,
       },
     });
   }
+
+  const clearedAssignmentsCount = await clearInvalidParticipantAssignmentsForMatch({
+    id: targetMatchId,
+    homeFormation,
+    awayFormation,
+  });
 
   await syncHalisahaWinnerQuestion({
     id: targetMatchId,
@@ -330,18 +426,25 @@ export async function saveHalisahaMatchSettingsAction(data: {
     "halisaha_match",
     targetMatchId,
     null,
-    `${homeTeamName} vs ${awayTeamName} @ ${venueName} (${matchDurationMinutes} min) | round:${targetRoundNumber}${
+    `${homeTeamName} vs ${awayTeamName} @ ${venueName} (${matchDurationMinutes} min) | ${getHalisahaFormationLabel(
+      homeFormation,
+    )} vs ${getHalisahaFormationLabel(awayFormation)} | round:${targetRoundNumber}${
       shouldArchiveForNewMatch ? " | archived previous round" : ""
-    }`,
+    }${clearedAssignmentsCount > 0 ? ` | cleared_assignments:${clearedAssignmentsCount}` : ""}`,
   );
 
   revalidateHalisahaPaths();
 
+  const baseMessage = shouldArchiveForNewMatch
+    ? "Halisaha match settings saved. Previous round archived and a new active match was created."
+    : "Halisaha match settings saved.";
+
   return {
     ok: true,
-    message: shouldArchiveForNewMatch
-      ? "Halisaha match settings saved. Previous round archived and a new active match was created."
-      : "Halisaha match settings saved.",
+    message:
+      clearedAssignmentsCount > 0
+        ? `${baseMessage} ${clearedAssignmentsCount} assignment(s) were cleared because they no longer fit the selected tactics.`
+        : baseMessage,
   };
 }
 
@@ -430,7 +533,7 @@ export async function addHalisahaRegisteredParticipantAction(
   );
   await syncHalisahaMvpPredictionQuestion(match.id);
   await syncHalisahaPlayerPredictionQuestions(match.id);
-  revalidateHalisahaPaths();
+  revalidateHalisahaPaths({ includeLeaderboard: false });
 
   return {
     ok: true,
@@ -443,34 +546,225 @@ export async function addHalisahaGuestParticipantAction(
 ): Promise<HalisahaAdminActionState> {
   const admin = await requireAdmin();
   const match = await ensureActiveHalisahaMatch();
-  const normalizedGuestName = guestName.trim();
+  const displayName = normalizeGuestDisplayName(guestName);
+  const normalizedGuestName = normalizeGuestLookupKey(guestName);
 
-  if (!normalizedGuestName) {
+  if (!displayName) {
     return { ok: false, error: "Guest name is required." };
   }
 
-  const participant = await prisma.halisahaParticipant.create({
-    data: {
-      matchId: match.id,
-      guestName: normalizedGuestName,
-    },
-  });
+  let createdParticipantId: string | null = null;
+  let guestRegistryId: string | null = null;
+  let createdRegistryEntry = false;
+  let reactivatedRegistryEntry = false;
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      const existingGuest = await tx.halisahaGuest.findUnique({
+        where: {
+          normalizedName: normalizedGuestName,
+        },
+        select: {
+          id: true,
+          isActive: true,
+        },
+      });
+
+      const registryGuest = existingGuest
+        ? await tx.halisahaGuest.update({
+            where: {
+              normalizedName: normalizedGuestName,
+            },
+            data: {
+              displayName,
+              isActive: true,
+            },
+          })
+        : await tx.halisahaGuest.create({
+            data: {
+              displayName,
+              normalizedName: normalizedGuestName,
+            },
+          });
+
+      guestRegistryId = registryGuest.id;
+      createdRegistryEntry = !existingGuest;
+      reactivatedRegistryEntry = Boolean(existingGuest && !existingGuest.isActive);
+
+      const participant = await tx.halisahaParticipant.create({
+        data: {
+          matchId: match.id,
+          guestId: registryGuest.id,
+          guestName: registryGuest.displayName,
+        },
+      });
+      createdParticipantId = participant.id;
+    });
+  } catch (error) {
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === "P2002"
+    ) {
+      return {
+        ok: false,
+        error: "This guest is already in the match squad.",
+      };
+    }
+    throw error;
+  }
+
+  if (!createdParticipantId || !guestRegistryId) {
+    return { ok: false, error: "Guest could not be added." };
+  }
+
+  if (createdRegistryEntry || reactivatedRegistryEntry) {
+    await createAdminLog(
+      admin.id,
+      createdRegistryEntry
+        ? "halisaha_guest_registry_created"
+        : "halisaha_guest_registry_reactivated",
+      "halisaha_guest",
+      guestRegistryId,
+      null,
+      displayName,
+    );
+  }
 
   await createAdminLog(
     admin.id,
     "halisaha_guest_added",
     "halisaha_participant",
-    participant.id,
+    createdParticipantId,
     null,
-    normalizedGuestName,
+    displayName,
   );
   await syncHalisahaMvpPredictionQuestion(match.id);
   await syncHalisahaPlayerPredictionQuestions(match.id);
-  revalidateHalisahaPaths();
+  revalidateHalisahaPaths({ includeLeaderboard: false });
 
   return {
     ok: true,
     message: "Guest added to the Halisaha squad.",
+  };
+}
+
+export async function addHalisahaGuestFromRegistryAction(
+  guestId: string,
+): Promise<HalisahaAdminActionState> {
+  const admin = await requireAdmin();
+  const match = await ensureActiveHalisahaMatch();
+  const normalizedGuestId = guestId.trim();
+
+  if (!normalizedGuestId) {
+    return { ok: false, error: "Pick a guest first." };
+  }
+
+  const guest = await prisma.halisahaGuest.findUnique({
+    where: {
+      id: normalizedGuestId,
+    },
+    select: {
+      id: true,
+      displayName: true,
+      isActive: true,
+    },
+  });
+
+  if (!guest || !guest.isActive) {
+    return { ok: false, error: "Guest not found." };
+  }
+
+  let participantId: string;
+  try {
+    const participant = await prisma.halisahaParticipant.create({
+      data: {
+        matchId: match.id,
+        guestId: guest.id,
+        guestName: guest.displayName,
+      },
+      select: {
+        id: true,
+      },
+    });
+    participantId = participant.id;
+  } catch (error) {
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === "P2002"
+    ) {
+      return {
+        ok: false,
+        error: "This guest is already in the match squad.",
+      };
+    }
+    throw error;
+  }
+
+  await createAdminLog(
+    admin.id,
+    "halisaha_guest_added_from_registry",
+    "halisaha_participant",
+    participantId,
+    null,
+    guest.displayName,
+  );
+  await syncHalisahaMvpPredictionQuestion(match.id);
+  await syncHalisahaPlayerPredictionQuestions(match.id);
+  revalidateHalisahaPaths({ includeLeaderboard: false });
+
+  return {
+    ok: true,
+    message: "Guest added from the saved guest list.",
+  };
+}
+
+export async function deactivateHalisahaGuestRegistryAction(
+  guestId: string,
+): Promise<HalisahaAdminActionState> {
+  const admin = await requireAdmin();
+  const normalizedGuestId = guestId.trim();
+
+  if (!normalizedGuestId) {
+    return { ok: false, error: "Guest not found." };
+  }
+
+  const guest = await prisma.halisahaGuest.findUnique({
+    where: {
+      id: normalizedGuestId,
+    },
+    select: {
+      id: true,
+      displayName: true,
+      isActive: true,
+    },
+  });
+
+  if (!guest?.isActive) {
+    return { ok: false, error: "Guest not found." };
+  }
+
+  await prisma.halisahaGuest.update({
+    where: {
+      id: guest.id,
+    },
+    data: {
+      isActive: false,
+    },
+  });
+
+  await createAdminLog(
+    admin.id,
+    "halisaha_guest_registry_deactivated",
+    "halisaha_guest",
+    guest.id,
+    guest.displayName,
+    "inactive",
+  );
+  revalidateHalisahaPaths({ includeLeaderboard: false });
+
+  return {
+    ok: true,
+    message: "Guest removed from the saved guest list.",
   };
 }
 
@@ -488,8 +782,15 @@ export async function updateHalisahaParticipantAssignmentAction(
       id: true,
       matchId: true,
       guestName: true,
+      guestId: true,
       teamSide: true,
       positionKey: true,
+      match: {
+        select: {
+          homeFormation: true,
+          awayFormation: true,
+        },
+      },
       user: {
         select: {
           name: true,
@@ -503,9 +804,30 @@ export async function updateHalisahaParticipantAssignmentAction(
     return { ok: false, error: "Participant not found." };
   }
 
-  const displayOrder = data.positionKey
-    ? getHalisahaPositionDisplayOrder(data.positionKey)
-    : 0;
+  if (data.positionKey && !data.teamSide) {
+    return {
+      ok: false,
+      error: "Pick a team before choosing a position.",
+    };
+  }
+
+  if (data.teamSide && data.positionKey) {
+    const selectedFormation = getFormationForTeamSide(participant.match, data.teamSide);
+    if (!isHalisahaPositionAllowed(selectedFormation, data.positionKey)) {
+      return {
+        ok: false,
+        error: "That position does not belong to the selected team tactic.",
+      };
+    }
+  }
+
+  const displayOrder =
+    data.teamSide && data.positionKey
+      ? getHalisahaPositionDisplayOrder(
+          data.positionKey,
+          getFormationForTeamSide(participant.match, data.teamSide),
+        )
+      : 0;
 
   try {
     await prisma.halisahaParticipant.update({
@@ -540,7 +862,7 @@ export async function updateHalisahaParticipantAssignmentAction(
 
   await syncHalisahaMvpPredictionQuestion(participant.matchId);
   await syncHalisahaPlayerPredictionQuestions(participant.matchId);
-  revalidateHalisahaPaths();
+  revalidateHalisahaPaths({ includeLeaderboard: false });
 
   return {
     ok: true,
@@ -586,7 +908,7 @@ export async function removeHalisahaParticipantAction(
   );
   await syncHalisahaMvpPredictionQuestion(participant.matchId);
   await syncHalisahaPlayerPredictionQuestions(participant.matchId);
-  revalidateHalisahaPaths();
+  revalidateHalisahaPaths({ includeLeaderboard: false });
 
   return {
     ok: true,
@@ -620,7 +942,7 @@ export async function clearHalisahaParticipantsAction(): Promise<HalisahaAdminAc
   );
   await syncHalisahaMvpPredictionQuestion(match.id);
   await syncHalisahaPlayerPredictionQuestions(match.id);
-  revalidateHalisahaPaths();
+  revalidateHalisahaPaths({ includeLeaderboard: false });
 
   return {
     ok: true,

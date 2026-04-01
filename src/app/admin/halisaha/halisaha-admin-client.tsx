@@ -2,13 +2,19 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import type { HalisahaPositionKey, HalisahaTeamSide } from "@prisma/client";
+import type {
+  HalisahaFormation,
+  HalisahaPositionKey,
+  HalisahaTeamSide,
+} from "@prisma/client";
 import { Button, Card, CardContent, CardHeader, CardTitle, Input } from "@/components/ui";
 import {
+  addHalisahaGuestFromRegistryAction,
   addHalisahaGuestParticipantAction,
   addHalisahaRegisteredParticipantAction,
   clearHalisahaParticipantsAction,
   createHalisahaQuestionAction,
+  deactivateHalisahaGuestRegistryAction,
   deleteHalisahaQuestionAction,
   moveHalisahaQuestionAction,
   removeHalisahaParticipantAction,
@@ -28,7 +34,9 @@ import type {
   HalisahaAdminSnapshot,
 } from "@/lib/halisaha/server";
 import {
-  HALISAHA_POSITION_SLOTS,
+  getHalisahaFormationLabel,
+  getHalisahaFormationPositionOptions,
+  HALISAHA_FORMATION_OPTIONS,
   HALISAHA_TEAM_SIDE_OPTIONS,
 } from "@/lib/halisaha/config";
 
@@ -88,12 +96,16 @@ function ParticipantAssignmentRow({
   participant,
   homeTeamName,
   awayTeamName,
+  homeFormation,
+  awayFormation,
   onError,
   onSuccess,
 }: {
   participant: HalisahaAdminParticipantRow;
   homeTeamName: string;
   awayTeamName: string;
+  homeFormation: HalisahaFormation;
+  awayFormation: HalisahaFormation;
   onError: (message: string) => void;
   onSuccess: (message: string) => void;
 }) {
@@ -115,6 +127,25 @@ function ParticipantAssignmentRow({
     ...option,
     label: option.value === "home" ? homeTeamName : awayTeamName,
   }));
+  const activeFormation =
+    teamSide === "home" ? homeFormation : teamSide === "away" ? awayFormation : null;
+  const positionOptions = useMemo(
+    () =>
+      activeFormation
+        ? getHalisahaFormationPositionOptions(activeFormation)
+        : [],
+    [activeFormation],
+  );
+
+  useEffect(() => {
+    if (
+      positionKey &&
+      activeFormation &&
+      !positionOptions.some((option) => option.value === positionKey)
+    ) {
+      setPositionKey("");
+    }
+  }, [activeFormation, positionKey, positionOptions]);
 
   const handleSave = async () => {
     setBusy(true);
@@ -185,13 +216,20 @@ function ParticipantAssignmentRow({
           className={selectClassName}
           disabled={busy}
         >
-          <option value="">No position</option>
-          {HALISAHA_POSITION_SLOTS.map((slot) => (
-            <option key={slot.key} value={slot.key}>
+          <option value="">
+            {activeFormation ? "No position" : "Pick a team first"}
+          </option>
+          {positionOptions.map((slot) => (
+            <option key={slot.value} value={slot.value}>
               {slot.label}
             </option>
           ))}
         </select>
+        {activeFormation ? (
+          <div className="mt-1 text-xs text-nord-polarLight">
+            Tactic: {getHalisahaFormationLabel(activeFormation)}
+          </div>
+        ) : null}
       </td>
       <td className="px-4 py-3 text-right">
         <div className="flex justify-end gap-2">
@@ -712,6 +750,7 @@ export function HalisahaAdminClient({
   const [success, setSuccess] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [selectedUserId, setSelectedUserId] = useState("");
+  const [selectedGuestId, setSelectedGuestId] = useState("");
   const [guestName, setGuestName] = useState("");
   const [newQuestionKind, setNewQuestionKind] =
     useState<EditableQuestionKind>("standard");
@@ -744,6 +783,15 @@ export function HalisahaAdminClient({
     },
     [approvedUsers, snapshot.participants],
   );
+  const availableGuestRegistry = useMemo(() => {
+    const participantGuestIds = new Set(
+      snapshot.participants
+        .map((participant) => participant.guestId)
+        .filter(Boolean),
+    );
+
+    return snapshot.guestRegistry.filter((guest) => !participantGuestIds.has(guest.id));
+  }, [snapshot.guestRegistry, snapshot.participants]);
 
   const runAction = async (
     fn: () => Promise<HalisahaAdminActionState>,
@@ -773,6 +821,8 @@ export function HalisahaAdminClient({
           homeTeamName: String(formData.get("homeTeamName") ?? ""),
           awayTeamName: String(formData.get("awayTeamName") ?? ""),
           venueName: String(formData.get("venueName") ?? ""),
+          homeFormation: String(formData.get("homeFormation") ?? "") as HalisahaFormation,
+          awayFormation: String(formData.get("awayFormation") ?? "") as HalisahaFormation,
           kickoffDate: String(formData.get("kickoffDate") ?? ""),
           kickoffTime: String(formData.get("kickoffTime") ?? ""),
           matchDurationMinutes: Number(formData.get("matchDurationMinutes") ?? 60),
@@ -804,6 +854,39 @@ export function HalisahaAdminClient({
       () => addHalisahaGuestParticipantAction(guestName),
       "Guest added.",
       () => setGuestName(""),
+    );
+  };
+
+  const handleAddGuestFromRegistry = async () => {
+    if (!selectedGuestId) {
+      setError("Pick a saved guest first.");
+      return;
+    }
+
+    await runAction(
+      () => addHalisahaGuestFromRegistryAction(selectedGuestId),
+      "Guest added from saved list.",
+      () => setSelectedGuestId(""),
+    );
+  };
+
+  const handleDeactivateSavedGuest = async (guestId: string, displayName: string) => {
+    if (
+      !window.confirm(
+        `Remove ${displayName} from the saved guest list? Past match records will stay unchanged.`,
+      )
+    ) {
+      return;
+    }
+
+    await runAction(
+      () => deactivateHalisahaGuestRegistryAction(guestId),
+      "Guest removed from saved list.",
+      () => {
+        if (selectedGuestId === guestId) {
+          setSelectedGuestId("");
+        }
+      },
     );
   };
 
@@ -915,6 +998,36 @@ export function HalisahaAdminClient({
                 required
               />
             </div>
+            <div className="grid gap-4 md:grid-cols-2">
+              <label className="space-y-1.5 text-sm">
+                <span className="font-medium text-nord-polar">Home team tactic</span>
+                <select
+                  name="homeFormation"
+                  defaultValue={snapshot.match.homeFormation}
+                  className={selectClassName}
+                >
+                  {HALISAHA_FORMATION_OPTIONS.map((formation) => (
+                    <option key={formation.value} value={formation.value}>
+                      {formation.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="space-y-1.5 text-sm">
+                <span className="font-medium text-nord-polar">Away team tactic</span>
+                <select
+                  name="awayFormation"
+                  defaultValue={snapshot.match.awayFormation}
+                  className={selectClassName}
+                >
+                  {HALISAHA_FORMATION_OPTIONS.map((formation) => (
+                    <option key={formation.value} value={formation.value}>
+                      {formation.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
             <Input
               label="Venue"
               name="venueName"
@@ -946,7 +1059,10 @@ export function HalisahaAdminClient({
               required
             />
             <div className="flex items-center justify-between gap-4 rounded-lg border border-nord-polarLighter/30 bg-nord-snow/45 px-4 py-3 text-sm text-nord-polarLight">
-              <span>Timezone is fixed to Istanbul for all public countdowns.</span>
+              <span>
+                Timezone is fixed to Istanbul. If you change tactics, only incompatible lineup
+                positions are cleared.
+              </span>
               <Button type="submit" disabled={busy}>
                 Save match settings
               </Button>
@@ -991,7 +1107,7 @@ export function HalisahaAdminClient({
             <CardTitle>Players and guests</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid gap-4 md:grid-cols-2">
+            <div className="grid gap-4 xl:grid-cols-3">
               <div className="rounded-lg border border-nord-polarLighter/30 bg-nord-snow/35 p-4">
                 <h3 className="text-sm font-semibold text-nord-polar">
                   Add registered user
@@ -1023,9 +1139,41 @@ export function HalisahaAdminClient({
               </div>
 
               <div className="rounded-lg border border-nord-polarLighter/30 bg-nord-snow/35 p-4">
-                <h3 className="text-sm font-semibold text-nord-polar">Add guest</h3>
+                <h3 className="text-sm font-semibold text-nord-polar">
+                  Add saved guest
+                </h3>
                 <p className="mt-1 text-sm text-nord-polarLight">
-                  Add one-off guest players who do not have site accounts.
+                  Reuse a guest from the saved guest registry without typing the name again.
+                </p>
+                <select
+                  className={`${selectClassName} mt-3`}
+                  value={selectedGuestId}
+                  onChange={(event) => setSelectedGuestId(event.target.value)}
+                  disabled={busy}
+                >
+                  <option value="">Select a saved guest</option>
+                  {availableGuestRegistry.map((guest) => (
+                    <option key={guest.id} value={guest.id}>
+                      {guest.displayName}
+                    </option>
+                  ))}
+                </select>
+                <Button
+                  className="mt-3"
+                  variant="secondary"
+                  onClick={handleAddGuestFromRegistry}
+                  disabled={busy || availableGuestRegistry.length === 0}
+                >
+                  Add saved guest
+                </Button>
+              </div>
+
+              <div className="rounded-lg border border-nord-polarLighter/30 bg-nord-snow/35 p-4">
+                <h3 className="text-sm font-semibold text-nord-polar">
+                  Create or re-add guest
+                </h3>
+                <p className="mt-1 text-sm text-nord-polarLight">
+                  New guest names are stored in the guest registry for future matches.
                 </p>
                 <Input
                   label="Guest display name"
@@ -1043,6 +1191,58 @@ export function HalisahaAdminClient({
                   Add guest
                 </Button>
               </div>
+            </div>
+
+            <div className="overflow-x-auto rounded-lg border border-nord-polarLighter/35">
+              <div className="flex flex-col gap-3 border-b border-nord-polarLighter/35 bg-nord-snow/45 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                <p className="text-sm text-nord-polarLight">
+                  Saved guest list:{" "}
+                  <strong className="font-semibold text-nord-polar">
+                    {snapshot.guestRegistry.length}
+                  </strong>
+                  . Removing a saved guest hides it from future selection but does not change past
+                  match history.
+                </p>
+              </div>
+              {snapshot.guestRegistry.length === 0 ? (
+                <div className="px-4 py-8 text-center text-sm text-nord-polarLight">
+                  No saved guests yet.
+                </div>
+              ) : (
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-nord-polarLighter/50 bg-nord-snow/70 text-left text-nord-polarLight">
+                      <th className="px-4 py-3 font-semibold">Guest</th>
+                      <th className="px-4 py-3 font-semibold">Used in matches</th>
+                      <th className="px-4 py-3 font-semibold text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {snapshot.guestRegistry.map((guest) => (
+                      <tr key={guest.id} className="border-b border-nord-polarLighter/30">
+                        <td className="px-4 py-3 font-medium text-nord-polar">
+                          {guest.displayName}
+                        </td>
+                        <td className="px-4 py-3 text-nord-polarLight">
+                          {guest.linkedMatchCount}
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() =>
+                              handleDeactivateSavedGuest(guest.id, guest.displayName)
+                            }
+                            disabled={busy}
+                          >
+                            Remove from list
+                          </Button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
             </div>
 
             <div className="overflow-x-auto rounded-lg border border-nord-polarLighter/35">
@@ -1084,6 +1284,8 @@ export function HalisahaAdminClient({
                         participant={participant}
                         homeTeamName={snapshot.match.homeTeamName}
                         awayTeamName={snapshot.match.awayTeamName}
+                        homeFormation={snapshot.match.homeFormation}
+                        awayFormation={snapshot.match.awayFormation}
                         onError={setError}
                         onSuccess={setSuccess}
                       />

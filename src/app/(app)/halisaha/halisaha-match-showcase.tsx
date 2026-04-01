@@ -20,7 +20,11 @@ import { HalisahaPostMatchMvpVote } from "@/components/halisaha/halisaha-post-ma
 import { HalisahaResultsGateCard } from "@/components/halisaha/halisaha-results-gate-card";
 import { PrefetchLink } from "@/components/prefetch-link";
 import type { HalisahaPositionKey } from "@prisma/client";
-import { getPitchSpot } from "@/lib/halisaha/config";
+import {
+  getHalisahaPositionLineGroup,
+  getPitchSpot,
+  type HalisahaPositionLineGroup,
+} from "@/lib/halisaha/config";
 import {
   HALISAHA_MOBILE_VIEWPORT_FALLBACK_LONG_SIDE_PX,
   HALISAHA_MOBILE_VIEWPORT_FALLBACK_SHORT_SIDE_PX,
@@ -40,6 +44,7 @@ type PlayerSpot = {
   x: number;
   y: number;
   positionKey: HalisahaPositionKey;
+  lineGroup: HalisahaPositionLineGroup | null;
 };
 
 type ShowcaseTab = "matchday" | "leaderboard";
@@ -1294,30 +1299,34 @@ const PITCH_VIEWBOX_HEIGHT = 620;
 const CLOSED_PORTRAIT_DEFENDER_INWARD_SVG_UNITS = 10;
 /** ViewBox units: closed mobile portrait — nudge striker/midfield name anchors 2u toward own goal */
 const CLOSED_PORTRAIT_FORWARD_MID_TOWARD_OWN_GOAL_SVG_UNITS = 2;
-const DEFENSE_POSITION_KEYS: HalisahaPositionKey[] = ["left_defender", "right_defender"];
-const MIDFIELD_POSITION_KEYS: HalisahaPositionKey[] = [
-  "left_wing",
-  "center_midfield",
-  "right_wing",
-];
-const FORWARD_MIDFIELD_POSITION_KEYS: HalisahaPositionKey[] = [
-  ...MIDFIELD_POSITION_KEYS,
-  "striker",
-];
 
-/** Nudge first-line tspan (em) so stacked 3-word labels in defense/midfield rows share a line. */
+/** Nudge first-line tspan (em) so stacked 3-word labels in each occupied line share a line. */
 function computeStackedFirstLineDyEmExtra(
   players: ReadonlyArray<PlayerSpot>,
 ): Map<HalisahaPositionKey, number> {
   const out = new Map<HalisahaPositionKey, number>();
-  for (const keys of [DEFENSE_POSITION_KEYS, MIDFIELD_POSITION_KEYS]) {
-    const inGroup = players.filter((p) => keys.includes(p.positionKey));
+  const groupedPlayers = new Map<HalisahaPositionLineGroup, PlayerSpot[]>();
+
+  for (const player of players) {
+    if (!player.lineGroup || player.lineGroup === "goalkeeper") {
+      continue;
+    }
+
+    if (!groupedPlayers.has(player.lineGroup)) {
+      groupedPlayers.set(player.lineGroup, []);
+    }
+    groupedPlayers.get(player.lineGroup)?.push(player);
+  }
+
+  for (const inGroup of groupedPlayers.values()) {
     if (inGroup.length < 2) continue;
+
     const avgY = inGroup.reduce((sum, p) => sum + p.y, 0) / inGroup.length;
-    for (const p of inGroup) {
-      out.set(p.positionKey, ((avgY - p.y) / PITCH_VIEWBOX_HEIGHT) * 2.6);
+    for (const player of inGroup) {
+      out.set(player.positionKey, ((avgY - player.y) / PITCH_VIEWBOX_HEIGHT) * 2.6);
     }
   }
+
   return out;
 }
 
@@ -1732,9 +1741,10 @@ function PitchPlayerLabel({
     lines.mode === "stack" ? (stackedFirstLineDyEmExtra?.get(player.positionKey) ?? 0) : 0;
   /** No negative base dy: a −0.55em offset vertically centers the two-line block and misaligns line 1 vs single-line names (slicers closed). */
   const line1DyEm = line1DyExtraEm;
-  const isDefender = DEFENSE_POSITION_KEYS.includes(player.positionKey);
+  const isDefender = player.lineGroup === "defense";
   const inward = defenderInwardShiftSvgUnits > 0 && isDefender ? defenderInwardShiftSvgUnits : 0;
-  const isForwardOrMidfield = FORWARD_MIDFIELD_POSITION_KEYS.includes(player.positionKey);
+  const isForwardOrMidfield =
+    player.lineGroup === "midfield" || player.lineGroup === "attack";
   const towardOwn =
     towardOwnGoalShiftSvgUnits > 0 && isForwardOrMidfield ? towardOwnGoalShiftSvgUnits : 0;
   // Home (left): own goal is −x. Away (right): own goal is +x.
@@ -1809,14 +1819,17 @@ function handleBallKeyDown(
   }
 }
 
-function buildTeamLineup(
+export function buildTeamLineup(
   snapshot: HalisahaPublicSnapshot,
   teamSide: "home" | "away",
 ) {
+  const formation =
+    teamSide === "home" ? snapshot.match.homeFormation : snapshot.match.awayFormation;
+
   return snapshot.participants
     .filter((participant) => participant.teamSide === teamSide)
     .map((participant) => {
-      const spot = getPitchSpot(teamSide, participant.positionKey);
+      const spot = getPitchSpot(teamSide, formation, participant.positionKey);
       if (!spot) return null;
 
       return {
@@ -1824,6 +1837,7 @@ function buildTeamLineup(
         x: spot.x,
         y: spot.y,
         positionKey: participant.positionKey,
+        lineGroup: getHalisahaPositionLineGroup(formation, participant.positionKey),
       } satisfies PlayerSpot;
     })
     .filter((player): player is PlayerSpot => player !== null);

@@ -58,6 +58,20 @@ enum HalisahaPositionKey {
   center_midfield
   right_wing
   striker
+  center_defender
+  left_midfielder
+  right_midfielder
+  left_forward
+  right_forward
+}
+
+enum HalisahaFormation {
+  f1_2_3_1
+  f1_3_2_1
+  f1_3_3
+  f1_2_2_2
+  f1_3_1_2
+  f1_2_1_3
 }
 
 enum HalisahaQuestionKind {
@@ -346,6 +360,8 @@ model HalisahaMatch {
   homeTeamName             String    @map("home_team_name")
   awayTeamName             String    @map("away_team_name")
   venueName                String    @map("venue_name")
+  homeFormation            HalisahaFormation @default(f1_2_3_1) @map("home_formation")
+  awayFormation            HalisahaFormation @default(f1_2_3_1) @map("away_formation")
   kickoffAt                DateTime  @map("kickoff_at")
   kickoffTimezone          String    @default("Europe/Istanbul") @map("kickoff_timezone")
   matchDurationMinutes     Int       @default(60) @map("match_duration_minutes")
@@ -367,10 +383,25 @@ model HalisahaMatch {
   @@map("halisaha_matches")
 }
 
+model HalisahaGuest {
+  id             String               @id @default(cuid())
+  displayName    String               @map("display_name")
+  normalizedName String               @unique @map("normalized_name")
+  isActive       Boolean              @default(true) @map("is_active")
+  createdAt      DateTime             @default(now()) @map("created_at")
+  updatedAt      DateTime             @updatedAt @map("updated_at")
+
+  participants HalisahaParticipant[]
+
+  @@index([isActive, displayName])
+  @@map("halisaha_guests")
+}
+
 model HalisahaParticipant {
   id                 String               @id @default(cuid())
   matchId            String               @map("match_id")
   userId             String?              @map("user_id")
+  guestId            String?              @map("guest_id")
   guestName          String?              @map("guest_name")
   teamSide           HalisahaTeamSide?    @map("team_side")
   positionKey        HalisahaPositionKey? @map("position_key")
@@ -380,12 +411,15 @@ model HalisahaParticipant {
 
   match                 HalisahaMatch          @relation(fields: [matchId], references: [id], onDelete: Cascade)
   user                  User?                  @relation(fields: [userId], references: [id], onDelete: SetNull)
+  guest                 HalisahaGuest?         @relation(fields: [guestId], references: [id], onDelete: SetNull)
   predictionOptions     HalisahaQuestionOption[] @relation("HalisahaParticipantQuestionOption")
   receivedMvpVotes      HalisahaMvpVote[]      @relation("HalisahaParticipantVote")
   resolvedMvpForMatches HalisahaMatch[]        @relation("ResolvedHalisahaMvp")
 
   @@unique([matchId, userId])
+  @@unique([matchId, guestId])
   @@unique([matchId, teamSide, positionKey])
+  @@index([guestId])
   @@index([matchId, teamSide])
   @@index([matchId, displayOrder])
   @@map("halisaha_participants")

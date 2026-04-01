@@ -68,6 +68,12 @@ describe("Halisaha archive lifecycle (SQLite integration)", () => {
         role: "user",
       },
     });
+    const savedGuest = await prisma.halisahaGuest.create({
+      data: {
+        displayName: "Guest Star",
+        normalizedName: "guest star",
+      },
+    });
 
     const match = await prisma.halisahaMatch.create({
       data: {
@@ -77,6 +83,8 @@ describe("Halisaha archive lifecycle (SQLite integration)", () => {
         homeTeamName: "Old Home",
         awayTeamName: "Old Away",
         venueName: "Old Venue",
+        homeFormation: "f1_2_3_1",
+        awayFormation: "f1_3_3",
         kickoffAt: new Date("2026-09-01T18:00:00.000Z"),
         answersResolvedAt: new Date("2026-09-01T20:00:00.000Z"),
       },
@@ -94,6 +102,7 @@ describe("Halisaha archive lifecycle (SQLite integration)", () => {
     const guestParticipant = await prisma.halisahaParticipant.create({
       data: {
         matchId: match.id,
+        guestId: savedGuest.id,
         guestName: "Guest Star",
         teamSide: "away",
         positionKey: "goalkeeper",
@@ -186,6 +195,8 @@ describe("Halisaha archive lifecycle (SQLite integration)", () => {
         homeTeamName: "New Home",
         awayTeamName: "New Away",
         venueName: "New Venue",
+        homeFormation: "f1_3_2_1",
+        awayFormation: "f1_2_2_2",
         kickoffAt: new Date("2026-09-08T18:00:00.000Z"),
         matchDurationMinutes: 70,
       },
@@ -232,6 +243,8 @@ describe("Halisaha archive lifecycle (SQLite integration)", () => {
       homeTeamName: "New Home",
       awayTeamName: "New Away",
       venueName: "New Venue",
+      homeFormation: "f1_3_2_1",
+      awayFormation: "f1_2_2_2",
       matchDurationMinutes: 70,
     });
     expect(nextActive?.answers).toHaveLength(0);
@@ -243,6 +256,9 @@ describe("Halisaha archive lifecycle (SQLite integration)", () => {
     );
     expect(nextParticipantIds.has(homeParticipant.id)).toBe(false);
     expect(nextParticipantIds.has(guestParticipant.id)).toBe(false);
+    expect(
+      nextActive?.participants.find((participant) => participant.userId == null)?.guestId,
+    ).toBe(savedGuest.id);
 
     const clonedScoreQuestion = nextActive?.questions.find(
       (question) => question.kind === "score_prediction",
@@ -305,6 +321,8 @@ describe("Halisaha archive lifecycle (SQLite integration)", () => {
         homeTeamName: "Gamma",
         awayTeamName: "Delta",
         venueName: "Arena",
+        homeFormation: "f1_3_1_2",
+        awayFormation: "f1_2_1_3",
         kickoffAt: new Date("2026-10-08T18:00:00.000Z"),
         matchDurationMinutes: 60,
       },

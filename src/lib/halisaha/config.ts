@@ -1,4 +1,8 @@
-import type { HalisahaPositionKey, HalisahaTeamSide } from "@prisma/client";
+import type {
+  HalisahaFormation,
+  HalisahaPositionKey,
+  HalisahaTeamSide,
+} from "@prisma/client";
 
 export const HALISAHA_MATCH_SINGLETON_KEY = "active";
 export const HALISAHA_TIMEZONE = "Europe/Istanbul";
@@ -6,66 +10,401 @@ export const HALISAHA_TITLE = "RayNET Matchday Show";
 export const HALISAHA_DEFAULT_HOME_TEAM = "RayNET Glory";
 export const HALISAHA_DEFAULT_AWAY_TEAM = "Flexera Club";
 export const HALISAHA_DEFAULT_VENUE = "HITABSPOR Arena";
+export const HALISAHA_DEFAULT_FORMATION: HalisahaFormation = "f1_2_3_1";
+
+export type HalisahaPositionLineGroup =
+  | "goalkeeper"
+  | "defense"
+  | "midfield"
+  | "attack";
+
+export type HalisahaPitchCoordinate = {
+  x: number;
+  y: number;
+};
 
 export type HalisahaPitchSpot = {
   key: HalisahaPositionKey;
   label: string;
   displayOrder: number;
-  home: { x: number; y: number };
-  away: { x: number; y: number };
+  lineGroup: HalisahaPositionLineGroup;
+  home: HalisahaPitchCoordinate;
+  away: HalisahaPitchCoordinate;
 };
 
-export const HALISAHA_POSITION_SLOTS: HalisahaPitchSpot[] = [
+export type HalisahaFormationDefinition = {
+  key: HalisahaFormation;
+  label: string;
+  slots: HalisahaPitchSpot[];
+};
+
+function mirrorPitchCoordinate(spot: HalisahaPitchCoordinate): HalisahaPitchCoordinate {
+  return {
+    x: 1000 - spot.x,
+    y: spot.y,
+  };
+}
+
+function createPitchSpot(input: {
+  key: HalisahaPositionKey;
+  label: string;
+  displayOrder: number;
+  lineGroup: HalisahaPositionLineGroup;
+  home: HalisahaPitchCoordinate;
+}): HalisahaPitchSpot {
+  return {
+    ...input,
+    away: mirrorPitchCoordinate(input.home),
+  };
+}
+
+export const HALISAHA_FORMATIONS: HalisahaFormationDefinition[] = [
   {
-    key: "goalkeeper",
-    label: "Goalkeeper",
-    displayOrder: 10,
-    home: { x: 47, y: 310 },
-    away: { x: 953, y: 310 },
+    key: "f1_2_3_1",
+    label: "1-2-3-1",
+    slots: [
+      createPitchSpot({
+        key: "goalkeeper",
+        label: "Goalkeeper",
+        displayOrder: 10,
+        lineGroup: "goalkeeper",
+        home: { x: 47, y: 310 },
+      }),
+      createPitchSpot({
+        key: "left_defender",
+        label: "Left defender",
+        displayOrder: 20,
+        lineGroup: "defense",
+        home: { x: 198, y: 186 },
+      }),
+      createPitchSpot({
+        key: "right_defender",
+        label: "Right defender",
+        displayOrder: 30,
+        lineGroup: "defense",
+        home: { x: 198, y: 444 },
+      }),
+      createPitchSpot({
+        key: "left_wing",
+        label: "Left wing",
+        displayOrder: 40,
+        lineGroup: "midfield",
+        home: { x: 340, y: 162 },
+      }),
+      createPitchSpot({
+        key: "center_midfield",
+        label: "Center midfield",
+        displayOrder: 50,
+        lineGroup: "midfield",
+        home: { x: 292, y: 310 },
+      }),
+      createPitchSpot({
+        key: "right_wing",
+        label: "Right wing",
+        displayOrder: 60,
+        lineGroup: "midfield",
+        home: { x: 340, y: 458 },
+      }),
+      createPitchSpot({
+        key: "striker",
+        label: "Striker",
+        displayOrder: 70,
+        lineGroup: "attack",
+        home: { x: 388, y: 310 },
+      }),
+    ],
   },
   {
-    key: "left_defender",
-    label: "Left defender",
-    displayOrder: 20,
-    home: { x: 198, y: 186 },
-    away: { x: 802, y: 186 },
+    key: "f1_3_2_1",
+    label: "1-3-2-1",
+    slots: [
+      createPitchSpot({
+        key: "goalkeeper",
+        label: "Goalkeeper",
+        displayOrder: 10,
+        lineGroup: "goalkeeper",
+        home: { x: 47, y: 310 },
+      }),
+      createPitchSpot({
+        key: "left_defender",
+        label: "Left defender",
+        displayOrder: 20,
+        lineGroup: "defense",
+        home: { x: 198, y: 148 },
+      }),
+      createPitchSpot({
+        key: "center_defender",
+        label: "Center defender",
+        displayOrder: 30,
+        lineGroup: "defense",
+        home: { x: 208, y: 310 },
+      }),
+      createPitchSpot({
+        key: "right_defender",
+        label: "Right defender",
+        displayOrder: 40,
+        lineGroup: "defense",
+        home: { x: 198, y: 472 },
+      }),
+      createPitchSpot({
+        key: "left_midfielder",
+        label: "Left midfielder",
+        displayOrder: 50,
+        lineGroup: "midfield",
+        home: { x: 326, y: 220 },
+      }),
+      createPitchSpot({
+        key: "right_midfielder",
+        label: "Right midfielder",
+        displayOrder: 60,
+        lineGroup: "midfield",
+        home: { x: 326, y: 400 },
+      }),
+      createPitchSpot({
+        key: "striker",
+        label: "Striker",
+        displayOrder: 70,
+        lineGroup: "attack",
+        home: { x: 388, y: 310 },
+      }),
+    ],
   },
   {
-    key: "right_defender",
-    label: "Right defender",
-    displayOrder: 30,
-    home: { x: 198, y: 444 },
-    away: { x: 802, y: 444 },
+    key: "f1_3_3",
+    label: "1-3-3",
+    slots: [
+      createPitchSpot({
+        key: "goalkeeper",
+        label: "Goalkeeper",
+        displayOrder: 10,
+        lineGroup: "goalkeeper",
+        home: { x: 47, y: 310 },
+      }),
+      createPitchSpot({
+        key: "left_defender",
+        label: "Left defender",
+        displayOrder: 20,
+        lineGroup: "defense",
+        home: { x: 198, y: 148 },
+      }),
+      createPitchSpot({
+        key: "center_defender",
+        label: "Center defender",
+        displayOrder: 30,
+        lineGroup: "defense",
+        home: { x: 208, y: 310 },
+      }),
+      createPitchSpot({
+        key: "right_defender",
+        label: "Right defender",
+        displayOrder: 40,
+        lineGroup: "defense",
+        home: { x: 198, y: 472 },
+      }),
+      createPitchSpot({
+        key: "left_forward",
+        label: "Left forward",
+        displayOrder: 50,
+        lineGroup: "attack",
+        home: { x: 388, y: 168 },
+      }),
+      createPitchSpot({
+        key: "striker",
+        label: "Striker",
+        displayOrder: 60,
+        lineGroup: "attack",
+        home: { x: 404, y: 310 },
+      }),
+      createPitchSpot({
+        key: "right_forward",
+        label: "Right forward",
+        displayOrder: 70,
+        lineGroup: "attack",
+        home: { x: 388, y: 452 },
+      }),
+    ],
   },
   {
-    key: "left_wing",
-    label: "Left wing",
-    displayOrder: 40,
-    home: { x: 340, y: 162 },
-    away: { x: 660, y: 162 },
+    key: "f1_2_2_2",
+    label: "1-2-2-2",
+    slots: [
+      createPitchSpot({
+        key: "goalkeeper",
+        label: "Goalkeeper",
+        displayOrder: 10,
+        lineGroup: "goalkeeper",
+        home: { x: 47, y: 310 },
+      }),
+      createPitchSpot({
+        key: "left_defender",
+        label: "Left defender",
+        displayOrder: 20,
+        lineGroup: "defense",
+        home: { x: 198, y: 186 },
+      }),
+      createPitchSpot({
+        key: "right_defender",
+        label: "Right defender",
+        displayOrder: 30,
+        lineGroup: "defense",
+        home: { x: 198, y: 444 },
+      }),
+      createPitchSpot({
+        key: "left_midfielder",
+        label: "Left midfielder",
+        displayOrder: 40,
+        lineGroup: "midfield",
+        home: { x: 314, y: 222 },
+      }),
+      createPitchSpot({
+        key: "right_midfielder",
+        label: "Right midfielder",
+        displayOrder: 50,
+        lineGroup: "midfield",
+        home: { x: 314, y: 398 },
+      }),
+      createPitchSpot({
+        key: "left_forward",
+        label: "Left forward",
+        displayOrder: 60,
+        lineGroup: "attack",
+        home: { x: 404, y: 224 },
+      }),
+      createPitchSpot({
+        key: "right_forward",
+        label: "Right forward",
+        displayOrder: 70,
+        lineGroup: "attack",
+        home: { x: 404, y: 396 },
+      }),
+    ],
   },
   {
-    key: "center_midfield",
-    label: "Center midfield",
-    displayOrder: 50,
-    home: { x: 292, y: 310 },
-    away: { x: 708, y: 310 },
+    key: "f1_3_1_2",
+    label: "1-3-1-2",
+    slots: [
+      createPitchSpot({
+        key: "goalkeeper",
+        label: "Goalkeeper",
+        displayOrder: 10,
+        lineGroup: "goalkeeper",
+        home: { x: 47, y: 310 },
+      }),
+      createPitchSpot({
+        key: "left_defender",
+        label: "Left defender",
+        displayOrder: 20,
+        lineGroup: "defense",
+        home: { x: 198, y: 148 },
+      }),
+      createPitchSpot({
+        key: "center_defender",
+        label: "Center defender",
+        displayOrder: 30,
+        lineGroup: "defense",
+        home: { x: 208, y: 310 },
+      }),
+      createPitchSpot({
+        key: "right_defender",
+        label: "Right defender",
+        displayOrder: 40,
+        lineGroup: "defense",
+        home: { x: 198, y: 472 },
+      }),
+      createPitchSpot({
+        key: "center_midfield",
+        label: "Center midfield",
+        displayOrder: 50,
+        lineGroup: "midfield",
+        home: { x: 308, y: 310 },
+      }),
+      createPitchSpot({
+        key: "left_forward",
+        label: "Left forward",
+        displayOrder: 60,
+        lineGroup: "attack",
+        home: { x: 404, y: 224 },
+      }),
+      createPitchSpot({
+        key: "right_forward",
+        label: "Right forward",
+        displayOrder: 70,
+        lineGroup: "attack",
+        home: { x: 404, y: 396 },
+      }),
+    ],
   },
   {
-    key: "right_wing",
-    label: "Right wing",
-    displayOrder: 60,
-    home: { x: 340, y: 458 },
-    away: { x: 660, y: 458 },
-  },
-  {
-    key: "striker",
-    label: "Striker",
-    displayOrder: 70,
-    home: { x: 388, y: 310 },
-    away: { x: 612, y: 310 },
+    key: "f1_2_1_3",
+    label: "1-2-1-3",
+    slots: [
+      createPitchSpot({
+        key: "goalkeeper",
+        label: "Goalkeeper",
+        displayOrder: 10,
+        lineGroup: "goalkeeper",
+        home: { x: 47, y: 310 },
+      }),
+      createPitchSpot({
+        key: "left_defender",
+        label: "Left defender",
+        displayOrder: 20,
+        lineGroup: "defense",
+        home: { x: 198, y: 186 },
+      }),
+      createPitchSpot({
+        key: "right_defender",
+        label: "Right defender",
+        displayOrder: 30,
+        lineGroup: "defense",
+        home: { x: 198, y: 444 },
+      }),
+      createPitchSpot({
+        key: "center_midfield",
+        label: "Center midfield",
+        displayOrder: 40,
+        lineGroup: "midfield",
+        home: { x: 308, y: 310 },
+      }),
+      createPitchSpot({
+        key: "left_forward",
+        label: "Left forward",
+        displayOrder: 50,
+        lineGroup: "attack",
+        home: { x: 404, y: 168 },
+      }),
+      createPitchSpot({
+        key: "striker",
+        label: "Striker",
+        displayOrder: 60,
+        lineGroup: "attack",
+        home: { x: 420, y: 310 },
+      }),
+      createPitchSpot({
+        key: "right_forward",
+        label: "Right forward",
+        displayOrder: 70,
+        lineGroup: "attack",
+        home: { x: 404, y: 452 },
+      }),
+    ],
   },
 ];
+
+const halisahaFormationMap = new Map(
+  HALISAHA_FORMATIONS.map((formation) => [formation.key, formation]),
+);
+
+export const HALISAHA_FORMATION_OPTIONS: Array<{
+  value: HalisahaFormation;
+  label: string;
+}> = HALISAHA_FORMATIONS.map((formation) => ({
+  value: formation.key,
+  label: formation.label,
+}));
+
+export const HALISAHA_POSITION_SLOTS: HalisahaPitchSpot[] =
+  halisahaFormationMap.get(HALISAHA_DEFAULT_FORMATION)?.slots ?? [];
 
 export const HALISAHA_TEAM_SIDE_OPTIONS: Array<{
   value: HalisahaTeamSide;
@@ -75,25 +414,122 @@ export const HALISAHA_TEAM_SIDE_OPTIONS: Array<{
   { value: "away", label: "Away team" },
 ];
 
-export function getHalisahaPositionLabel(positionKey: HalisahaPositionKey) {
+function getHalisahaFormationDefinition(
+  formation: HalisahaFormation = HALISAHA_DEFAULT_FORMATION,
+) {
   return (
-    HALISAHA_POSITION_SLOTS.find((slot) => slot.key === positionKey)?.label ??
+    halisahaFormationMap.get(formation) ??
+    halisahaFormationMap.get(HALISAHA_DEFAULT_FORMATION)!
+  );
+}
+
+function findHalisahaPitchSpot(
+  formation: HalisahaFormation,
+  positionKey: HalisahaPositionKey,
+) {
+  return getHalisahaFormationDefinition(formation).slots.find(
+    (slot) => slot.key === positionKey,
+  );
+}
+
+function findAnyHalisahaPitchSpot(positionKey: HalisahaPositionKey) {
+  for (const formation of HALISAHA_FORMATIONS) {
+    const slot = formation.slots.find((entry) => entry.key === positionKey);
+    if (slot) {
+      return slot;
+    }
+  }
+
+  return null;
+}
+
+export function getHalisahaFormationLabel(formation: HalisahaFormation) {
+  return getHalisahaFormationDefinition(formation).label;
+}
+
+export function getHalisahaFormationSlots(
+  formation: HalisahaFormation = HALISAHA_DEFAULT_FORMATION,
+) {
+  return getHalisahaFormationDefinition(formation).slots;
+}
+
+export function getHalisahaFormationPositionOptions(
+  formation: HalisahaFormation = HALISAHA_DEFAULT_FORMATION,
+) {
+  return getHalisahaFormationSlots(formation).map((slot) => ({
+    value: slot.key,
+    label: slot.label,
+    displayOrder: slot.displayOrder,
+  }));
+}
+
+export function isHalisahaPositionAllowed(
+  formation: HalisahaFormation,
+  positionKey: HalisahaPositionKey | null | undefined,
+) {
+  if (!positionKey) {
+    return false;
+  }
+
+  return Boolean(findHalisahaPitchSpot(formation, positionKey));
+}
+
+export function getHalisahaPositionLineGroup(
+  formation: HalisahaFormation,
+  positionKey: HalisahaPositionKey,
+) {
+  return findHalisahaPitchSpot(formation, positionKey)?.lineGroup ?? null;
+}
+
+export function getHalisahaStackedLineGroups(
+  formation: HalisahaFormation = HALISAHA_DEFAULT_FORMATION,
+) {
+  const grouped = new Map<HalisahaPositionLineGroup, HalisahaPositionKey[]>();
+
+  for (const slot of getHalisahaFormationSlots(formation)) {
+    if (!grouped.has(slot.lineGroup)) {
+      grouped.set(slot.lineGroup, []);
+    }
+    grouped.get(slot.lineGroup)?.push(slot.key);
+  }
+
+  return ["defense", "midfield", "attack"]
+    .map((group) => grouped.get(group as HalisahaPositionLineGroup) ?? [])
+    .filter((group) => group.length > 1);
+}
+
+export function getHalisahaPositionLabel(
+  positionKey: HalisahaPositionKey,
+  formation: HalisahaFormation = HALISAHA_DEFAULT_FORMATION,
+) {
+  return (
+    findHalisahaPitchSpot(formation, positionKey)?.label ??
+    findAnyHalisahaPitchSpot(positionKey)?.label ??
     positionKey
   );
 }
 
-export function getHalisahaPositionDisplayOrder(positionKey: HalisahaPositionKey) {
+export function getHalisahaPositionDisplayOrder(
+  positionKey: HalisahaPositionKey,
+  formation: HalisahaFormation = HALISAHA_DEFAULT_FORMATION,
+) {
   return (
-    HALISAHA_POSITION_SLOTS.find((slot) => slot.key === positionKey)?.displayOrder ??
+    findHalisahaPitchSpot(formation, positionKey)?.displayOrder ??
+    findAnyHalisahaPitchSpot(positionKey)?.displayOrder ??
     999
   );
 }
 
 export function getPitchSpot(
   teamSide: HalisahaTeamSide,
-  positionKey: HalisahaPositionKey,
+  formationOrPositionKey: HalisahaFormation | HalisahaPositionKey,
+  maybePositionKey?: HalisahaPositionKey,
 ) {
-  const slot = HALISAHA_POSITION_SLOTS.find((item) => item.key === positionKey);
+  const formation = maybePositionKey
+    ? (formationOrPositionKey as HalisahaFormation)
+    : HALISAHA_DEFAULT_FORMATION;
+  const positionKey = maybePositionKey ?? (formationOrPositionKey as HalisahaPositionKey);
+  const slot = findHalisahaPitchSpot(formation, positionKey);
   if (!slot) return null;
   return teamSide === "home" ? slot.home : slot.away;
 }
