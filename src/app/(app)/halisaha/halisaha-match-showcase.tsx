@@ -607,10 +607,12 @@ export function HalisahaMatchShowcase({
 
   const heroShell = (
     <div
-      className={`halisaha-hero-shell flex flex-col gap-4 pb-2.5 sm:gap-4 sm:pb-3 ${
+      className={`halisaha-hero-shell flex flex-col sm:gap-4 ${
         isImmersiveMobileMatchday
-          ? "relative h-full justify-start border-b-0"
-          : "border-b border-white/10"
+          ? "relative h-full justify-start border-b-0 gap-4 pb-2.5 sm:pb-3"
+          : activeTab === "leaderboard" && isCompactMobileViewport
+            ? "gap-2 border-b border-white/10 pb-2 sm:pb-3"
+            : "gap-4 border-b border-white/10 pb-2.5 sm:pb-3"
       }`}
     >
       <HalisahaShowcaseTabs
@@ -624,6 +626,7 @@ export function HalisahaMatchShowcase({
         kickoffLabel={snapshot.match.kickoffLabel}
         venueName={snapshot.match.venueName}
         countdown={countdown}
+        compactHorizontal={activeTab === "leaderboard" && isCompactMobileViewport}
       />
       {activeTab === "matchday" && isCompactMobileViewport ? <MobileHeroScrollCue /> : null}
     </div>
@@ -652,7 +655,7 @@ export function HalisahaMatchShowcase({
   );
 
   const leaderboardPanel = (
-    <div className="mt-1 flex min-h-0 flex-1 flex-col overflow-hidden rounded-[1.3rem] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.07),rgba(255,255,255,0.02))] p-3 shadow-[0_20px_54px_rgba(0,0,0,0.24)] sm:rounded-[1.55rem] sm:p-4">
+    <div className="mt-1 flex min-h-0 flex-1 flex-col overflow-hidden">
       {snapshot.gate.requiresPostMatchVote && !snapshot.gate.canRevealResults ? (
         <HalisahaResultsGateCard
           title={snapshot.gate.title}
@@ -797,13 +800,73 @@ function HalisahaHeroSummary({
   kickoffLabel,
   venueName,
   countdown,
+  compactHorizontal = false,
 }: {
   homeTeamName: string;
   awayTeamName: string;
   kickoffLabel: string;
   venueName: string;
   countdown: string;
+  compactHorizontal?: boolean;
 }) {
+  if (compactHorizontal) {
+    return (
+      <div className="halisaha-hero relative flex min-h-0 flex-row items-center gap-3 overflow-hidden">
+        {/* Left: team names + venue */}
+        <div className="halisaha-hero-primary min-w-0 flex-1 shrink">
+          <h1 className="halisaha-team-name text-[clamp(1.05rem,4.2vw,1.55rem)] font-semibold uppercase leading-[0.84] tracking-[0.012em] text-white">
+            {homeTeamName}
+          </h1>
+          <div className="halisaha-away-vs-row mt-[0.05rem] flex flex-wrap items-end gap-x-2 gap-y-0">
+            <span className="halisaha-vs-label shrink-0 pb-[0.06rem] text-[0.62rem] font-semibold uppercase tracking-[0.3em] text-white/54">
+              vs
+            </span>
+            <p className="halisaha-team-name min-w-0 flex-1 text-[clamp(1.05rem,4.2vw,1.55rem)] font-semibold uppercase leading-[0.84] tracking-[0.012em] text-white">
+              {awayTeamName}
+            </p>
+          </div>
+          <div className="halisaha-venue-row mt-1 flex min-w-0 items-center gap-1.5">
+            <div className="relative h-[1.1rem] w-[1.1rem] shrink-0">
+              <Image
+                src={trophyAsset}
+                alt=""
+                fill
+                sizes="1.1rem"
+                className="object-contain opacity-60"
+                style={{ filter: "brightness(1.04) contrast(1.04) saturate(0.68) sepia(0.14) hue-rotate(148deg)" }}
+              />
+            </div>
+            <div className="halisaha-venue-meta flex min-w-0 flex-col gap-0">
+              <div className="halisaha-venue-kicker truncate text-[0.54rem] font-medium uppercase tracking-[0.22em] text-white/60">
+                {kickoffLabel}
+              </div>
+              <div className="halisaha-venue-name truncate text-[0.66rem] font-medium uppercase tracking-[0.2em] text-white/80">
+                {venueName}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Right: crests + countdown */}
+        <div className="halisaha-hero-secondary halisaha-crest-stage shrink-0 text-center">
+          <div className="relative w-[6.4rem]">
+            <RaynetCrest />
+            <div className="halisaha-countdown-stage absolute left-1/2 top-full mt-[calc(-0.9rem-4px)] -translate-x-1/2">
+              <div className="relative flex min-w-[5.4rem] flex-col items-center">
+                <div className="halisaha-countdown-label text-[0.38rem] font-semibold uppercase leading-none tracking-[0.3em] text-[#d2e5e5]">
+                  Kickoff countdown
+                </div>
+                <div className="halisaha-countdown-value mt-0.5 text-[0.96rem] font-black leading-none tracking-[0.06em] text-white tabular-nums">
+                  {countdown}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="halisaha-hero relative flex min-h-0 flex-col gap-1.25 sm:gap-1.5 lg:pr-[25.25rem] xl:pr-[28.5rem]">
       <div className="halisaha-hero-primary min-w-0 shrink-0">
@@ -1570,8 +1633,10 @@ function PitchPlayerLabel({
   defenderInwardShiftSvgUnits?: number;
 }) {
   const labelRotation = portraitClosedLayout ? -90 : side === "left" ? -90 : 90;
-  const fontSize = portraitClosedLayout ? 17.85 : 11.9;
-  const strokeWidth = portraitClosedLayout ? 0.63 : 0.42;
+  // Larger font + heavy outline in portrait-closed for crisp legibility on small screens
+  const fontSize = portraitClosedLayout ? 20.5 : 11.9;
+  const strokeWidth = portraitClosedLayout ? 2.8 : 0.72;
+  const strokeColor = portraitClosedLayout ? "rgba(0,0,0,0.96)" : "rgba(20,6,6,0.88)";
   const letterSpacing = portraitClosedLayout ? 1.65 : 1.1;
   const lines = splitThreeWordPlayerName(player.name, stackThreeWordNames);
   const line1DyExtraEm =
@@ -1583,13 +1648,39 @@ function PitchPlayerLabel({
 
   return (
     <g transform={`translate(${labelX} ${player.y}) rotate(${labelRotation})`}>
+      {/* Shadow pass for additional depth */}
+      {portraitClosedLayout && (
+        <text
+          x="0"
+          y="1.5"
+          textAnchor="middle"
+          dominantBaseline="central"
+          fill="none"
+          stroke="rgba(0,0,0,0.55)"
+          strokeWidth={portraitClosedLayout ? 5.5 : 1.4}
+          fontSize={fontSize}
+          fontWeight="650"
+          letterSpacing={letterSpacing}
+          fontFamily="system-ui, sans-serif"
+          aria-hidden
+        >
+          {lines.mode === "single" ? (
+            lines.text
+          ) : (
+            <>
+              <tspan x="0" dy={`${line1DyEm}em`}>{lines.first}</tspan>
+              <tspan x="0" dy="1.12em">{lines.second}</tspan>
+            </>
+          )}
+        </text>
+      )}
       <text
         x="0"
         y="0"
         textAnchor="middle"
         dominantBaseline="central"
-        fill="#E45F5F"
-        stroke="rgba(42,4,4,0.82)"
+        fill="#FF6B6B"
+        stroke={strokeColor}
         strokeWidth={strokeWidth}
         paintOrder="stroke"
         fontSize={fontSize}

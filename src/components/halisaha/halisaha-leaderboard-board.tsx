@@ -266,60 +266,61 @@ function HalisahaLeaderboardMobileCard({
   result: HalisahaResultRow;
 }) {
   return (
-    <li className="rounded-[1.1rem] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.055),rgba(255,255,255,0.02))] px-4 py-4 shadow-[0_16px_36px_rgba(0,0,0,0.16)]">
-      <div className="flex items-start gap-3">
+    <li className="rounded-[1.1rem] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.055),rgba(255,255,255,0.02))] px-4 py-3.5 shadow-[0_16px_36px_rgba(0,0,0,0.16)]">
+      {/* Header: rank + name + badge */}
+      <div className="flex items-center justify-between gap-2">
         <div className="min-w-0 flex-1">
-          <div className="text-[0.66rem] uppercase tracking-[0.22em] text-white/36">
-            Position #{result.rank}
+          <div className="text-[0.58rem] font-semibold uppercase tracking-[0.26em] text-white/38">
+            Rank #{result.rank}
           </div>
-          <div className="mt-1.5">
-            <div className="inline-flex max-w-full items-center gap-[0.5rem]">
-              <div className="min-w-0 truncate text-[0.98rem] font-semibold text-white">
-                {result.name} {result.surname}
-              </div>
-              <BootPlacementBadge place={result.podiumPlace} />
+          <div className="mt-0.5 inline-flex max-w-full items-center gap-2">
+            <div className="min-w-0 truncate text-[1rem] font-semibold tracking-[-0.01em] text-white">
+              {result.name} {result.surname}
             </div>
+            <BootPlacementBadge place={result.podiumPlace} />
           </div>
         </div>
       </div>
 
-      <div className="mt-4 grid grid-cols-5 gap-2">
-        <MetricCard label="Answers" value={result.answeredQuestions} />
-        <MetricCard label="Hits" value={result.correctAnswers} />
-        <MetricCard label="Rate" value={result.accuracyLabel} />
-        <MetricCard label="MVP" value={result.mvpWins} />
-        <MetricCard label="Fun pts" value={result.totalPoints} strong />
+      {/* Stats row – Tie-Break style inline strip */}
+      <div className="mt-3 border-t border-white/8 pt-2.5">
+        <div className="grid grid-cols-5 gap-x-0 divide-x divide-white/8 text-center">
+          <InlineStat label="Pred." value={result.answeredQuestions} />
+          <InlineStat label="Done" value={result.answeredQuestions} />
+          <InlineStat label="Correct" value={result.correctAnswers} />
+          <InlineStat label="Acc." value={result.accuracyLabel} />
+          <InlineStat label="Pts" value={result.totalPoints} highlight />
+        </div>
       </div>
 
-      <div className="mt-4 rounded-[0.95rem] border border-white/8 bg-black/10 px-3 py-3">
-        <div className="text-[0.66rem] uppercase tracking-[0.2em] text-white/38">
-          Form
+      {/* Recent predictions */}
+      <div className="mt-3 border-t border-white/8 pt-2.5">
+        <div className="mb-1.5 text-[0.56rem] font-semibold uppercase tracking-[0.22em] text-white/36">
+          Last 5 (old to new)
         </div>
-        <div className="mt-2">
-          <RecentPredictionsStrip predictions={result.recentAnswers} />
-        </div>
+        <RecentPredictionsStrip predictions={result.recentAnswers} />
       </div>
     </li>
   );
 }
 
-function MetricCard({
+function InlineStat({
   label,
   value,
-  strong = false,
+  highlight = false,
 }: {
   label: string;
   value: string | number;
-  strong?: boolean;
+  highlight?: boolean;
 }) {
   return (
-    <div className="rounded-[0.9rem] border border-white/10 bg-white/[0.04] px-3 py-2.5 text-center">
-      <div className="text-[0.6rem] uppercase tracking-[0.18em] text-white/36">
+    <div className="flex flex-col items-center gap-0.5 px-1">
+      <div className="text-[0.52rem] font-semibold uppercase tracking-[0.18em] text-white/38">
         {label}
       </div>
       <div
-        className={`mt-1 text-[0.96rem] tabular-nums ${
-          strong ? "font-semibold text-[#d8ece8]" : "font-medium text-white/88"
+        className={`text-[0.92rem] font-semibold tabular-nums leading-tight ${
+          highlight ? "text-[#d8ece8]" : "text-white/86"
         }`}
       >
         {value}
@@ -340,7 +341,7 @@ export function HalisahaLeaderboardBoard({
 
   return (
     <div className="flex h-full min-h-0 flex-col rounded-[1.35rem] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.06),rgba(255,255,255,0.02))] p-3 shadow-[0_20px_54px_rgba(0,0,0,0.24)] sm:rounded-[1.55rem] sm:p-4">
-      <div className="mb-4 border-b border-white/8 pb-3">
+      <div className="mb-3 border-b border-white/8 pb-2.5">
         <div className="text-[0.66rem] font-semibold uppercase tracking-[0.3em] text-[#d5e6e1]/74">
           Halisaha Leaderboard
         </div>
@@ -354,7 +355,7 @@ export function HalisahaLeaderboardBoard({
               : "Showing a temporary podium preview until players start answering."}
           </div>
         ) : (
-          <ul className="min-h-0 flex-1 space-y-3 overflow-y-auto pr-1 sm:hidden">
+          <ul className="min-h-0 flex-1 space-y-2.5 overflow-y-auto pr-1 sm:hidden">
             {displayResults.map((result) => (
               <HalisahaLeaderboardMobileCard
                 key={result.userId}
