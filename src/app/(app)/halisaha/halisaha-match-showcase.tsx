@@ -1696,7 +1696,8 @@ function PitchPlayerLabel({
   const lines = splitThreeWordPlayerName(player.name, stackThreeWordNames);
   const line1DyExtraEm =
     lines.mode === "stack" ? (stackedFirstLineDyEmExtra?.get(player.positionKey) ?? 0) : 0;
-  const line1DyEm = -0.55 + line1DyExtraEm;
+  /** No negative base dy: a −0.55em offset vertically centers the two-line block and misaligns line 1 vs single-line names (slicers closed). */
+  const line1DyEm = line1DyExtraEm;
   const isDefender = DEFENSE_POSITION_KEYS.includes(player.positionKey);
   const inward = defenderInwardShiftSvgUnits > 0 && isDefender ? defenderInwardShiftSvgUnits : 0;
   const isForwardOrMidfield = FORWARD_MIDFIELD_POSITION_KEYS.includes(player.positionKey);
