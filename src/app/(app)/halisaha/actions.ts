@@ -204,40 +204,36 @@ export async function submitHalisahaAnswersAction(
   }
 
   const finalizedAt = options.finalize ? new Date() : null;
+  const answerRows = normalizedSelections.map((selection) => {
+    const question = questionById.get(selection.questionId)!;
+    return {
+      matchId: question.match.id,
+      questionId: selection.questionId,
+      userId: user.id,
+      selectedOptionId: selection.optionId,
+      customScoreHome: selection.customScoreHome ?? null,
+      customScoreAway: selection.customScoreAway ?? null,
+      isCorrect: null,
+      isFinal: Boolean(options.finalize),
+      finalizedAt,
+      awardedPoints: 0,
+    };
+  });
 
   await prisma.$transaction(async (tx) => {
-    for (const selection of normalizedSelections) {
-      const question = questionById.get(selection.questionId)!;
+    await tx.halisahaAnswer.deleteMany({
+      where: {
+        matchId,
+        userId: user.id,
+        questionId: {
+          in: questionIds,
+        },
+      },
+    });
 
-      await tx.halisahaAnswer.upsert({
-        where: {
-          questionId_userId: {
-            questionId: selection.questionId,
-            userId: user.id,
-          },
-        },
-        update: {
-          selectedOptionId: selection.optionId,
-          customScoreHome: selection.customScoreHome ?? null,
-          customScoreAway: selection.customScoreAway ?? null,
-          isCorrect: null,
-          awardedPoints: 0,
-          matchId: question.match.id,
-          isFinal: Boolean(options.finalize),
-          finalizedAt,
-        },
-        create: {
-          matchId: question.match.id,
-          questionId: selection.questionId,
-          userId: user.id,
-          selectedOptionId: selection.optionId,
-          customScoreHome: selection.customScoreHome ?? null,
-          customScoreAway: selection.customScoreAway ?? null,
-          isFinal: Boolean(options.finalize),
-          finalizedAt,
-        },
-      });
-    }
+    await tx.halisahaAnswer.createMany({
+      data: answerRows,
+    });
 
     if (options.finalize) {
       await tx.halisahaAnswer.updateMany({

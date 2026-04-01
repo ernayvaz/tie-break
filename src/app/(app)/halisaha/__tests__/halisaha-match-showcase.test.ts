@@ -8,15 +8,14 @@ vi.mock("next/navigation", () => ({
 }));
 
 vi.mock("next/link", () => ({
-  default: (props: {
+  default: ({
+    href,
+    children,
+    ...props
+  }: {
     href: string;
     children?: ReactNode;
-    prefetch?: boolean;
-  }) => {
-    const { href, children, ...linkProps } = props;
-    delete linkProps.prefetch;
-    return createElement("a", { href, ...linkProps }, children);
-  },
+  }) => createElement("a", { href, ...props }, children),
 }));
 
 vi.mock("next/image", () => ({
@@ -149,6 +148,8 @@ describe("HalisahaMatchShowcase mobile render", () => {
 
     expect(html).toContain("Swipe up");
     expect(html).toContain("for lineups");
+    expect(html).toContain('data-hero-layout="immersive-portrait"');
+    expect(html).not.toContain('data-hero-layout="compact-horizontal"');
     expect(html).not.toContain("Scroll down");
     expect(html).not.toContain("Share lineup image");
   });

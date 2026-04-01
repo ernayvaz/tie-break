@@ -475,14 +475,22 @@ export function HalisahaChallengeOverlay({
   compactMobileLayout?: boolean;
 }) {
   const router = useRouter();
-  const [, startRefreshTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [isRefreshing, startRefreshTransition] = useTransition();
   const [animateBars, setAnimateBars] = useState(false);
   const [showFinalizePrompt, setShowFinalizePrompt] = useState(false);
+  const [optimisticAnswersLocked, setOptimisticAnswersLocked] = useState<boolean | null>(null);
+  const [optimisticWinnerPercentagesVisible, setOptimisticWinnerPercentagesVisible] = useState<
+    boolean | null
+  >(null);
   const [activePlayerPickerQuestionId, setActivePlayerPickerQuestionId] = useState<string | null>(
     null,
   );
+  const effectiveAnswersLocked = optimisticAnswersLocked ?? answersLocked;
+  const canRevealWinnerPercentages =
+    optimisticWinnerPercentagesVisible ?? winnerPercentagesVisible;
+  const interactionPending = busy || isRefreshing;
 
   const initialSelections = useMemo(
     () =>
@@ -508,6 +516,14 @@ export function HalisahaChallengeOverlay({
   useEffect(() => {
     setSelectedAnswers(initialSelections);
   }, [initialSelections]);
+
+  useEffect(() => {
+    setOptimisticAnswersLocked(null);
+  }, [answersLocked]);
+
+  useEffect(() => {
+    setOptimisticWinnerPercentagesVisible(null);
+  }, [winnerPercentagesVisible]);
 
   useEffect(() => {
     onFinalizePromptVisibilityChange?.(showFinalizePrompt);
@@ -536,10 +552,10 @@ export function HalisahaChallengeOverlay({
       return;
     }
 
-    if (answersLocked || answersResolved) {
+    if (effectiveAnswersLocked || answersResolved) {
       setActivePlayerPickerQuestionId(null);
     }
-  }, [activePlayerPickerQuestionId, answersLocked, answersResolved]);
+  }, [activePlayerPickerQuestionId, answersResolved, effectiveAnswersLocked]);
 
   useEffect(() => {
     setAnimateBars(false);
@@ -574,11 +590,13 @@ export function HalisahaChallengeOverlay({
       customScoreAway: selectedAnswers[question.id].customScoreAway,
     }));
   const hasSelections = stagedSelections.length > 0;
-  const canRevealWinnerPercentages = winnerPercentagesVisible;
   const viewerCanUnlockAnswers =
-    viewerCanManageOwnAnswerLock && answersLocked && !answersResolved;
+    viewerCanManageOwnAnswerLock && effectiveAnswersLocked && !answersResolved;
   const predictionsClosed =
-    predictionWindowClosed && !answersLocked && !answersResolved && !viewerCanUnlockAnswers;
+    predictionWindowClosed &&
+    !effectiveAnswersLocked &&
+    !answersResolved &&
+    !viewerCanUnlockAnswers;
   const effectiveWinnerVoteSummary = useMemo(() => {
     if (winnerVoteSummary) {
       return winnerVoteSummary;
@@ -689,7 +707,7 @@ export function HalisahaChallengeOverlay({
       : "Lock answers";
   const centerPillLabel = answersResolved
     ? "Answers resolved"
-    : answersLocked
+    : effectiveAnswersLocked
       ? "Answers locked"
       : primaryButtonLabel;
 
@@ -712,13 +730,15 @@ export function HalisahaChallengeOverlay({
     setBusy(true);
     setError(null);
     const result = await unlockHalisahaAnswersAction(matchId);
-    setBusy(false);
-
     if (!result.ok) {
+      setBusy(false);
       setError(result.error);
       return;
     }
 
+    setOptimisticAnswersLocked(false);
+    setOptimisticWinnerPercentagesVisible(false);
+    setBusy(false);
     startRefreshTransition(() => {
       router.refresh();
     });
@@ -729,13 +749,15 @@ export function HalisahaChallengeOverlay({
     setBusy(true);
     setError(null);
     const result = await finalizeHalisahaAnswersAction(stagedSelections);
-    setBusy(false);
-
     if (!result.ok) {
+      setBusy(false);
       setError(result.error);
       return;
     }
 
+    setOptimisticAnswersLocked(true);
+    setOptimisticWinnerPercentagesVisible(true);
+    setBusy(false);
     startRefreshTransition(() => {
       router.refresh();
     });
@@ -779,7 +801,7 @@ export function HalisahaChallengeOverlay({
             : undefined
         }
         answersResolved={answersResolved}
-        answersLocked={answersLocked}
+        answersLocked={effectiveAnswersLocked}
         predictionWindowClosed={predictionsClosed}
         showSaveButton={false}
         layoutMode="overlay"
@@ -839,7 +861,7 @@ export function HalisahaChallengeOverlay({
                 animated={animateBars}
                 compact={compactMobileLayout}
                 reservePercentageSpace={!compactMobileLayout}
-                disabled={answersResolved || answersLocked || predictionsClosed || busy}
+                disabled={answersResolved || effectiveAnswersLocked || predictionsClosed || interactionPending}
                 onClick={() =>
                   setSelectedAnswers((current) => ({
                     ...current,
@@ -883,7 +905,7 @@ export function HalisahaChallengeOverlay({
                 animated={animateBars}
                 compact={compactMobileLayout}
                 reservePercentageSpace={!compactMobileLayout}
-                disabled={answersResolved || answersLocked || predictionsClosed || busy}
+                disabled={answersResolved || effectiveAnswersLocked || predictionsClosed || interactionPending}
                 onClick={() =>
                   setSelectedAnswers((current) => ({
                     ...current,
@@ -953,15 +975,15 @@ export function HalisahaChallengeOverlay({
               </span>
               <span className="h-[3px] rounded-full bg-[linear-gradient(90deg,rgba(255,255,255,0.3),rgba(255,255,255,0.16)_62%,rgba(255,255,255,0))]" />
             </div>
-            {!answersResolved && !answersLocked && predictionsClosed ? (
+            {!answersResolved && !effectiveAnswersLocked && predictionsClosed ? (
               <div className="absolute left-1/2 top-0 z-[4] -translate-x-1/2 -translate-y-[38%] rounded-full border border-[rgba(215,231,227,0.12)] bg-[linear-gradient(180deg,rgba(8,15,14,0.82),rgba(10,17,16,0.58))] px-4 py-[0.46rem] text-[0.52rem] font-semibold uppercase tracking-[0.18em] text-[#f4fbf8] shadow-[inset_0_1px_0_rgba(255,255,255,0.06),0_10px_22px_rgba(0,0,0,0.18)] backdrop-blur-md">
                 Predictions closed
               </div>
-            ) : !answersResolved && (!answersLocked || viewerCanUnlockAnswers) ? (
+            ) : !answersResolved && (!effectiveAnswersLocked || viewerCanUnlockAnswers) ? (
               <button
                 type="button"
                 onClick={viewerCanUnlockAnswers ? handleUnlockAnswers : openFinalizePrompt}
-                disabled={busy || (!hasSelections && !viewerCanUnlockAnswers)}
+                disabled={interactionPending || (!hasSelections && !viewerCanUnlockAnswers)}
                 className="halisaha-challenge-save absolute left-1/2 top-0 z-[4] min-h-0 min-w-[7.1rem] -translate-x-1/2 -translate-y-[38%] overflow-hidden rounded-full border px-3.5 py-[0.46rem] text-[0.49rem] font-semibold uppercase tracking-[0.18em] shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_14px_28px_rgba(0,0,0,0.24)] backdrop-blur-none transition-[border-color,box-shadow,transform] duration-500 hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_12px_26px_rgba(0,0,0,0.22)] disabled:cursor-default"
                 style={{
                   borderColor: saveButtonStyle.borderColor,
@@ -1050,7 +1072,7 @@ export function HalisahaChallengeOverlay({
               ? "Answers have been resolved. Saved picks now show their final result."
               : predictionsClosed
                 ? "Predictions closed 5 minutes before kickoff. Saved picks can no longer be updated or locked."
-              : answersLocked
+              : effectiveAnswersLocked
                 ? "Your picks are locked. WHO WINS now reflects the finalized user percentages."
                 : "Questions stay editable until 5 minutes before kickoff, until you lock your answers, or until the admin resolves the match."}
           </div>

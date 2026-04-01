@@ -375,9 +375,7 @@ body.halisaha-app-route {
   line-height: 1.2;
 }
 
-.halisaha-shell[data-mobile-landscape="true"]
-  .halisaha-hero:not([data-halisaha-hero-layout="compact"])
-  .halisaha-hero-post-home {
+.halisaha-shell[data-mobile-landscape="true"] .halisaha-hero-post-home {
   margin-top: 5px;
 }
 
@@ -413,21 +411,17 @@ body.halisaha-app-route {
     padding-bottom: 0;
   }
 
-  .halisaha-shell[data-mobile-landscape="true"] .halisaha-hero:not([data-halisaha-hero-layout="compact"]) {
+  .halisaha-shell[data-mobile-landscape="true"] .halisaha-hero {
     gap: 0.9rem;
     padding-right: 0;
   }
 
-  .halisaha-shell[data-mobile-landscape="true"]
-    .halisaha-hero:not([data-halisaha-hero-layout="compact"])
-    .halisaha-hero-primary {
+  .halisaha-shell[data-mobile-landscape="true"] .halisaha-hero-primary {
     order: 1;
     margin-top: 30px;
   }
 
-  .halisaha-shell[data-mobile-landscape="true"]
-    .halisaha-hero:not([data-halisaha-hero-layout="compact"])
-    .halisaha-hero-secondary {
+  .halisaha-shell[data-mobile-landscape="true"] .halisaha-hero-secondary {
     order: 2;
     position: relative;
     right: auto;
@@ -439,9 +433,7 @@ body.halisaha-app-route {
     overflow: visible;
   }
 
-  .halisaha-shell[data-mobile-landscape="true"]
-    .halisaha-hero:not([data-halisaha-hero-layout="compact"])
-    .halisaha-away-vs-row {
+  .halisaha-shell[data-mobile-landscape="true"] .halisaha-away-vs-row {
     flex-wrap: nowrap;
     align-items: baseline;
     column-gap: 0.45rem;
@@ -449,60 +441,42 @@ body.halisaha-app-route {
     margin-left: 8px;
   }
 
-  .halisaha-shell[data-mobile-landscape="true"]
-    .halisaha-hero:not([data-halisaha-hero-layout="compact"])
-    .halisaha-crest-scale-wrap {
+  .halisaha-shell[data-mobile-landscape="true"] .halisaha-crest-scale-wrap {
     transform: scale(1.5);
     transform-origin: center top;
   }
 
-  .halisaha-shell[data-mobile-landscape="true"]
-    .halisaha-hero:not([data-halisaha-hero-layout="compact"])
-    .halisaha-team-name {
+  .halisaha-shell[data-mobile-landscape="true"] .halisaha-team-name {
     font-size: clamp(2rem, 13vw, 4.2rem);
   }
 
-  .halisaha-shell[data-mobile-landscape="true"]
-    .halisaha-hero:not([data-halisaha-hero-layout="compact"])
-    .halisaha-vs-label {
+  .halisaha-shell[data-mobile-landscape="true"] .halisaha-vs-label {
     padding-bottom: 0;
     line-height: 1;
     font-size: clamp(0.72rem, 3vw, 1rem);
   }
 
-  .halisaha-shell[data-mobile-landscape="true"]
-    .halisaha-hero:not([data-halisaha-hero-layout="compact"])
-    .halisaha-venue-row {
+  .halisaha-shell[data-mobile-landscape="true"] .halisaha-venue-row {
     margin-left: -10px;
   }
 
-  .halisaha-shell[data-mobile-landscape="true"]
-    .halisaha-hero:not([data-halisaha-hero-layout="compact"])
-    .halisaha-venue-kicker {
+  .halisaha-shell[data-mobile-landscape="true"] .halisaha-venue-kicker {
     font-size: 0.65rem;
   }
 
-  .halisaha-shell[data-mobile-landscape="true"]
-    .halisaha-hero:not([data-halisaha-hero-layout="compact"])
-    .halisaha-venue-name {
+  .halisaha-shell[data-mobile-landscape="true"] .halisaha-venue-name {
     font-size: clamp(0.9rem, 4vw, 1.15rem);
   }
 
-  .halisaha-shell[data-mobile-landscape="true"]
-    .halisaha-hero:not([data-halisaha-hero-layout="compact"])
-    .halisaha-countdown-stage {
+  .halisaha-shell[data-mobile-landscape="true"] .halisaha-countdown-stage {
     margin-top: calc(-1.7rem - 8px + 40px + 30px);
   }
 
-  .halisaha-shell[data-mobile-landscape="true"]
-    .halisaha-hero:not([data-halisaha-hero-layout="compact"])
-    .halisaha-countdown-label {
+  .halisaha-shell[data-mobile-landscape="true"] .halisaha-countdown-label {
     font-size: 0.6rem;
   }
 
-  .halisaha-shell[data-mobile-landscape="true"]
-    .halisaha-hero:not([data-halisaha-hero-layout="compact"])
-    .halisaha-countdown-value {
+  .halisaha-shell[data-mobile-landscape="true"] .halisaha-countdown-value {
     margin-top: 0.375rem;
     font-size: 1.74rem;
   }
@@ -617,30 +591,24 @@ body.halisaha-app-route {
     padding-bottom: 0;
   }
 
-  .halisaha-shell[data-mobile-landscape="true"] .halisaha-hero:not([data-halisaha-hero-layout="compact"]) {
+  .halisaha-shell[data-mobile-landscape="true"] .halisaha-hero {
     gap: 0.55rem;
     min-height: 0;
     margin-top: calc(0.32rem + 30px);
     padding-right: min(22rem, 43vw);
   }
 
-  .halisaha-shell[data-mobile-landscape="true"]
-    .halisaha-hero:not([data-halisaha-hero-layout="compact"])
-    .halisaha-team-name {
+  .halisaha-shell[data-mobile-landscape="true"] .halisaha-team-name {
     font-size: clamp(2.05rem, 5.7vw, 3.55rem);
   }
 
-  .halisaha-shell[data-mobile-landscape="true"]
-    .halisaha-hero:not([data-halisaha-hero-layout="compact"])
-    .halisaha-vs-label {
+  .halisaha-shell[data-mobile-landscape="true"] .halisaha-vs-label {
     padding-bottom: 0;
     line-height: 1;
     font-size: clamp(0.7rem, 1.75vw, 0.92rem);
   }
 
-  .halisaha-shell[data-mobile-landscape="true"]
-    .halisaha-hero:not([data-halisaha-hero-layout="compact"])
-    .halisaha-away-vs-row {
+  .halisaha-shell[data-mobile-landscape="true"] .halisaha-away-vs-row {
     flex-wrap: nowrap;
     align-items: baseline;
     column-gap: 0.45rem;
@@ -648,33 +616,23 @@ body.halisaha-app-route {
     margin-left: 8px;
   }
 
-  .halisaha-shell[data-mobile-landscape="true"]
-    .halisaha-hero:not([data-halisaha-hero-layout="compact"])
-    .halisaha-venue-meta {
+  .halisaha-shell[data-mobile-landscape="true"] .halisaha-venue-meta {
     gap: 0.05rem;
   }
 
-  .halisaha-shell[data-mobile-landscape="true"]
-    .halisaha-hero:not([data-halisaha-hero-layout="compact"])
-    .halisaha-venue-row {
+  .halisaha-shell[data-mobile-landscape="true"] .halisaha-venue-row {
     margin-left: -10px;
   }
 
-  .halisaha-shell[data-mobile-landscape="true"]
-    .halisaha-hero:not([data-halisaha-hero-layout="compact"])
-    .halisaha-venue-kicker {
+  .halisaha-shell[data-mobile-landscape="true"] .halisaha-venue-kicker {
     font-size: 0.62rem;
   }
 
-  .halisaha-shell[data-mobile-landscape="true"]
-    .halisaha-hero:not([data-halisaha-hero-layout="compact"])
-    .halisaha-venue-name {
+  .halisaha-shell[data-mobile-landscape="true"] .halisaha-venue-name {
     font-size: clamp(0.86rem, 1.95vw, 1.05rem);
   }
 
-  .halisaha-shell[data-mobile-landscape="true"]
-    .halisaha-hero:not([data-halisaha-hero-layout="compact"])
-    .halisaha-crest-stage {
+  .halisaha-shell[data-mobile-landscape="true"] .halisaha-crest-stage {
     position: absolute;
     right: -1.05rem;
     top: -1.2rem;
@@ -682,21 +640,15 @@ body.halisaha-app-route {
     width: min(20rem, 39vw);
   }
 
-  .halisaha-shell[data-mobile-landscape="true"]
-    .halisaha-hero:not([data-halisaha-hero-layout="compact"])
-    .halisaha-countdown-stage {
+  .halisaha-shell[data-mobile-landscape="true"] .halisaha-countdown-stage {
     margin-top: calc(-1.85rem - 8px + 30px);
   }
 
-  .halisaha-shell[data-mobile-landscape="true"]
-    .halisaha-hero:not([data-halisaha-hero-layout="compact"])
-    .halisaha-countdown-label {
+  .halisaha-shell[data-mobile-landscape="true"] .halisaha-countdown-label {
     font-size: 0.57rem;
   }
 
-  .halisaha-shell[data-mobile-landscape="true"]
-    .halisaha-hero:not([data-halisaha-hero-layout="compact"])
-    .halisaha-countdown-value {
+  .halisaha-shell[data-mobile-landscape="true"] .halisaha-countdown-value {
     margin-top: 0.375rem;
     font-size: 1.62rem;
   }

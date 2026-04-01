@@ -13,7 +13,6 @@ import {
   useMemo,
   useRef,
   useState,
-  startTransition,
 } from "react";
 import { HalisahaLeaderboardBoard } from "@/components/halisaha/halisaha-leaderboard-board";
 import { HalisahaChallengeOverlay } from "@/components/halisaha/halisaha-challenge-overlay";
@@ -44,6 +43,7 @@ type PlayerSpot = {
 
 type ShowcaseTab = "matchday" | "leaderboard";
 type MobileLandscapePanel = "hero" | "pitch";
+type HalisahaHeroSummaryLayout = "default" | "compact-horizontal" | "immersive-portrait";
 type MobileViewportState = {
   isPhoneLike: boolean;
   isLandscape: boolean;
@@ -281,10 +281,12 @@ export function HalisahaMatchShowcase({
     (mobileViewportState.viewportWidth > 0 && mobileViewportState.viewportWidth <= 767);
   const isImmersiveMobileMatchday =
     shouldUseMobilePager;
-  /** Row hero (names | crest+countdown): immersive matchday + compact width, or leaderboard. */
-  const useCompactHeroSummary =
-    isCompactMobileViewport &&
-    (activeTab === "leaderboard" || (activeTab === "matchday" && isImmersiveMobileMatchday));
+  const heroSummaryLayout: HalisahaHeroSummaryLayout =
+    isImmersiveMobileMatchday && !mobileViewportState.isLandscape
+      ? "immersive-portrait"
+      : activeTab === "leaderboard" && isCompactMobileViewport
+        ? "compact-horizontal"
+        : "default";
   const shouldShowViewportDebug =
     process.env.NODE_ENV !== "production" && searchParams.get("halisaha-debug") === "1";
 
@@ -498,18 +500,16 @@ export function HalisahaMatchShowcase({
   }, [forcedMobilePanel, shouldForceMobilePreview]);
 
   const handleTabChange = (nextTab: ShowcaseTab) => {
-    startTransition(() => {
-      setActiveTab(nextTab);
+    setActiveTab(nextTab);
 
-      if (shouldAutoOpenVoteOverlay) {
-        setShowLineups(true);
-        return;
-      }
+    if (shouldAutoOpenVoteOverlay) {
+      setShowLineups(true);
+      return;
+    }
 
-      if (nextTab === "leaderboard") {
-        setShowLineups(false);
-      }
-    });
+    if (nextTab === "leaderboard") {
+      setShowLineups(false);
+    }
   };
 
   useEffect(() => {
@@ -633,7 +633,7 @@ export function HalisahaMatchShowcase({
         kickoffLabel={snapshot.match.kickoffLabel}
         venueName={snapshot.match.venueName}
         countdown={countdown}
-        compactHorizontal={useCompactHeroSummary}
+        layout={heroSummaryLayout}
       />
       {activeTab === "matchday" && isCompactMobileViewport ? <MobileHeroScrollCue /> : null}
     </div>
@@ -772,7 +772,6 @@ function HalisahaShowcaseTabs({
       <div className={tabChrome}>
         <Link
           href="/schedule"
-          prefetch
           className="inline-flex h-full min-h-[2.25rem] min-w-[2.35rem] items-center justify-center rounded-[0.8rem] px-2.5 text-white/72 transition-colors hover:bg-white/[0.06] hover:text-white/88 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/35 focus-visible:ring-offset-2 focus-visible:ring-offset-[rgba(12,12,12,0.9)]"
           aria-label="Back to Schedule"
           title="Schedule"
@@ -814,19 +813,19 @@ function HalisahaHeroSummary({
   kickoffLabel,
   venueName,
   countdown,
-  compactHorizontal = false,
+  layout = "default",
 }: {
   homeTeamName: string;
   awayTeamName: string;
   kickoffLabel: string;
   venueName: string;
   countdown: string;
-  compactHorizontal?: boolean;
+  layout?: HalisahaHeroSummaryLayout;
 }) {
-  if (compactHorizontal) {
+  if (layout === "compact-horizontal") {
     return (
       <div
-        data-halisaha-hero-layout="compact"
+        data-hero-layout="compact-horizontal"
         className="halisaha-hero relative flex min-h-0 translate-y-[4px] flex-row items-center gap-3 overflow-hidden"
       >
         {/* Left: team names + venue */}
@@ -884,9 +883,59 @@ function HalisahaHeroSummary({
     );
   }
 
+  if (layout === "immersive-portrait") {
+    return (
+      <div
+        data-hero-layout="immersive-portrait"
+        className="relative flex min-h-0 flex-col gap-[1.05rem]"
+      >
+        <div className="min-w-0 shrink-0 pt-[0.12rem]">
+          <h1 className="text-[clamp(2.95rem,13vw,4.65rem)] font-semibold uppercase leading-[0.78] tracking-[0.015em] text-white">
+            {homeTeamName}
+          </h1>
+          <div className="mt-[0.08rem] flex min-w-0 flex-wrap items-end gap-x-3 gap-y-0">
+            <span className="shrink-0 pb-[0.18rem] text-[clamp(0.72rem,3vw,1rem)] font-semibold uppercase tracking-[0.34em] text-white/56">
+              vs
+            </span>
+            <p className="min-w-0 flex-1 text-[clamp(2.95rem,13vw,4.65rem)] font-semibold uppercase leading-[0.78] tracking-[0.015em] text-white">
+              {awayTeamName}
+            </p>
+          </div>
+
+          <div className="mt-[0.22rem] flex min-w-0 items-center gap-2.5">
+            <CupGlyph />
+            <div className="flex min-w-0 flex-col justify-center gap-[0.12rem]">
+              <div className="text-[0.66rem] font-medium uppercase tracking-[0.24em] text-white/70">
+                {kickoffLabel}
+              </div>
+              <div className="text-[0.95rem] font-medium uppercase tracking-[0.22em] text-white/88">
+                {venueName}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="mx-auto w-full max-w-[21.5rem] text-center">
+          <RaynetCrest
+            className="relative aspect-[757/433] w-full overflow-visible"
+            sizes="(max-width: 767px) 21.5rem, 24rem"
+          />
+          <div className="mt-[0.58rem] flex flex-col items-center">
+            <div className="text-[0.6rem] font-semibold uppercase leading-none tracking-[0.34em] text-[#d2e5e5] [text-shadow:0_2px_10px_rgba(136,192,208,0.12)]">
+              Kickoff countdown
+            </div>
+            <div className="mt-[0.42rem] text-[1.72rem] font-black leading-none tracking-[0.06em] text-white tabular-nums [text-shadow:0_4px_16px_rgba(136,192,208,0.18)]">
+              {countdown}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div
-      data-halisaha-hero-layout="stacked"
+      data-hero-layout="default"
       className="halisaha-hero relative flex min-h-0 flex-col gap-1.25 sm:gap-1.5 lg:pr-[25.25rem] xl:pr-[28.5rem]"
     >
       <div className="halisaha-hero-primary min-w-0 shrink-0">
@@ -1628,15 +1677,21 @@ function CupGlyph() {
   );
 }
 
-function RaynetCrest() {
+function RaynetCrest({
+  className = "halisaha-crest-scale-wrap relative aspect-[757/433] w-full overflow-visible",
+  sizes = "(min-width: 1280px) 27.6rem, 24rem",
+}: {
+  className?: string;
+  sizes?: string;
+}) {
   return (
-    <div className="halisaha-crest-scale-wrap relative aspect-[757/433] w-full overflow-visible">
+    <div className={className}>
       <div className="pointer-events-none absolute inset-[7%] rounded-[2rem] bg-[radial-gradient(circle_at_20%_40%,rgba(143,188,187,0.14),transparent_30%),radial-gradient(circle_at_80%_36%,rgba(129,161,193,0.12),transparent_32%)] blur-2xl" />
       <Image
         src={crestAsset}
         alt="RayNET crest"
         fill
-        sizes="(min-width: 1280px) 27.6rem, 24rem"
+        sizes={sizes}
         className="object-contain object-center drop-shadow-[0_20px_38px_rgba(10,16,22,0.24)]"
         priority
       />
