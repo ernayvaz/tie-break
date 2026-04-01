@@ -8,16 +8,15 @@ vi.mock("next/navigation", () => ({
 }));
 
 vi.mock("next/link", () => ({
-  default: ({
-    href,
-    children,
-    prefetch: _prefetch,
-    ...props
-  }: {
+  default: (props: {
     href: string;
     children?: ReactNode;
     prefetch?: boolean;
-  }) => createElement("a", { href, ...props }, children),
+  }) => {
+    const { href, children, ...linkProps } = props;
+    delete linkProps.prefetch;
+    return createElement("a", { href, ...linkProps }, children);
+  },
 }));
 
 vi.mock("next/image", () => ({
