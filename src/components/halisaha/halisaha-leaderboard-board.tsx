@@ -282,14 +282,14 @@ function HalisahaLeaderboardMobileCard({
         </div>
       </div>
 
-      {/* Stats row – Tie-Break style inline strip */}
+      {/* Stats row – matches desktop columns: ANSWERS SENT, CORRECT HITS, SUCCESS RATE, MVP, FUN POINTS */}
       <div className="mt-3 border-t border-white/8 pt-2.5">
         <div className="grid grid-cols-5 gap-x-0 divide-x divide-white/8 text-center">
-          <InlineStat label="Pred." value={result.answeredQuestions} />
-          <InlineStat label="Done" value={result.answeredQuestions} />
-          <InlineStat label="Correct" value={result.correctAnswers} />
-          <InlineStat label="Acc." value={result.accuracyLabel} />
-          <InlineStat label="Pts" value={result.totalPoints} highlight />
+          <InlineStat label="Answers sent" value={result.answeredQuestions} />
+          <InlineStat label="Correct hits" value={result.correctAnswers} />
+          <InlineStat label="Success rate" value={result.accuracyLabel} />
+          <InlineStat label="MVP" value={result.mvpWins} />
+          <InlineStat label="Fun points" value={result.totalPoints} highlight />
         </div>
       </div>
 
@@ -314,12 +314,14 @@ function InlineStat({
   highlight?: boolean;
 }) {
   return (
-    <div className="flex flex-col items-center gap-0.5 px-1">
-      <div className="text-[0.52rem] font-semibold uppercase tracking-[0.18em] text-white/38">
-        {label}
+    <div className="flex flex-col items-center px-1">
+      <div className="flex min-h-[2.75rem] w-full flex-col justify-end text-center">
+        <div className="text-[0.52rem] font-semibold uppercase leading-[1.2] tracking-[0.18em] text-white/38">
+          {label}
+        </div>
       </div>
       <div
-        className={`text-[0.92rem] font-semibold tabular-nums leading-tight ${
+        className={`mt-1 text-[0.92rem] font-semibold tabular-nums leading-none ${
           highlight ? "text-[#d8ece8]" : "text-white/86"
         }`}
       >

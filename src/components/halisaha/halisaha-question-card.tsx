@@ -266,7 +266,7 @@ export function HalisahaQuestionCard({
     : "border-white/12 shadow-[0_10px_24px_rgba(0,0,0,0.15)] backdrop-blur-[2px]";
   const compactOverlayNeutralOptionClass = useCompactOverlayLayout
     ? "border-white/12 bg-[rgba(6,12,11,0.38)] hover:bg-[rgba(255,255,255,0.08)]"
-    : "border-white/10 bg-black/10 hover:bg-white/[0.05]";
+    : "border-white/12 bg-black/10 hover:bg-white/[0.05]";
   const compactOverlaySelectedOptionClass = useCompactOverlayLayout
     ? "border-[#d9e6e2]/38 bg-white/[0.14] shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]"
     : "border-[#d9e6e2]/34 bg-white/[0.115] shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]";
@@ -278,7 +278,7 @@ export function HalisahaQuestionCard({
     : "border-white/12 bg-[linear-gradient(180deg,rgba(255,255,255,0.08),rgba(255,255,255,0.03))] hover:bg-white/[0.09]";
   const compactOverlayScoreInputClass = useCompactOverlayLayout
     ? "border-white/12 bg-[rgba(6,12,11,0.46)]"
-    : "border-white/10 bg-black/15";
+    : "border-white/12 bg-black/15";
 
   return (
     <article

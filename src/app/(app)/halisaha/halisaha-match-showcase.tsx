@@ -13,6 +13,7 @@ import {
   useMemo,
   useRef,
   useState,
+  startTransition,
 } from "react";
 import { HalisahaLeaderboardBoard } from "@/components/halisaha/halisaha-leaderboard-board";
 import { HalisahaChallengeOverlay } from "@/components/halisaha/halisaha-challenge-overlay";
@@ -280,6 +281,10 @@ export function HalisahaMatchShowcase({
     (mobileViewportState.viewportWidth > 0 && mobileViewportState.viewportWidth <= 767);
   const isImmersiveMobileMatchday =
     shouldUseMobilePager;
+  /** Row hero (names | crest+countdown): immersive matchday + compact width, or leaderboard. */
+  const useCompactHeroSummary =
+    isCompactMobileViewport &&
+    (activeTab === "leaderboard" || (activeTab === "matchday" && isImmersiveMobileMatchday));
   const shouldShowViewportDebug =
     process.env.NODE_ENV !== "production" && searchParams.get("halisaha-debug") === "1";
 
@@ -493,16 +498,18 @@ export function HalisahaMatchShowcase({
   }, [forcedMobilePanel, shouldForceMobilePreview]);
 
   const handleTabChange = (nextTab: ShowcaseTab) => {
-    setActiveTab(nextTab);
+    startTransition(() => {
+      setActiveTab(nextTab);
 
-    if (shouldAutoOpenVoteOverlay) {
-      setShowLineups(true);
-      return;
-    }
+      if (shouldAutoOpenVoteOverlay) {
+        setShowLineups(true);
+        return;
+      }
 
-    if (nextTab === "leaderboard") {
-      setShowLineups(false);
-    }
+      if (nextTab === "leaderboard") {
+        setShowLineups(false);
+      }
+    });
   };
 
   useEffect(() => {
@@ -626,7 +633,7 @@ export function HalisahaMatchShowcase({
         kickoffLabel={snapshot.match.kickoffLabel}
         venueName={snapshot.match.venueName}
         countdown={countdown}
-        compactHorizontal={activeTab === "leaderboard" && isCompactMobileViewport}
+        compactHorizontal={useCompactHeroSummary}
       />
       {activeTab === "matchday" && isCompactMobileViewport ? <MobileHeroScrollCue /> : null}
     </div>
@@ -714,7 +721,13 @@ export function HalisahaMatchShowcase({
           </div>
         </div>
       ) : (
-        <div className="halisaha-shell-body relative flex min-h-0 flex-1 flex-col gap-2">
+        <div
+          className={`halisaha-shell-body relative flex min-h-0 flex-1 flex-col ${
+            activeTab === "leaderboard" && isCompactMobileViewport
+              ? "gap-[6px]"
+              : "gap-2"
+          }`}
+        >
           {heroShell}
           {activeTab === "matchday" ? pitchBoard : leaderboardPanel}
         </div>
@@ -759,6 +772,7 @@ function HalisahaShowcaseTabs({
       <div className={tabChrome}>
         <Link
           href="/schedule"
+          prefetch
           className="inline-flex h-full min-h-[2.25rem] min-w-[2.35rem] items-center justify-center rounded-[0.8rem] px-2.5 text-white/72 transition-colors hover:bg-white/[0.06] hover:text-white/88 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/35 focus-visible:ring-offset-2 focus-visible:ring-offset-[rgba(12,12,12,0.9)]"
           aria-label="Back to Schedule"
           title="Schedule"
@@ -811,27 +825,30 @@ function HalisahaHeroSummary({
 }) {
   if (compactHorizontal) {
     return (
-      <div className="halisaha-hero relative flex min-h-0 flex-row items-center gap-3 overflow-hidden">
+      <div
+        data-halisaha-hero-layout="compact"
+        className="halisaha-hero relative flex min-h-0 translate-y-[4px] flex-row items-center gap-3 overflow-hidden"
+      >
         {/* Left: team names + venue */}
         <div className="halisaha-hero-primary min-w-0 flex-1 shrink">
           <h1 className="halisaha-team-name text-[clamp(1.05rem,4.2vw,1.55rem)] font-semibold uppercase leading-[0.84] tracking-[0.012em] text-white">
             {homeTeamName}
           </h1>
-          <div className="halisaha-away-vs-row mt-[0.05rem] flex flex-wrap items-end gap-x-2 gap-y-0">
-            <span className="halisaha-vs-label shrink-0 pb-[0.06rem] text-[0.62rem] font-semibold uppercase tracking-[0.3em] text-white/54">
+          <div className="halisaha-away-vs-row mt-[0.05rem] flex flex-wrap items-baseline gap-x-2 gap-y-0">
+            <span className="halisaha-vs-label shrink-0 translate-x-px text-[0.46rem] font-semibold uppercase tracking-[0.3em] text-white/54">
               vs
             </span>
             <p className="halisaha-team-name min-w-0 flex-1 text-[clamp(1.05rem,4.2vw,1.55rem)] font-semibold uppercase leading-[0.84] tracking-[0.012em] text-white">
               {awayTeamName}
             </p>
           </div>
-          <div className="halisaha-venue-row mt-1 flex min-w-0 items-center gap-1.5">
-            <div className="relative h-[1.1rem] w-[1.1rem] shrink-0">
+          <div className="halisaha-venue-row mt-1 flex min-w-0 -translate-x-[15px] -translate-y-[8px] items-center gap-1.5">
+            <div className="relative h-[2.4rem] w-[2.4rem] shrink-0">
               <Image
                 src={trophyAsset}
                 alt=""
                 fill
-                sizes="1.1rem"
+                sizes="2.4rem"
                 className="object-contain opacity-60"
                 style={{ filter: "brightness(1.04) contrast(1.04) saturate(0.68) sepia(0.14) hue-rotate(148deg)" }}
               />
@@ -848,18 +865,18 @@ function HalisahaHeroSummary({
         </div>
 
         {/* Right: crests + countdown */}
-        <div className="halisaha-hero-secondary halisaha-crest-stage shrink-0 text-center">
-          <div className="relative w-[6.4rem]">
+        <div className="halisaha-hero-secondary halisaha-crest-stage shrink-0 -translate-y-[6px] flex flex-col items-center text-center">
+          {/* Crest shifted upward for alignment with team block */}
+          <div className="relative w-[6.4rem] -mt-[10px]">
             <RaynetCrest />
-            <div className="halisaha-countdown-stage absolute left-1/2 top-full mt-[calc(-0.9rem-4px)] -translate-x-1/2">
-              <div className="relative flex min-w-[5.4rem] flex-col items-center">
-                <div className="halisaha-countdown-label text-[0.38rem] font-semibold uppercase leading-none tracking-[0.3em] text-[#d2e5e5]">
-                  Kickoff countdown
-                </div>
-                <div className="halisaha-countdown-value mt-0.5 text-[0.96rem] font-black leading-none tracking-[0.06em] text-white tabular-nums">
-                  {countdown}
-                </div>
-              </div>
+          </div>
+          {/* Countdown sits below the crest, not overlapping */}
+          <div className="halisaha-countdown-stage mt-[-0.3rem] flex flex-col items-center">
+            <div className="halisaha-countdown-label text-[0.3rem] font-semibold uppercase leading-none tracking-[0.28em] text-[#d2e5e5]/80">
+              Kickoff countdown
+            </div>
+            <div className="halisaha-countdown-value mt-[0.18rem] text-[0.62rem] font-black leading-none tracking-[0.06em] text-white tabular-nums">
+              {countdown}
             </div>
           </div>
         </div>
@@ -868,7 +885,10 @@ function HalisahaHeroSummary({
   }
 
   return (
-    <div className="halisaha-hero relative flex min-h-0 flex-col gap-1.25 sm:gap-1.5 lg:pr-[25.25rem] xl:pr-[28.5rem]">
+    <div
+      data-halisaha-hero-layout="stacked"
+      className="halisaha-hero relative flex min-h-0 flex-col gap-1.25 sm:gap-1.5 lg:pr-[25.25rem] xl:pr-[28.5rem]"
+    >
       <div className="halisaha-hero-primary min-w-0 shrink-0">
         <h1 className="halisaha-team-name text-[clamp(2.55rem,6.8vw,5.7rem)] font-semibold uppercase leading-[0.78] tracking-[0.015em] text-white">
           {homeTeamName}
@@ -1154,9 +1174,15 @@ function PitchBoard({
                     homeLineup={homeLineup}
                     awayLineup={awayLineup}
                     portraitClosedLayout={usePortraitMobilePitch}
+                    portraitNameDropShadow={showLineups}
                     stackThreeWordNames={useClosedPortraitPitchLayout}
                     closedPortraitDefenderInwardShift={
                       useClosedPortraitPitchLayout ? CLOSED_PORTRAIT_DEFENDER_INWARD_SVG_UNITS : 0
+                    }
+                    closedPortraitForwardMidTowardOwnGoalShiftSvgUnits={
+                      useClosedPortraitPitchLayout
+                        ? CLOSED_PORTRAIT_FORWARD_MID_TOWARD_OWN_GOAL_SVG_UNITS
+                        : 0
                     }
                   />
                 </div>
@@ -1223,11 +1249,17 @@ function PitchBoard({
 const PITCH_VIEWBOX_HEIGHT = 620;
 /** ViewBox units: mobilde slicer kapalıyken defans isimlerini sahada merkeze doğru */
 const CLOSED_PORTRAIT_DEFENDER_INWARD_SVG_UNITS = 10;
+/** ViewBox units: closed mobile portrait — nudge striker/midfield name anchors 2u toward own goal */
+const CLOSED_PORTRAIT_FORWARD_MID_TOWARD_OWN_GOAL_SVG_UNITS = 2;
 const DEFENSE_POSITION_KEYS: HalisahaPositionKey[] = ["left_defender", "right_defender"];
 const MIDFIELD_POSITION_KEYS: HalisahaPositionKey[] = [
   "left_wing",
   "center_midfield",
   "right_wing",
+];
+const FORWARD_MIDFIELD_POSITION_KEYS: HalisahaPositionKey[] = [
+  ...MIDFIELD_POSITION_KEYS,
+  "striker",
 ];
 
 /** Nudge first-line tspan (em) so stacked 3-word labels in defense/midfield rows share a line. */
@@ -1250,14 +1282,20 @@ function PitchOverlay({
   homeLineup,
   awayLineup,
   portraitClosedLayout = false,
+  portraitNameDropShadow = true,
   stackThreeWordNames = false,
   closedPortraitDefenderInwardShift = 0,
+  closedPortraitForwardMidTowardOwnGoalShiftSvgUnits = 0,
 }: {
   homeLineup: PlayerSpot[];
   awayLineup: PlayerSpot[];
   portraitClosedLayout?: boolean;
+  /** Mobile portrait pitch: extra name drop-shadow when lineup slicers are open; off when closed. */
+  portraitNameDropShadow?: boolean;
   stackThreeWordNames?: boolean;
   closedPortraitDefenderInwardShift?: number;
+  /** ViewBox units: striker + midfield labels nudged toward own goal when closed-portrait layout. */
+  closedPortraitForwardMidTowardOwnGoalShiftSvgUnits?: number;
 }) {
   const homeLine1DyExtra = useMemo(
     () => (stackThreeWordNames ? computeStackedFirstLineDyEmExtra(homeLineup) : new Map()),
@@ -1281,9 +1319,11 @@ function PitchOverlay({
           player={player}
           side="left"
           portraitClosedLayout={portraitClosedLayout}
+          nameDropShadow={portraitClosedLayout && portraitNameDropShadow}
           stackThreeWordNames={stackThreeWordNames}
           stackedFirstLineDyEmExtra={homeLine1DyExtra}
           defenderInwardShiftSvgUnits={closedPortraitDefenderInwardShift}
+          towardOwnGoalShiftSvgUnits={closedPortraitForwardMidTowardOwnGoalShiftSvgUnits}
         />
       ))}
 
@@ -1293,9 +1333,11 @@ function PitchOverlay({
           player={player}
           side="right"
           portraitClosedLayout={portraitClosedLayout}
+          nameDropShadow={portraitClosedLayout && portraitNameDropShadow}
           stackThreeWordNames={stackThreeWordNames}
           stackedFirstLineDyEmExtra={awayLine1DyExtra}
           defenderInwardShiftSvgUnits={closedPortraitDefenderInwardShift}
+          towardOwnGoalShiftSvgUnits={closedPortraitForwardMidTowardOwnGoalShiftSvgUnits}
         />
       ))}
     </svg>
@@ -1621,16 +1663,20 @@ function PitchPlayerLabel({
   player,
   side,
   portraitClosedLayout = false,
+  nameDropShadow = false,
   stackThreeWordNames = false,
   stackedFirstLineDyEmExtra,
   defenderInwardShiftSvgUnits = 0,
+  towardOwnGoalShiftSvgUnits = 0,
 }: {
   player: PlayerSpot;
   side: "left" | "right";
   portraitClosedLayout?: boolean;
+  nameDropShadow?: boolean;
   stackThreeWordNames?: boolean;
   stackedFirstLineDyEmExtra?: ReadonlyMap<HalisahaPositionKey, number>;
   defenderInwardShiftSvgUnits?: number;
+  towardOwnGoalShiftSvgUnits?: number;
 }) {
   const labelRotation = portraitClosedLayout ? -90 : side === "left" ? -90 : 90;
   // Larger font + heavy outline in portrait-closed for crisp legibility on small screens
@@ -1644,12 +1690,16 @@ function PitchPlayerLabel({
   const line1DyEm = -0.55 + line1DyExtraEm;
   const isDefender = DEFENSE_POSITION_KEYS.includes(player.positionKey);
   const inward = defenderInwardShiftSvgUnits > 0 && isDefender ? defenderInwardShiftSvgUnits : 0;
-  const labelX = player.x + (side === "left" ? inward : -inward);
+  const isForwardOrMidfield = FORWARD_MIDFIELD_POSITION_KEYS.includes(player.positionKey);
+  const towardOwn =
+    towardOwnGoalShiftSvgUnits > 0 && isForwardOrMidfield ? towardOwnGoalShiftSvgUnits : 0;
+  // Home (left): own goal is −x. Away (right): own goal is +x.
+  const labelX = player.x + (side === "left" ? inward - towardOwn : -inward + towardOwn);
 
   return (
     <g transform={`translate(${labelX} ${player.y}) rotate(${labelRotation})`}>
-      {/* Shadow pass for additional depth */}
-      {portraitClosedLayout && (
+      {/* Drop-shadow pass: only when mobile portrait + lineup slicers open */}
+      {nameDropShadow && (
         <text
           x="0"
           y="1.5"

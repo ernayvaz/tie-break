@@ -11,10 +11,12 @@ vi.mock("next/link", () => ({
   default: ({
     href,
     children,
+    prefetch: _prefetch,
     ...props
   }: {
     href: string;
     children?: ReactNode;
+    prefetch?: boolean;
   }) => createElement("a", { href, ...props }, children),
 }));
 

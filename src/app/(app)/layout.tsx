@@ -39,6 +39,7 @@ export default async function AppLayout({
               <div className="app-shell-header-main md:flex md:items-center md:gap-8">
                 <div className="app-shell-header-brand flex items-center justify-between gap-4 md:block">
                   <Link
+                    prefetch
                     href="/schedule"
                     className="text-lg font-light tracking-[0.18em] text-nord-polar uppercase hover:text-nord-frostDark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] focus-visible:ring-offset-2 rounded sm:text-xl sm:tracking-[0.22em]"
                   >
@@ -56,11 +57,12 @@ export default async function AppLayout({
                   </div>
                 </div>
                 <nav className="app-shell-nav mt-2 flex gap-2 overflow-x-auto px-px pb-1 snap-x snap-mandatory [scrollbar-width:none] [&::-webkit-scrollbar]:hidden md:mt-0 md:overflow-visible md:px-0 md:pb-0 md:snap-none md:items-center md:gap-6">
-                  <Link href="/schedule" className={navLinkClass}>
+                  <Link prefetch href="/schedule" className={navLinkClass}>
                     <IconSchedule />
                     Schedule
                   </Link>
                   <Link
+                    prefetch
                     href="/leaderboard"
                     className={`${navLinkClass} text-nord-polarLight hover:text-nord-polar`}
                   >
@@ -68,6 +70,7 @@ export default async function AppLayout({
                     Leaderboard
                   </Link>
                   <Link
+                    prefetch
                     href="/highlights"
                     className={`${navLinkClass} text-nord-polarLight hover:text-nord-polar`}
                   >
@@ -75,12 +78,13 @@ export default async function AppLayout({
                     Highlights
                   </Link>
                   {canAccessHalisahaMode(user.role) && (
-                    <Link href="/halisaha" className={turfNavLinkClass}>
+                    <Link prefetch href="/halisaha" className={turfNavLinkClass}>
                       <IconHalisaha />
                       Halisaha Mode
                     </Link>
                   )}
                   <Link
+                    prefetch
                     href="/predictions"
                     className={`${navLinkClass} text-nord-polarLight hover:text-nord-polar`}
                   >
@@ -88,6 +92,7 @@ export default async function AppLayout({
                     My predictions
                   </Link>
                   <Link
+                    prefetch
                     href="/rules"
                     className={`${navLinkClass} text-nord-polarLight hover:text-nord-polar`}
                   >
@@ -95,7 +100,7 @@ export default async function AppLayout({
                     Rules & prizes
                   </Link>
                   {user.role === "admin" && (
-                    <Link href="/admin" className={`${navLinkClass} text-nord-frostDark`}>
+                    <Link prefetch href="/admin" className={`${navLinkClass} text-nord-frostDark`}>
                       <IconAdmin />
                       Admin
                     </Link>

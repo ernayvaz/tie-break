@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { getSession } from "./session";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
@@ -13,8 +14,9 @@ export type AuthUser = {
 
 /**
  * Get current user from session. Returns null if not logged in.
+ * Cached per request so layout + page both calling requireAuth share one DB read.
  */
-export async function getCurrentUser(): Promise<AuthUser | null> {
+export const getCurrentUser = cache(async (): Promise<AuthUser | null> => {
   const session = await getSession();
   if (!session) return null;
 
@@ -32,7 +34,7 @@ export async function getCurrentUser(): Promise<AuthUser | null> {
 
   if (!user) return null;
   return user as AuthUser;
-}
+});
 
 /**
  * Require auth. Redirects to login if not logged in.
