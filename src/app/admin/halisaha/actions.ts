@@ -43,8 +43,25 @@ type ManagedHalisahaQuestionKind =
   | "score_prediction"
   | "number_prediction";
 
-function normalizeOptions(options: string[]) {
-  return options.map((option) => option.trim()).filter(Boolean);
+export type ManagedHalisahaQuestionOptionInput = {
+  label: string;
+  kind: ManagedHalisahaQuestionKind;
+};
+
+function normalizeOptions(options: Array<string | ManagedHalisahaQuestionOptionInput>) {
+  return options
+    .map((option) =>
+      typeof option === "string"
+        ? {
+            label: option.trim(),
+            kind: "standard" as const,
+          }
+        : {
+            label: option.label.trim(),
+            kind: option.kind,
+          },
+    )
+    .filter((option) => (option.kind === "standard" ? Boolean(option.label) : true));
 }
 
 function normalizeGuestDisplayName(value: string) {
@@ -129,11 +146,46 @@ async function clearInvalidParticipantAssignmentsForMatch(match: {
 
 function prepareQuestionOptions(input: {
   kind: ManagedHalisahaQuestionKind;
-  options: string[];
+  options: Array<string | ManagedHalisahaQuestionOptionInput>;
 }) {
-  if (input.kind === "player_prediction") {
+  const normalizedOptions = normalizeOptions(input.options);
+  const standardOptions = normalizedOptions.filter((option) => option.kind === "standard");
+  const selectedNonStandardKinds = [...new Set(
+    normalizedOptions
+      .map((option) => option.kind)
+      .filter((kind): kind is Exclude<ManagedHalisahaQuestionKind, "standard"> => kind !== "standard"),
+  )];
+
+  if (selectedNonStandardKinds.length > 1) {
+    return {
+      ok: false as const,
+      error:
+        "Use one option type per question. Player picker and numeric prediction types cannot be mixed together.",
+    };
+  }
+
+  if (selectedNonStandardKinds.length === 1 && standardOptions.length > 0) {
+    return {
+      ok: false as const,
+      error:
+        "Use either standard multiple-choice options or a single non-standard option type for this question.",
+    };
+  }
+
+  const derivedKind = selectedNonStandardKinds[0] ?? input.kind;
+  const nonStandardOptionCount = normalizedOptions.length - standardOptions.length;
+
+  if (derivedKind === "player_prediction") {
+    if (selectedNonStandardKinds.length === 1 && nonStandardOptionCount !== 1) {
+      return {
+        ok: false as const,
+        error: "Player picker questions can only use one option type row.",
+      };
+    }
+
     return {
       ok: true as const,
+      kind: derivedKind,
       preparedOptions: [] as Array<{
         label: string;
         kind: "standard" | "custom_score" | "custom_number";
@@ -141,9 +193,17 @@ function prepareQuestionOptions(input: {
     };
   }
 
-  if (input.kind === "score_prediction") {
+  if (derivedKind === "score_prediction") {
+    if (selectedNonStandardKinds.length === 1 && nonStandardOptionCount !== 1) {
+      return {
+        ok: false as const,
+        error: "Two-number prediction questions can only use one option type row.",
+      };
+    }
+
     return {
       ok: true as const,
+      kind: derivedKind,
       preparedOptions: [
         {
           label: CUSTOM_SCORE_OPTION_LABEL,
@@ -153,9 +213,17 @@ function prepareQuestionOptions(input: {
     };
   }
 
-  if (input.kind === "number_prediction") {
+  if (derivedKind === "number_prediction") {
+    if (selectedNonStandardKinds.length === 1 && nonStandardOptionCount !== 1) {
+      return {
+        ok: false as const,
+        error: "Single-number prediction questions can only use one option type row.",
+      };
+    }
+
     return {
       ok: true as const,
+      kind: derivedKind,
       preparedOptions: [
         {
           label: CUSTOM_NUMBER_OPTION_LABEL,
@@ -165,8 +233,8 @@ function prepareQuestionOptions(input: {
     };
   }
 
-  const preparedOptions = normalizeOptions(input.options).map((label) => ({
-    label,
+  const preparedOptions = standardOptions.map((option) => ({
+    label: option.label,
     kind: "standard" as const,
   }));
 
@@ -176,6 +244,7 @@ function prepareQuestionOptions(input: {
 
   return {
     ok: true as const,
+    kind: derivedKind,
     preparedOptions,
   };
 }
@@ -954,7 +1023,7 @@ export async function createHalisahaQuestionAction(data: {
   kind: HalisahaQuestionKind;
   prompt: string;
   points: number;
-  options: string[];
+  options: Array<string | ManagedHalisahaQuestionOptionInput>;
 }): Promise<HalisahaAdminActionState> {
   const admin = await requireAdmin();
   const match = await ensureActiveHalisahaMatch();
@@ -990,7 +1059,7 @@ export async function createHalisahaQuestionAction(data: {
   const question = await prisma.halisahaQuestion.create({
     data: {
       matchId: match.id,
-      kind,
+      kind: preparedOptionsResult.kind,
       prompt,
       points,
       sortOrder: maxSortOrder + QUESTION_SORT_STEP,
@@ -1004,7 +1073,7 @@ export async function createHalisahaQuestionAction(data: {
     },
   });
 
-  if (kind === "player_prediction") {
+  if (preparedOptionsResult.kind === "player_prediction") {
     await syncHalisahaPlayerPredictionQuestions(match.id);
   }
   await resetResolutionState(match.id);
@@ -1027,7 +1096,7 @@ export async function updateHalisahaQuestionAction(
     kind: HalisahaQuestionKind;
     prompt: string;
     points: number;
-    options: string[];
+    options: Array<string | ManagedHalisahaQuestionOptionInput>;
     isActive: boolean;
   },
 ): Promise<HalisahaAdminActionState> {
@@ -1057,24 +1126,28 @@ export async function updateHalisahaQuestionAction(
 
   const prompt = data.prompt.trim();
   const points = Number(data.points);
-  const nextEditableKind = normalizeManagedQuestionKind(data.kind);
-  const nextKind =
-    question.kind === "winner" || question.kind === "mvp_prediction"
-      ? question.kind
-      : nextEditableKind;
+  const requestedEditableKind = normalizeManagedQuestionKind(data.kind);
   const preparedOptionsResult =
     question.kind === "winner" || question.kind === "mvp_prediction"
       ? {
           ok: true as const,
+          kind: question.kind,
           preparedOptions: question.options.map((option) => ({
             label: option.label.trim(),
             kind: option.kind,
           })),
         }
       : prepareQuestionOptions({
-          kind: nextEditableKind,
+          kind: requestedEditableKind,
           options: data.options,
         });
+  const nextEditableKind = preparedOptionsResult.ok
+    ? preparedOptionsResult.kind
+    : requestedEditableKind;
+  const resolvedNextKind =
+    question.kind === "winner" || question.kind === "mvp_prediction"
+      ? question.kind
+      : nextEditableKind;
 
   if (!prompt) {
     return { ok: false, error: "Question text is required." };
@@ -1091,9 +1164,9 @@ export async function updateHalisahaQuestionAction(
     kind: option.kind,
   }));
   const nextOptions = preparedOptionsResult.preparedOptions;
-  const questionKindChanged = nextKind !== question.kind;
+  const questionKindChanged = resolvedNextKind !== question.kind;
   const optionSetChanged =
-    nextKind === "player_prediction"
+    resolvedNextKind === "player_prediction"
       ? question.kind !== "player_prediction"
       : questionKindChanged ||
         nextOptions.length !== existingOptions.length ||
@@ -1112,7 +1185,7 @@ export async function updateHalisahaQuestionAction(
     await tx.halisahaQuestion.update({
       where: { id: questionId },
       data: {
-        kind: nextKind,
+        kind: resolvedNextKind,
         prompt,
         points,
         isActive:
@@ -1144,7 +1217,7 @@ export async function updateHalisahaQuestionAction(
       await tx.halisahaQuestionOption.deleteMany({
         where: { questionId },
       });
-      if (nextKind !== "player_prediction") {
+      if (resolvedNextKind !== "player_prediction") {
         await tx.halisahaQuestionOption.createMany({
           data: nextOptions.map((option, index) => ({
             questionId,
@@ -1164,7 +1237,7 @@ export async function updateHalisahaQuestionAction(
       awayTeamName: question.match.awayTeamName,
     });
   }
-  if (nextKind === "player_prediction") {
+  if (resolvedNextKind === "player_prediction") {
     await syncHalisahaPlayerPredictionQuestions(question.matchId);
   }
 

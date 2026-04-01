@@ -6,6 +6,8 @@ const mocks = vi.hoisted(() => ({
   createAdminLog: vi.fn(),
   questionFindUnique: vi.fn(),
   questionFindMany: vi.fn(),
+  questionAggregate: vi.fn(),
+  questionCreate: vi.fn(),
   questionUpdate: vi.fn(),
   questionOptionDeleteMany: vi.fn(),
   questionOptionCreateMany: vi.fn(),
@@ -51,6 +53,8 @@ vi.mock("@/lib/db", () => ({
     halisahaQuestion: {
       findUnique: mocks.questionFindUnique,
       findMany: mocks.questionFindMany,
+      aggregate: mocks.questionAggregate,
+      create: mocks.questionCreate,
       update: mocks.questionUpdate,
     },
     halisahaQuestionOption: {
@@ -81,6 +85,7 @@ vi.mock("@/lib/db", () => ({
 
 import {
   clearHalisahaParticipantsAction,
+  createHalisahaQuestionAction,
   setHalisahaMatchPublishedAction,
   updateHalisahaQuestionAction,
 } from "./actions";
@@ -89,6 +94,8 @@ describe("admin halisaha question actions", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.requireAdmin.mockResolvedValue({ id: "admin-1" });
+    mocks.questionAggregate.mockResolvedValue({ _max: { sortOrder: 20 } });
+    mocks.questionCreate.mockResolvedValue({ id: "question-2" });
     mocks.questionUpdate.mockResolvedValue(undefined);
     mocks.questionOptionDeleteMany.mockResolvedValue({ count: 2 });
     mocks.questionOptionCreateMany.mockResolvedValue({ count: 3 });
@@ -188,6 +195,90 @@ describe("admin halisaha question actions", () => {
       ],
     });
     expect(mocks.revalidatePath).toHaveBeenCalledWith("/halisaha");
+  });
+
+  it("creates a player picker question from the selected option type", async () => {
+    const result = await createHalisahaQuestionAction({
+      kind: "standard",
+      prompt: "Who will score first?",
+      points: 2,
+      options: [{ label: "Pick a player", kind: "player_prediction" }],
+    });
+
+    expect(result).toEqual({
+      ok: true,
+      message: "Question created.",
+    });
+    expect(mocks.questionCreate).toHaveBeenCalledWith({
+      data: {
+        matchId: "match-1",
+        kind: "player_prediction",
+        prompt: "Who will score first?",
+        points: 2,
+        sortOrder: 30,
+        options: {
+          create: [],
+        },
+      },
+    });
+    expect(mocks.syncPlayerQuestions).toHaveBeenCalledWith("match-1");
+  });
+
+  it("derives a single-number prediction from the edited option type row", async () => {
+    mocks.questionFindUnique.mockResolvedValue({
+      id: "question-1",
+      kind: "standard",
+      prompt: "Old question?",
+      points: 1,
+      sortOrder: 20,
+      matchId: "match-1",
+      match: {
+        id: "match-1",
+        homeTeamName: "Home",
+        awayTeamName: "Away",
+      },
+      options: [
+        { id: "opt-1", label: "Old A", kind: "standard" },
+        { id: "opt-2", label: "Old B", kind: "standard" },
+      ],
+      answers: [{ id: "answer-1" }],
+    });
+
+    const result = await updateHalisahaQuestionAction("question-1", {
+      kind: "standard",
+      prompt: "How many saves?",
+      points: 4,
+      options: [{ label: "Any number", kind: "number_prediction" }],
+      isActive: true,
+    });
+
+    expect(result).toEqual({
+      ok: true,
+      message:
+        "Question updated. Existing answers for this question were cleared because the option set changed.",
+    });
+    expect(mocks.questionUpdate).toHaveBeenCalledWith({
+      where: { id: "question-1" },
+      data: expect.objectContaining({
+        kind: "number_prediction",
+        prompt: "How many saves?",
+        points: 4,
+        isActive: true,
+        sortOrder: 20,
+        scoreHomeResult: null,
+        scoreAwayResult: null,
+      }),
+    });
+    expect(mocks.questionOptionCreateMany).toHaveBeenCalledWith({
+      data: [
+        {
+          questionId: "question-1",
+          label: "Your number guess",
+          kind: "custom_number",
+          sortOrder: 10,
+        },
+      ],
+    });
   });
 
   it("publishes the active match for users", async () => {

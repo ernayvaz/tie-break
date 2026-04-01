@@ -27,6 +27,7 @@ import {
   updateHalisahaParticipantAssignmentAction,
   updateHalisahaQuestionAction,
   type HalisahaAdminActionState,
+  type ManagedHalisahaQuestionOptionInput,
 } from "./actions";
 import type {
   HalisahaAdminParticipantRow,
@@ -54,12 +55,16 @@ const textareaClassName =
   "w-full rounded-lg border border-nord-polarLighter bg-white px-3 py-2 text-sm text-nord-polar placeholder-nord-polarLighter focus:border-nord-frostDark focus:outline-none focus:ring-1 focus:ring-nord-frostDark";
 const CUSTOM_SCORE_OPTION_LABEL = "Your exact score";
 const CUSTOM_NUMBER_OPTION_LABEL = "Your number guess";
+const DEFAULT_STANDARD_OPTION_COUNT = 4;
+const MIN_STANDARD_OPTION_COUNT = 2;
 
 type EditableQuestionKind =
   | "standard"
   | "player_prediction"
   | "score_prediction"
   | "number_prediction";
+
+type EditableQuestionOptionDraft = ManagedHalisahaQuestionOptionInput;
 
 function isEditableQuestionKind(kind: HalisahaAdminQuestionRow["kind"]): kind is EditableQuestionKind {
   return (
@@ -78,7 +83,78 @@ function getQuestionTypeLabel(kind: EditableQuestionKind) {
   if (kind === "player_prediction") return "Player picker";
   if (kind === "score_prediction") return "Two-number prediction";
   if (kind === "number_prediction") return "Single-number prediction";
-  return "Standard";
+  return "Standard multiple choice";
+}
+
+function createStandardOptionDrafts(
+  count = DEFAULT_STANDARD_OPTION_COUNT,
+): EditableQuestionOptionDraft[] {
+  return Array.from({ length: count }, () => ({
+    label: "",
+    kind: "standard" as const,
+  }));
+}
+
+function getNonStandardOptionPreviewLabel(kind: Exclude<EditableQuestionKind, "standard">) {
+  if (kind === "player_prediction") {
+    return "Player list synced from the current squads";
+  }
+  if (kind === "score_prediction") {
+    return CUSTOM_SCORE_OPTION_LABEL;
+  }
+  return CUSTOM_NUMBER_OPTION_LABEL;
+}
+
+function getQuestionOptionDrafts(question: HalisahaAdminQuestionRow): EditableQuestionOptionDraft[] {
+  if (question.kind === "winner" || question.kind === "mvp_prediction") {
+    return [];
+  }
+
+  const kind = getEditableQuestionKind(question);
+  if (kind === "standard") {
+    return question.options.map((option) => ({
+      label: option.label,
+      kind: "standard" as const,
+    }));
+  }
+
+  return [
+    {
+      label: getNonStandardOptionPreviewLabel(kind),
+      kind,
+    },
+  ];
+}
+
+function getStandardOptionDraftCache(
+  drafts: EditableQuestionOptionDraft[],
+): EditableQuestionOptionDraft[] {
+  const standardDrafts = drafts
+    .filter((draft) => draft.kind === "standard")
+    .map((draft) => ({
+      label: draft.label,
+      kind: "standard" as const,
+    }));
+
+  return standardDrafts.length >= MIN_STANDARD_OPTION_COUNT
+    ? standardDrafts
+    : createStandardOptionDrafts();
+}
+
+function buildOptionDraftsForKind(
+  kind: EditableQuestionKind,
+  standardDrafts: EditableQuestionOptionDraft[],
+): EditableQuestionOptionDraft[] {
+  if (kind === "standard") {
+    return getStandardOptionDraftCache(standardDrafts);
+  }
+
+  return [
+    {
+      label: getNonStandardOptionPreviewLabel(kind),
+      kind,
+    },
+  ];
 }
 
 function actionError(result: HalisahaAdminActionState) {
@@ -263,6 +339,7 @@ function QuestionEditorCard({
   const isMvpPredictionQuestion = question.kind === "mvp_prediction";
   const isPinnedQuestion = isWinnerQuestion || isMvpPredictionQuestion;
   const initialEditableKind = getEditableQuestionKind(question);
+  const initialOptionDrafts = getQuestionOptionDrafts(question);
   const [prompt, setPrompt] = useState(question.prompt);
   const [points, setPoints] = useState(String(question.points));
   const [questionKind, setQuestionKind] = useState<EditableQuestionKind>(initialEditableKind);
@@ -271,8 +348,15 @@ function QuestionEditorCard({
   const isNumberPredictionQuestion = effectiveQuestionKind === "number_prediction";
   const isPlayerPredictionQuestion = effectiveQuestionKind === "player_prediction";
   const isNumericQuestion = isScoreQuestion || isNumberPredictionQuestion;
-  const [options, setOptions] = useState(
-    question.kind === "standard" ? question.options.map((option) => option.label) : [],
+  const [optionDrafts, setOptionDrafts] = useState<EditableQuestionOptionDraft[]>(
+    initialOptionDrafts,
+  );
+  const [standardOptionDraftCache, setStandardOptionDraftCache] = useState<
+    EditableQuestionOptionDraft[]
+  >(
+    initialEditableKind === "standard"
+      ? getStandardOptionDraftCache(initialOptionDrafts)
+      : createStandardOptionDrafts(),
   );
   const [isActive, setIsActive] = useState(question.isActive);
   const [scoreHomeResult, setScoreHomeResult] = useState(
@@ -287,10 +371,16 @@ function QuestionEditorCard({
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
+    const nextOptionDrafts = getQuestionOptionDrafts(question);
     setPrompt(question.prompt);
     setPoints(String(question.points));
     setQuestionKind(getEditableQuestionKind(question));
-    setOptions(question.kind === "standard" ? question.options.map((option) => option.label) : []);
+    setOptionDrafts(nextOptionDrafts);
+    setStandardOptionDraftCache(
+      question.kind === "standard"
+        ? getStandardOptionDraftCache(nextOptionDrafts)
+        : createStandardOptionDrafts(),
+    );
     setIsActive(question.isActive);
     setScoreHomeResult(question.scoreHomeResult?.toString() ?? "");
     setScoreAwayResult(question.scoreAwayResult?.toString() ?? "");
@@ -299,13 +389,51 @@ function QuestionEditorCard({
     );
   }, [question]);
 
+  useEffect(() => {
+    if (questionKind === "standard") {
+      setStandardOptionDraftCache(getStandardOptionDraftCache(optionDrafts));
+    }
+  }, [optionDrafts, questionKind]);
+
+  const handleQuestionKindChange = (nextKind: EditableQuestionKind) => {
+    if (nextKind === "standard") {
+      setQuestionKind("standard");
+      setOptionDrafts(buildOptionDraftsForKind("standard", standardOptionDraftCache));
+      return;
+    }
+
+    if (questionKind === "standard") {
+      setStandardOptionDraftCache(getStandardOptionDraftCache(optionDrafts));
+    }
+
+    setQuestionKind(nextKind);
+    setOptionDrafts(buildOptionDraftsForKind(nextKind, standardOptionDraftCache));
+  };
+
+  const handleOptionTypeChange = (nextKind: EditableQuestionKind) => {
+    handleQuestionKindChange(nextKind);
+  };
+
+  const handleOptionLabelChange = (index: number, label: string) => {
+    setOptionDrafts((current) =>
+      current.map((item, currentIndex) =>
+        currentIndex === index
+          ? {
+              ...item,
+              label,
+            }
+          : item,
+      ),
+    );
+  };
+
   const handleSave = async () => {
     setBusy(true);
     const result = await updateHalisahaQuestionAction(question.id, {
       kind: isPinnedQuestion ? question.kind : questionKind,
       prompt,
       points: Number(points),
-      options: questionKind === "standard" ? options : [],
+      options: optionDrafts,
       isActive,
     });
     setBusy(false);
@@ -404,11 +532,24 @@ function QuestionEditorCard({
   };
 
   const addOption = () => {
-    setOptions((current) => [...current, ""]);
+    const nextStandardDrafts = [
+      ...getStandardOptionDraftCache(questionKind === "standard" ? optionDrafts : standardOptionDraftCache),
+      {
+        label: "",
+        kind: "standard" as const,
+      },
+    ];
+    setQuestionKind("standard");
+    setOptionDrafts(nextStandardDrafts);
   };
 
   const removeOption = (index: number) => {
-    setOptions((current) => current.filter((_, currentIndex) => currentIndex !== index));
+    setOptionDrafts((current) => {
+      const nextDrafts = current.filter((_, currentIndex) => currentIndex !== index);
+      return nextDrafts.length >= MIN_STANDARD_OPTION_COUNT
+        ? nextDrafts
+        : current;
+    });
   };
 
   return (
@@ -499,7 +640,7 @@ function QuestionEditorCard({
               <select
                 value={questionKind}
                 onChange={(event) =>
-                  setQuestionKind(event.target.value as EditableQuestionKind)
+                  handleQuestionKindChange(event.target.value as EditableQuestionKind)
                 }
                 className={selectClassName}
                 disabled={busy}
@@ -521,7 +662,11 @@ function QuestionEditorCard({
         <div>
           <div className="mb-2 flex items-center justify-between">
             <label className="text-sm font-medium text-nord-polar">
-              {isPinnedQuestion || questionKind === "standard" ? "Options" : "Answer model"}
+              {isPinnedQuestion
+                ? "Options"
+                : questionKind === "standard"
+                  ? "Options & type"
+                  : "Answer model"}
             </label>
             {!isPinnedQuestion && questionKind === "standard" ? (
               <Button size="sm" variant="ghost" onClick={addOption} disabled={busy}>
@@ -561,23 +706,48 @@ function QuestionEditorCard({
               question so the new choices can be published safely.
             </p>
           ) : null}
-          {isPinnedQuestion || questionKind === "standard" ? (
+          {isPinnedQuestion ? (
+            <div className="rounded-lg border border-dashed border-nord-polarLighter/40 bg-nord-snow/45 px-3 py-2 text-xs text-nord-polarLight">
+              {isWinnerQuestion
+                ? "Winner strip options stay synced to the current home and away team names."
+                : "MVP player choices stay synced from the current squad automatically."}
+            </div>
+          ) : (
             <div className="space-y-2">
-              {options.map((option, index) => (
-                <div key={`${question.id}-option-${index}`} className="flex gap-2">
-                  <input
-                    value={option}
+              {optionDrafts.map((option, index) => (
+                <div
+                  key={`${question.id}-option-${index}`}
+                  className="grid gap-2 md:grid-cols-[minmax(0,1fr)_15rem_auto]"
+                >
+                  {questionKind === "standard" ? (
+                    <input
+                      value={option.label}
+                      onChange={(event) =>
+                        handleOptionLabelChange(index, event.target.value)
+                      }
+                      className={selectClassName}
+                      disabled={busy}
+                      placeholder={`Option ${index + 1}`}
+                    />
+                  ) : (
+                    <div className="rounded-lg border border-dashed border-nord-polarLighter/40 bg-nord-snow/45 px-3 py-2 text-sm text-nord-polarLight">
+                      {option.label}
+                    </div>
+                  )}
+                  <select
+                    value={option.kind}
                     onChange={(event) =>
-                      setOptions((current) =>
-                        current.map((item, currentIndex) =>
-                          currentIndex === index ? event.target.value : item,
-                        ),
-                      )
+                      handleOptionTypeChange(event.target.value as EditableQuestionKind)
                     }
                     className={selectClassName}
-                    disabled={busy || isPinnedQuestion}
-                  />
-                  {!isPinnedQuestion && options.length > 2 ? (
+                    disabled={busy}
+                  >
+                    <option value="standard">Standard multiple choice</option>
+                    <option value="player_prediction">Player picker</option>
+                    <option value="score_prediction">Two-number prediction</option>
+                    <option value="number_prediction">Single-number prediction</option>
+                  </select>
+                  {questionKind === "standard" && optionDrafts.length > MIN_STANDARD_OPTION_COUNT ? (
                     <Button
                       size="sm"
                       variant="ghost"
@@ -586,21 +756,11 @@ function QuestionEditorCard({
                     >
                       Remove
                     </Button>
-                  ) : null}
+                  ) : (
+                    <div />
+                  )}
                 </div>
               ))}
-            </div>
-          ) : questionKind === "score_prediction" ? (
-            <div className="rounded-lg border border-dashed border-nord-polarLighter/40 bg-nord-snow/45 px-3 py-2 text-xs text-nord-polarLight">
-              User input preview: <strong>{CUSTOM_SCORE_OPTION_LABEL}</strong>
-            </div>
-          ) : questionKind === "number_prediction" ? (
-            <div className="rounded-lg border border-dashed border-nord-polarLighter/40 bg-nord-snow/45 px-3 py-2 text-xs text-nord-polarLight">
-              User input preview: <strong>{CUSTOM_NUMBER_OPTION_LABEL}</strong>
-            </div>
-          ) : (
-            <div className="rounded-lg border border-dashed border-nord-polarLighter/40 bg-nord-snow/45 px-3 py-2 text-xs text-nord-polarLight">
-              The player list is built automatically from the current squads.
             </div>
           )}
         </div>
@@ -756,12 +916,12 @@ export function HalisahaAdminClient({
     useState<EditableQuestionKind>("standard");
   const [newQuestionPrompt, setNewQuestionPrompt] = useState("");
   const [newQuestionPoints, setNewQuestionPoints] = useState("1");
-  const [newQuestionOptions, setNewQuestionOptions] = useState<string[]>([
-    "",
-    "",
-    "",
-    "",
-  ]);
+  const [newQuestionOptionDrafts, setNewQuestionOptionDrafts] = useState<
+    EditableQuestionOptionDraft[]
+  >(createStandardOptionDrafts());
+  const [newStandardOptionDraftCache, setNewStandardOptionDraftCache] = useState<
+    EditableQuestionOptionDraft[]
+  >(createStandardOptionDrafts());
   const reorderableQuestionIds = useMemo(
     () => snapshot.questions.filter((question) => question.kind !== "winner").map((question) => question.id),
     [snapshot.questions],
@@ -771,6 +931,12 @@ export function HalisahaAdminClient({
     setError(null);
     setSuccess(null);
   };
+
+  useEffect(() => {
+    if (newQuestionKind === "standard") {
+      setNewStandardOptionDraftCache(getStandardOptionDraftCache(newQuestionOptionDrafts));
+    }
+  }, [newQuestionKind, newQuestionOptionDrafts]);
 
   const availableUsers = useMemo(
     () => {
@@ -911,6 +1077,63 @@ export function HalisahaAdminClient({
     );
   };
 
+  const handleNewQuestionKindChange = (nextKind: EditableQuestionKind) => {
+    if (nextKind === "standard") {
+      setNewQuestionKind("standard");
+      setNewQuestionOptionDrafts(
+        buildOptionDraftsForKind("standard", newStandardOptionDraftCache),
+      );
+      return;
+    }
+
+    if (newQuestionKind === "standard") {
+      setNewStandardOptionDraftCache(getStandardOptionDraftCache(newQuestionOptionDrafts));
+    }
+
+    setNewQuestionKind(nextKind);
+    setNewQuestionOptionDrafts(
+      buildOptionDraftsForKind(nextKind, newStandardOptionDraftCache),
+    );
+  };
+
+  const handleNewQuestionOptionLabelChange = (index: number, label: string) => {
+    setNewQuestionOptionDrafts((current) =>
+      current.map((item, currentIndex) =>
+        currentIndex === index
+          ? {
+              ...item,
+              label,
+            }
+          : item,
+      ),
+    );
+  };
+
+  const handleAddNewQuestionOption = () => {
+    const nextStandardDrafts = [
+      ...getStandardOptionDraftCache(
+        newQuestionKind === "standard"
+          ? newQuestionOptionDrafts
+          : newStandardOptionDraftCache,
+      ),
+      {
+        label: "",
+        kind: "standard" as const,
+      },
+    ];
+    setNewQuestionKind("standard");
+    setNewQuestionOptionDrafts(nextStandardDrafts);
+  };
+
+  const handleRemoveNewQuestionOption = (index: number) => {
+    setNewQuestionOptionDrafts((current) => {
+      const nextDrafts = current.filter((_, currentIndex) => currentIndex !== index);
+      return nextDrafts.length >= MIN_STANDARD_OPTION_COUNT
+        ? nextDrafts
+        : current;
+    });
+  };
+
   const handleCreateQuestion = async () => {
     await runAction(
       () =>
@@ -918,14 +1141,15 @@ export function HalisahaAdminClient({
           kind: newQuestionKind,
           prompt: newQuestionPrompt,
           points: Number(newQuestionPoints),
-          options: newQuestionKind === "standard" ? newQuestionOptions : [],
+          options: newQuestionOptionDrafts,
         }),
       "Question created.",
       () => {
         setNewQuestionKind("standard");
         setNewQuestionPrompt("");
         setNewQuestionPoints("1");
-        setNewQuestionOptions(["", "", "", ""]);
+        setNewQuestionOptionDrafts(createStandardOptionDrafts());
+        setNewStandardOptionDraftCache(createStandardOptionDrafts());
       },
     );
   };
@@ -1414,7 +1638,7 @@ export function HalisahaAdminClient({
                 <select
                   value={newQuestionKind}
                   onChange={(event) =>
-                    setNewQuestionKind(event.target.value as EditableQuestionKind)
+                    handleNewQuestionKindChange(event.target.value as EditableQuestionKind)
                   }
                   className={selectClassName}
                 >
@@ -1446,15 +1670,13 @@ export function HalisahaAdminClient({
                 <div>
                   <div className="mb-2 flex items-center justify-between">
                     <label className="text-sm font-medium text-nord-polar">
-                      {newQuestionKind === "standard" ? "Options" : "Answer model"}
+                      {newQuestionKind === "standard" ? "Options & type" : "Answer model"}
                     </label>
                     {newQuestionKind === "standard" ? (
                       <Button
                         size="sm"
                         variant="ghost"
-                        onClick={() =>
-                          setNewQuestionOptions((current) => [...current, ""])
-                        }
+                        onClick={handleAddNewQuestionOption}
                       >
                         Add option
                       </Button>
@@ -1462,49 +1684,142 @@ export function HalisahaAdminClient({
                   </div>
                   {newQuestionKind === "standard" ? (
                     <div className="space-y-2">
-                      {newQuestionOptions.map((option, index) => (
-                        <div key={`new-option-${index}`} className="flex gap-2">
+                      {newQuestionOptionDrafts.map((option, index) => (
+                        <div
+                          key={`new-option-${index}`}
+                          className="grid gap-2 md:grid-cols-[minmax(0,1fr)_15rem_auto]"
+                        >
                           <input
-                            value={option}
+                            value={option.label}
                             onChange={(event) =>
-                              setNewQuestionOptions((current) =>
-                                current.map((item, currentIndex) =>
-                                  currentIndex === index ? event.target.value : item,
-                                ),
+                              handleNewQuestionOptionLabelChange(index, event.target.value)
+                            }
+                            className={selectClassName}
+                            placeholder={`Option ${index + 1}`}
+                          />
+                          <select
+                            value={option.kind}
+                            onChange={(event) =>
+                              handleNewQuestionKindChange(
+                                event.target.value as EditableQuestionKind,
                               )
                             }
                             className={selectClassName}
-                          />
-                          {newQuestionOptions.length > 2 ? (
+                          >
+                            <option value="standard">Standard multiple choice</option>
+                            <option value="player_prediction">Player picker</option>
+                            <option value="score_prediction">Two-number prediction</option>
+                            <option value="number_prediction">Single-number prediction</option>
+                          </select>
+                          {newQuestionOptionDrafts.length > MIN_STANDARD_OPTION_COUNT ? (
                             <Button
                               size="sm"
                               variant="ghost"
-                              onClick={() =>
-                                setNewQuestionOptions((current) =>
-                                  current.filter((_, currentIndex) => currentIndex !== index),
-                                )
-                              }
+                              onClick={() => handleRemoveNewQuestionOption(index)}
                             >
                               Remove
                             </Button>
-                          ) : null}
+                          ) : (
+                            <div />
+                          )}
                         </div>
                       ))}
                     </div>
                   ) : newQuestionKind === "player_prediction" ? (
-                    <div className="rounded-lg border border-dashed border-nord-polarLighter/40 bg-nord-snow/45 px-3 py-2 text-xs text-nord-polarLight">
-                      The player list will be created automatically from the current home and
-                      away squads.
+                    <div className="space-y-2">
+                      {newQuestionOptionDrafts.map((option, index) => (
+                        <div
+                          key={`new-nonstandard-option-${index}`}
+                          className="grid gap-2 md:grid-cols-[minmax(0,1fr)_15rem_auto]"
+                        >
+                          <div className="rounded-lg border border-dashed border-nord-polarLighter/40 bg-nord-snow/45 px-3 py-2 text-sm text-nord-polarLight">
+                            {option.label}
+                          </div>
+                          <select
+                            value={option.kind}
+                            onChange={(event) =>
+                              handleNewQuestionKindChange(
+                                event.target.value as EditableQuestionKind,
+                              )
+                            }
+                            className={selectClassName}
+                          >
+                            <option value="standard">Standard multiple choice</option>
+                            <option value="player_prediction">Player picker</option>
+                            <option value="score_prediction">Two-number prediction</option>
+                            <option value="number_prediction">Single-number prediction</option>
+                          </select>
+                          <div />
+                        </div>
+                      ))}
+                      <div className="rounded-lg border border-dashed border-nord-polarLighter/40 bg-nord-snow/45 px-3 py-2 text-xs text-nord-polarLight">
+                        The player list will be created automatically from the current home and
+                        away squads.
+                      </div>
                     </div>
                   ) : newQuestionKind === "score_prediction" ? (
-                    <div className="rounded-lg border border-dashed border-nord-polarLighter/40 bg-nord-snow/45 px-3 py-2 text-xs text-nord-polarLight">
-                      Users will enter two whole numbers. Preview:{" "}
-                      <strong>{CUSTOM_SCORE_OPTION_LABEL}</strong>
+                    <div className="space-y-2">
+                      {newQuestionOptionDrafts.map((option, index) => (
+                        <div
+                          key={`new-numeric-option-${index}`}
+                          className="grid gap-2 md:grid-cols-[minmax(0,1fr)_15rem_auto]"
+                        >
+                          <div className="rounded-lg border border-dashed border-nord-polarLighter/40 bg-nord-snow/45 px-3 py-2 text-sm text-nord-polarLight">
+                            {option.label}
+                          </div>
+                          <select
+                            value={option.kind}
+                            onChange={(event) =>
+                              handleNewQuestionKindChange(
+                                event.target.value as EditableQuestionKind,
+                              )
+                            }
+                            className={selectClassName}
+                          >
+                            <option value="standard">Standard multiple choice</option>
+                            <option value="player_prediction">Player picker</option>
+                            <option value="score_prediction">Two-number prediction</option>
+                            <option value="number_prediction">Single-number prediction</option>
+                          </select>
+                          <div />
+                        </div>
+                      ))}
+                      <div className="rounded-lg border border-dashed border-nord-polarLighter/40 bg-nord-snow/45 px-3 py-2 text-xs text-nord-polarLight">
+                        Users will enter two whole numbers. Preview:{" "}
+                        <strong>{CUSTOM_SCORE_OPTION_LABEL}</strong>
+                      </div>
                     </div>
                   ) : (
-                    <div className="rounded-lg border border-dashed border-nord-polarLighter/40 bg-nord-snow/45 px-3 py-2 text-xs text-nord-polarLight">
-                      Users will enter one whole number. Preview:{" "}
-                      <strong>{CUSTOM_NUMBER_OPTION_LABEL}</strong>
+                    <div className="space-y-2">
+                      {newQuestionOptionDrafts.map((option, index) => (
+                        <div
+                          key={`new-single-number-option-${index}`}
+                          className="grid gap-2 md:grid-cols-[minmax(0,1fr)_15rem_auto]"
+                        >
+                          <div className="rounded-lg border border-dashed border-nord-polarLighter/40 bg-nord-snow/45 px-3 py-2 text-sm text-nord-polarLight">
+                            {option.label}
+                          </div>
+                          <select
+                            value={option.kind}
+                            onChange={(event) =>
+                              handleNewQuestionKindChange(
+                                event.target.value as EditableQuestionKind,
+                              )
+                            }
+                            className={selectClassName}
+                          >
+                            <option value="standard">Standard multiple choice</option>
+                            <option value="player_prediction">Player picker</option>
+                            <option value="score_prediction">Two-number prediction</option>
+                            <option value="number_prediction">Single-number prediction</option>
+                          </select>
+                          <div />
+                        </div>
+                      ))}
+                      <div className="rounded-lg border border-dashed border-nord-polarLighter/40 bg-nord-snow/45 px-3 py-2 text-xs text-nord-polarLight">
+                        Users will enter one whole number. Preview:{" "}
+                        <strong>{CUSTOM_NUMBER_OPTION_LABEL}</strong>
+                      </div>
                     </div>
                   )}
                 </div>
