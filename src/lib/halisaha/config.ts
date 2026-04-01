@@ -159,6 +159,19 @@ export function toIstanbulTimeInput(date: Date) {
   return `${parts.hour}:${parts.minute}`;
 }
 
+export function formatHalisahaDateTime(
+  date: Date,
+  locale = "tr-TR",
+  options: Intl.DateTimeFormatOptions = {},
+) {
+  return new Intl.DateTimeFormat(locale, {
+    timeZone: HALISAHA_TIMEZONE,
+    dateStyle: "short",
+    timeStyle: "short",
+    ...options,
+  }).format(date);
+}
+
 export function formatHalisahaKickoffLabel(date: Date) {
   const day = new Intl.DateTimeFormat("en-GB", {
     timeZone: HALISAHA_TIMEZONE,

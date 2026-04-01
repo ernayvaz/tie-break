@@ -7,6 +7,7 @@ import { Button, Card, CardContent, CardHeader, CardTitle, Input } from "@/compo
 import {
   addHalisahaGuestParticipantAction,
   addHalisahaRegisteredParticipantAction,
+  clearHalisahaParticipantsAction,
   createHalisahaQuestionAction,
   deleteHalisahaQuestionAction,
   moveHalisahaQuestionAction,
@@ -806,6 +807,27 @@ export function HalisahaAdminClient({
     );
   };
 
+  const handleClearParticipants = async () => {
+    if (snapshot.participants.length === 0) {
+      return;
+    }
+
+    const participantLabel =
+      snapshot.participants.length === 1 ? "player/guest" : "players/guests";
+    if (
+      !window.confirm(
+        `Remove all ${snapshot.participants.length} ${participantLabel} from this Halisaha match?`,
+      )
+    ) {
+      return;
+    }
+
+    await runAction(
+      () => clearHalisahaParticipantsAction(),
+      "All participants removed.",
+    );
+  };
+
   const handleCreateQuestion = async () => {
     await runAction(
       () =>
@@ -1024,6 +1046,23 @@ export function HalisahaAdminClient({
             </div>
 
             <div className="overflow-x-auto rounded-lg border border-nord-polarLighter/35">
+              <div className="flex flex-col gap-3 border-b border-nord-polarLighter/35 bg-nord-snow/45 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                <p className="text-sm text-nord-polarLight">
+                  Current squad size:{" "}
+                  <strong className="font-semibold text-nord-polar">
+                    {snapshot.participants.length}
+                  </strong>
+                  . Use bulk clear when you want to reset the full list at once.
+                </p>
+                <Button
+                  size="sm"
+                  variant="danger"
+                  onClick={handleClearParticipants}
+                  disabled={busy || snapshot.participants.length === 0}
+                >
+                  Remove all players & guests
+                </Button>
+              </div>
               {snapshot.participants.length === 0 ? (
                 <div className="px-4 py-8 text-center text-sm text-nord-polarLight">
                   No players have been assigned yet.
@@ -1080,19 +1119,13 @@ export function HalisahaAdminClient({
                 <div>
                   Match ends at{" "}
                   <strong className="font-semibold text-nord-polar">
-                    {new Date(snapshot.match.matchEndAtIso).toLocaleString("tr-TR", {
-                      dateStyle: "short",
-                      timeStyle: "short",
-                    })}
+                    {snapshot.match.matchEndLabel}
                   </strong>
                 </div>
                 <div>
                   MVP vote closes at{" "}
                   <strong className="font-semibold text-nord-polar">
-                    {new Date(snapshot.match.mvpVoteEndsAtIso).toLocaleString("tr-TR", {
-                      dateStyle: "short",
-                      timeStyle: "short",
-                    })}
+                    {snapshot.match.mvpVoteEndsLabel}
                   </strong>
                 </div>
                 <div>
@@ -1103,11 +1136,8 @@ export function HalisahaAdminClient({
                 </div>
                 <div>Total MVP votes received: {snapshot.match.mvpVoteCount}</div>
                 <div>
-                  {snapshot.match.answersResolvedAtIso
-                    ? `Last scored at ${new Date(snapshot.match.answersResolvedAtIso).toLocaleString("tr-TR", {
-                        dateStyle: "short",
-                        timeStyle: "short",
-                      })}`
+                  {snapshot.match.answersResolvedAtLabel
+                    ? `Last scored at ${snapshot.match.answersResolvedAtLabel}`
                     : "Answers have not been scored yet."}
                 </div>
               </div>

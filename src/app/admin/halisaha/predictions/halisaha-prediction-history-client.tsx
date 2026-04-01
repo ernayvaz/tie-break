@@ -17,6 +17,7 @@ import {
   type AdminHalisahaMvpVoteHistoryRow,
   type AdminHalisahaPredictionHistoryFilters,
 } from "@/lib/admin-halisaha-prediction-history";
+import { formatHalisahaDateTime } from "@/lib/halisaha/config";
 import { type HalisahaRecentAnswerRow } from "@/lib/halisaha/leaderboard";
 import {
   adminResetUserHalisahaMatchAnswersAction,
@@ -139,10 +140,7 @@ function formatDateInputValue(date: Date): string {
 
 function formatDateTime(iso: string | null) {
   if (!iso) return "–";
-  return new Date(iso).toLocaleString("en-GB", {
-    dateStyle: "short",
-    timeStyle: "short",
-  });
+  return formatHalisahaDateTime(new Date(iso), "en-GB");
 }
 
 function formatLegacyLabel(answer: HalisahaRecentAnswerRow) {

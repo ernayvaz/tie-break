@@ -10,6 +10,7 @@ import {
 import { prisma } from "@/lib/db";
 import {
   createIstanbulDateFromParts,
+  formatHalisahaDateTime,
   formatHalisahaKickoffLabel,
   getHalisahaPositionDisplayOrder,
   getHalisahaPositionLabel,
@@ -315,10 +316,13 @@ export type HalisahaAdminSnapshot = {
     kickoffTimezone: string;
     matchDurationMinutes: number;
     matchEndAtIso: string;
+    matchEndLabel: string;
     mvpVoteEndsAtIso: string;
+    mvpVoteEndsLabel: string;
     phase: HalisahaMatchPhase;
     isPublishedToUsers: boolean;
     answersResolvedAtIso: string | null;
+    answersResolvedAtLabel: string | null;
     mvpResolvedParticipantId: string | null;
     mvpResolvedParticipantName: string | null;
     mvpVoteCount: number;
@@ -1667,6 +1671,8 @@ export async function getHalisahaAdminSnapshot(): Promise<HalisahaAdminSnapshot>
   const results = match ? await getHalisahaResults(match.id) : [];
   const fallback = getDefaultMatchState();
   const baseMatch = match ?? fallback;
+  const matchEndAt = getHalisahaMatchEndAt(baseMatch);
+  const mvpVoteEndsAt = getHalisahaMvpVoteEndsAt(baseMatch);
 
   return {
     match: {
@@ -1680,11 +1686,16 @@ export async function getHalisahaAdminSnapshot(): Promise<HalisahaAdminSnapshot>
       kickoffTimeInput: toIstanbulTimeInput(baseMatch.kickoffAt),
       kickoffTimezone: baseMatch.kickoffTimezone,
       matchDurationMinutes: baseMatch.matchDurationMinutes,
-      matchEndAtIso: getHalisahaMatchEndAt(baseMatch).toISOString(),
-      mvpVoteEndsAtIso: getHalisahaMvpVoteEndsAt(baseMatch).toISOString(),
+      matchEndAtIso: matchEndAt.toISOString(),
+      matchEndLabel: formatHalisahaDateTime(matchEndAt),
+      mvpVoteEndsAtIso: mvpVoteEndsAt.toISOString(),
+      mvpVoteEndsLabel: formatHalisahaDateTime(mvpVoteEndsAt),
       phase: getHalisahaMatchPhase(baseMatch),
       isPublishedToUsers: isHalisahaPublishedToUsers(baseMatch),
       answersResolvedAtIso: baseMatch.answersResolvedAt?.toISOString() ?? null,
+      answersResolvedAtLabel: baseMatch.answersResolvedAt
+        ? formatHalisahaDateTime(baseMatch.answersResolvedAt)
+        : null,
       mvpResolvedParticipantId: match?.mvpResolvedParticipantId ?? null,
       mvpResolvedParticipantName: match?.resolvedMvpParticipant
         ? getParticipantDisplayName(match.resolvedMvpParticipant)

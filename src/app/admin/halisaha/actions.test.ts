@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
   questionOptionUpdateMany: vi.fn(),
   answerDeleteMany: vi.fn(),
   answerUpdateMany: vi.fn(),
+  participantDeleteMany: vi.fn(),
   matchFindUnique: vi.fn(),
   matchUpdate: vi.fn(),
   leaderboardDeleteMany: vi.fn(),
@@ -61,6 +62,9 @@ vi.mock("@/lib/db", () => ({
       deleteMany: mocks.answerDeleteMany,
       updateMany: mocks.answerUpdateMany,
     },
+    halisahaParticipant: {
+      deleteMany: mocks.participantDeleteMany,
+    },
     halisahaMatch: {
       findUnique: mocks.matchFindUnique,
       update: mocks.matchUpdate,
@@ -76,6 +80,7 @@ vi.mock("@/lib/db", () => ({
 }));
 
 import {
+  clearHalisahaParticipantsAction,
   setHalisahaMatchPublishedAction,
   updateHalisahaQuestionAction,
 } from "./actions";
@@ -90,6 +95,7 @@ describe("admin halisaha question actions", () => {
     mocks.questionOptionUpdateMany.mockResolvedValue({ count: 0 });
     mocks.answerDeleteMany.mockResolvedValue({ count: 2 });
     mocks.answerUpdateMany.mockResolvedValue({ count: 2 });
+    mocks.participantDeleteMany.mockResolvedValue({ count: 2 });
     mocks.ensureActiveMatch.mockResolvedValue({
       id: "match-1",
       isPublishedToUsers: false,
@@ -199,6 +205,23 @@ describe("admin halisaha question actions", () => {
         isPublishedToUsers: true,
       },
     });
+    expect(mocks.revalidatePath).toHaveBeenCalledWith("/halisaha");
+  });
+
+  it("clears every participant from the active match", async () => {
+    const result = await clearHalisahaParticipantsAction();
+
+    expect(result).toEqual({
+      ok: true,
+      message: "Removed 2 participant(s) from the Halisaha squad.",
+    });
+    expect(mocks.participantDeleteMany).toHaveBeenCalledWith({
+      where: {
+        matchId: "match-1",
+      },
+    });
+    expect(mocks.syncMvpQuestion).toHaveBeenCalledWith("match-1");
+    expect(mocks.syncPlayerQuestions).toHaveBeenCalledWith("match-1");
     expect(mocks.revalidatePath).toHaveBeenCalledWith("/halisaha");
   });
 });

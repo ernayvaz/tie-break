@@ -311,6 +311,7 @@ export async function saveHalisahaMatchSettingsAction(data: {
     awayTeamName,
   });
   await syncHalisahaMvpPredictionQuestion(targetMatchId);
+  await syncHalisahaPlayerPredictionQuestions(targetMatchId);
 
   if (archiveLogSummary) {
     await createAdminLog(
@@ -428,6 +429,7 @@ export async function addHalisahaRegisteredParticipantAction(
     `${user.name} ${user.surname}`,
   );
   await syncHalisahaMvpPredictionQuestion(match.id);
+  await syncHalisahaPlayerPredictionQuestions(match.id);
   revalidateHalisahaPaths();
 
   return {
@@ -463,6 +465,7 @@ export async function addHalisahaGuestParticipantAction(
     normalizedGuestName,
   );
   await syncHalisahaMvpPredictionQuestion(match.id);
+  await syncHalisahaPlayerPredictionQuestions(match.id);
   revalidateHalisahaPaths();
 
   return {
@@ -536,6 +539,7 @@ export async function updateHalisahaParticipantAssignmentAction(
   );
 
   await syncHalisahaMvpPredictionQuestion(participant.matchId);
+  await syncHalisahaPlayerPredictionQuestions(participant.matchId);
   revalidateHalisahaPaths();
 
   return {
@@ -581,11 +585,46 @@ export async function removeHalisahaParticipantAction(
     null,
   );
   await syncHalisahaMvpPredictionQuestion(participant.matchId);
+  await syncHalisahaPlayerPredictionQuestions(participant.matchId);
   revalidateHalisahaPaths();
 
   return {
     ok: true,
     message: "Participant removed from the Halisaha squad.",
+  };
+}
+
+export async function clearHalisahaParticipantsAction(): Promise<HalisahaAdminActionState> {
+  const admin = await requireAdmin();
+  const match = await ensureActiveHalisahaMatch();
+  const result = await prisma.halisahaParticipant.deleteMany({
+    where: {
+      matchId: match.id,
+    },
+  });
+
+  if (result.count === 0) {
+    return {
+      ok: true,
+      message: "There were no participants to remove.",
+    };
+  }
+
+  await createAdminLog(
+    admin.id,
+    "halisaha_participants_cleared",
+    "halisaha_match",
+    match.id,
+    String(result.count),
+    "cleared",
+  );
+  await syncHalisahaMvpPredictionQuestion(match.id);
+  await syncHalisahaPlayerPredictionQuestions(match.id);
+  revalidateHalisahaPaths();
+
+  return {
+    ok: true,
+    message: `Removed ${result.count} participant(s) from the Halisaha squad.`,
   };
 }
 
