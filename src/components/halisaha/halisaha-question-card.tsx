@@ -8,6 +8,10 @@ import type {
   HalisahaPublicAnswerState,
   HalisahaPublicQuestion,
 } from "@/lib/halisaha/server";
+import {
+  getHalisahaPlayerPickerChoiceOptions,
+  getHalisahaPlayerPickerOptionGroups,
+} from "@/lib/halisaha/question-option-utils";
 
 export function HalisahaQuestionCard({
   question,
@@ -23,6 +27,7 @@ export function HalisahaQuestionCard({
   showSaveButton = true,
   layoutMode = "default",
   onRequestPlayerPicker,
+  onRequestOthers,
   compactOverlayLayout = false,
 }: {
   question: HalisahaPublicQuestion;
@@ -46,6 +51,7 @@ export function HalisahaQuestionCard({
   showSaveButton?: boolean;
   layoutMode?: "default" | "overlay";
   onRequestPlayerPicker?: () => void;
+  onRequestOthers?: () => void;
   compactOverlayLayout?: boolean;
 }) {
   const router = useRouter();
@@ -66,13 +72,25 @@ export function HalisahaQuestionCard({
     () => question.options.filter((option) => option.participantId),
     [question.options],
   );
+  const pickerChoiceOptions = useMemo(
+    () => getHalisahaPlayerPickerChoiceOptions(question.kind, question.options),
+    [question.kind, question.options],
+  );
+  const pickerOptionGroups = useMemo(
+    () => getHalisahaPlayerPickerOptionGroups(question.kind, question.options),
+    [question.kind, question.options],
+  );
   const pickerPlaceholderOption = useMemo<HalisahaPublicQuestion["options"][number] | null>(() => {
     const storedPlaceholder = question.options.find((option) => option.kind === "player_picker");
     if (storedPlaceholder) {
       return storedPlaceholder;
     }
 
-    if (isMvpPredictionQuestion || participantOptions.length > 0) {
+    if (
+      isMvpPredictionQuestion ||
+      question.kind === "player_prediction" ||
+      participantOptions.length > 0
+    ) {
       return {
         id: `${question.id}-player-picker`,
         label: "Choose player",
@@ -81,37 +99,46 @@ export function HalisahaQuestionCard({
         teamSide: null,
         resolvedScoreHome: null,
         resolvedScoreAway: null,
-        sortOrder: participantOptions[0]?.sortOrder ?? 0,
+        sortOrder:
+          question.options.length > 0
+            ? Math.min(...question.options.map((option) => option.sortOrder))
+            : 0,
         isCorrect: false,
       };
     }
 
     return null;
-  }, [isMvpPredictionQuestion, participantOptions, question.id, question.options]);
+  }, [isMvpPredictionQuestion, participantOptions, question.id, question.kind, question.options]);
   const visibleOptions = useMemo(() => {
-    const baseOptions = question.options.filter(
-      (option) => !option.participantId && option.kind !== "player_picker",
-    );
+    const baseOptions =
+      question.kind === "player_prediction" || isMvpPredictionQuestion
+        ? []
+        : question.options.filter(
+            (option) => !option.participantId && option.kind !== "player_picker",
+          );
 
     return pickerPlaceholderOption
       ? [...baseOptions, pickerPlaceholderOption].sort(
           (left, right) => left.sortOrder - right.sortOrder,
         )
       : baseOptions;
-  }, [pickerPlaceholderOption, question.options]);
+  }, [isMvpPredictionQuestion, pickerPlaceholderOption, question.kind, question.options]);
   const selectedOption = question.options.find((option) => option.id === selectedOptionId) ?? null;
   const selectedNumericOption =
     selectedOption &&
     (selectedOption.kind === "custom_score" || selectedOption.kind === "custom_number")
       ? selectedOption
       : null;
-  const selectedPlayerOption =
-    selectedOption && selectedOption.participantId ? selectedOption : null;
   const hasPlayerPickerRow = Boolean(pickerPlaceholderOption);
+  const selectedPlayerOption =
+    hasPlayerPickerRow && selectedOption?.kind === "standard" && selectedOption.participantId
+      ? selectedOption
+      : null;
   const isPredictionWindowClosed =
     predictionWindowClosed && !answersLocked && !answersResolved;
   const isReadOnly = answersResolved || answersLocked || isPredictionWindowClosed || busy;
   const resolvedButPending = answersResolved && !question.resolved;
+  const shouldShowOthersButton = isOverlayLayout && answersResolved && Boolean(onRequestOthers);
 
   useEffect(() => {
     if (controlledSelectedAnswer === undefined) {
@@ -328,14 +355,7 @@ export function HalisahaQuestionCard({
     visibleOptions.length,
   ]);
   const shouldShowFooter = !isOverlayLayout && (showSaveButton || answersResolved || Boolean(helperText));
-  const mvpTeamGroups = useMemo(
-    () => ({
-      home: participantOptions.filter((option) => option.teamSide === "home"),
-      away: participantOptions.filter((option) => option.teamSide === "away"),
-    }),
-    [participantOptions],
-  );
-  const hasCorrectParticipant = participantOptions.some((option) => option.isCorrect);
+  const hasCorrectPickerChoice = pickerChoiceOptions.some((option) => option.isCorrect);
   const overlayOptionGapClass = useCompactOverlayLayout
     ? "gap-[clamp(0.2rem,0.54vh,0.3rem)]"
     : "gap-[clamp(0.22rem,0.64vh,0.34rem)]";
@@ -428,8 +448,19 @@ export function HalisahaQuestionCard({
             {question.prompt}
           </h3>
         </div>
-        <div className="shrink-0 rounded-full border border-white/10 bg-white/[0.045] px-2 py-[0.18rem] text-[0.48rem] font-semibold uppercase tracking-[0.14em] text-[#d4e4df]">
-          {question.points} pt
+        <div className="flex shrink-0 items-center gap-1.5">
+          {shouldShowOthersButton ? (
+            <button
+              type="button"
+              onClick={onRequestOthers}
+              className="rounded-full border border-white/10 bg-white/[0.045] px-2 py-[0.18rem] text-[0.48rem] font-semibold uppercase tracking-[0.14em] text-[#d4e4df] transition-colors hover:bg-white/[0.09]"
+            >
+              Others
+            </button>
+          ) : null}
+          <div className="rounded-full border border-white/10 bg-white/[0.045] px-2 py-[0.18rem] text-[0.48rem] font-semibold uppercase tracking-[0.14em] text-[#d4e4df]">
+            {question.points} pt
+          </div>
         </div>
       </div>
 
@@ -469,7 +500,7 @@ export function HalisahaQuestionCard({
             const showResolutionMeta = isPickerControl
               ? !isOverlayLayout &&
                 question.resolved &&
-                (Boolean(selectedPlayerOption) || hasCorrectParticipant)
+                (Boolean(selectedPlayerOption) || hasCorrectPickerChoice)
               : !isOverlayLayout &&
                 question.resolved &&
                 (initialAnswer?.selectedOptionId === option.id || isCorrect);
@@ -496,14 +527,14 @@ export function HalisahaQuestionCard({
                         }
                         setIsPlayerPickerOpen(true);
                       }}
-                      disabled={isReadOnly || participantOptions.length === 0}
+                      disabled={isReadOnly || pickerChoiceOptions.length === 0}
                       className={`halisaha-mvp-control flex ${
                         isOverlayLayout ? overlayOptionHeightClass : overlayOptionMinHeightClass
                       } items-center justify-center overflow-hidden rounded-[0.72rem] border ${compactOverlayMvpActionClass} px-3 ${
                         isOverlayLayout ? "py-[0.24rem]" : "py-[0.34rem]"
                       } text-[0.66rem] font-semibold uppercase leading-[1.08] tracking-[0.16em] text-white/84 transition-colors disabled:cursor-default disabled:text-white/38`}
                     >
-                      {participantOptions.length === 0 ? "No players yet" : "Choose player"}
+                      {pickerChoiceOptions.length === 0 ? "No players yet" : "Choose player"}
                     </button>
                     <div
                       className={`halisaha-mvp-control flex ${
@@ -705,16 +736,7 @@ export function HalisahaQuestionCard({
                 {isMvpPredictionQuestion ? "Choose your MVP candidate" : "Choose one player"}
               </h4>
               <div className="mt-3 grid gap-3 md:grid-cols-2">
-                {[
-                  {
-                    label: "Home team",
-                    options: mvpTeamGroups.home,
-                  },
-                  {
-                    label: "Away team",
-                    options: mvpTeamGroups.away,
-                  },
-                ].map((group) => (
+                {pickerOptionGroups.map((group) => (
                   <div
                     key={group.label}
                     className="rounded-[0.9rem] border border-white/10 bg-white/[0.04] p-3"
@@ -746,7 +768,9 @@ export function HalisahaQuestionCard({
                         ))
                       ) : (
                         <div className="text-[0.72rem] text-white/42">
-                          No players have been assigned to this team yet.
+                          {isMvpPredictionQuestion
+                            ? "No players have been assigned to this group yet."
+                            : "No squad players are available in this group yet."}
                         </div>
                       )}
                     </div>

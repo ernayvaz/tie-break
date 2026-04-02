@@ -40,8 +40,10 @@ import {
 } from "./rules";
 import {
   composeHalisahaCumulativeLeaderboard,
+  mergeHalisahaPendingAnswerCountsIntoLeaderboard,
   mergeHalisahaResultRowSeeds,
   rankHalisahaResultRows,
+  type HalisahaPendingAnswerCountRow,
   type HalisahaRecentAnswerRow,
   type HalisahaResultRow,
   type HalisahaResultRowSeed,
@@ -284,6 +286,11 @@ export type HalisahaPublicQuestion = {
     resolvedScoreAway: number | null;
     sortOrder: number;
     isCorrect: boolean;
+  }>;
+  otherAnswers: Array<{
+    userId: string;
+    displayName: string;
+    answerLabel: string;
   }>;
 };
 
@@ -610,7 +617,13 @@ function questionHasResolvedResult(question: PublicQuestionInput) {
 
 function toPublicQuestionRow(
   question: PublicQuestionInput,
-  { hideResolution = false }: { hideResolution?: boolean } = {},
+  {
+    hideResolution = false,
+    otherAnswers = [],
+  }: {
+    hideResolution?: boolean;
+    otherAnswers?: HalisahaPublicQuestion["otherAnswers"];
+  } = {},
 ): HalisahaPublicQuestion {
   return {
     id: question.id,
@@ -636,6 +649,7 @@ function toPublicQuestionRow(
       sortOrder: option.sortOrder,
       isCorrect: hideResolution ? false : option.isCorrect,
     })),
+    otherAnswers: [...otherAnswers],
   };
 }
 
@@ -666,6 +680,52 @@ function formatAnswerSelectionLabel(answer: {
   }
 
   return answer.selectedOption.label;
+}
+
+function buildHalisahaOtherAnswerMap(
+  answers: Array<{
+    questionId: string;
+    customScoreHome: number | null;
+    customScoreAway: number | null;
+    selectedOption: {
+      label: string;
+      kind: HalisahaQuestionOptionKind;
+    };
+    user: {
+      id: string;
+      name: string;
+      surname: string;
+    };
+  }>,
+) {
+  const grouped = new Map<
+    string,
+    Array<{
+      userId: string;
+      displayName: string;
+      answerLabel: string;
+    }>
+  >();
+
+  for (const answer of answers) {
+    const rows = grouped.get(answer.questionId) ?? [];
+    rows.push({
+      userId: answer.user.id,
+      displayName: `${answer.user.name} ${answer.user.surname}`.trim(),
+      answerLabel: formatAnswerSelectionLabel(answer),
+    });
+    grouped.set(answer.questionId, rows);
+  }
+
+  for (const rows of grouped.values()) {
+    rows.sort(
+      (left, right) =>
+        left.displayName.localeCompare(right.displayName, "tr") ||
+        left.answerLabel.localeCompare(right.answerLabel, "tr"),
+    );
+  }
+
+  return grouped;
 }
 
 type HalisahaResultAnswerRecord = {
@@ -945,11 +1005,18 @@ async function dedupeParticipantQuestionOptions<T extends { id: string; particip
   return canonicalOptionByParticipantId;
 }
 
+function normalizePlayerPickerOptionLabel(label: string) {
+  return label.trim().replace(/\s+/g, " ").toLocaleLowerCase("tr-TR");
+}
+
 export async function syncHalisahaPlayerPredictionQuestions(matchId: string) {
   const [questions, optionRows] = await Promise.all([
     prisma.halisahaQuestion.findMany({
       where: {
         matchId,
+        NOT: {
+          kind: "mvp_prediction",
+        },
         OR: [
           {
             kind: "player_prediction",
@@ -996,14 +1063,22 @@ export async function syncHalisahaPlayerPredictionQuestions(matchId: string) {
   }
 
   const activeParticipantIds = new Set(optionRows.map((participant) => participant.id));
+  const participantIdByNormalizedLabel = new Map(
+    optionRows.map((participant) => [
+      normalizePlayerPickerOptionLabel(participant.pickerLabel),
+      participant.id,
+    ]),
+  );
 
   await prisma.$transaction(async (tx) => {
     for (const question of questions) {
       const selectedOptionIds = new Set(
         question.answers.map((answer) => answer.selectedOptionId),
       );
-      let placeholderOption =
-        question.options.find((option) => option.kind === "player_picker") ?? null;
+      const existingPlaceholderOptions = question.options.filter(
+        (option) => option.kind === "player_picker",
+      );
+      let placeholderOption = existingPlaceholderOptions[0] ?? null;
 
       if (!placeholderOption) {
         const sortAnchor =
@@ -1018,18 +1093,77 @@ export async function syncHalisahaPlayerPredictionQuestions(matchId: string) {
             sortOrder: sortAnchor,
           },
         });
+      } else if (placeholderOption.label !== PLAYER_PICKER_OPTION_LABEL) {
+        placeholderOption = await tx.halisahaQuestionOption.update({
+          where: { id: placeholderOption.id },
+          data: {
+            label: PLAYER_PICKER_OPTION_LABEL,
+          },
+        });
+      }
+
+      const duplicatePlaceholderIds = existingPlaceholderOptions
+        .slice(1)
+        .map((option) => option.id);
+      if (duplicatePlaceholderIds.length > 0) {
+        await tx.halisahaQuestionOption.deleteMany({
+          where: {
+            id: {
+              in: duplicatePlaceholderIds,
+            },
+          },
+        });
+      }
+
+      const currentOptions = question.options.filter(
+        (option) => !duplicatePlaceholderIds.includes(option.id),
+      );
+      const relinkedOptionEntries = currentOptions
+        .filter((option) => option.kind === "standard" && !option.participantId)
+        .map((option) => ({
+          option,
+          participantId:
+            participantIdByNormalizedLabel.get(
+              normalizePlayerPickerOptionLabel(option.label),
+            ) ?? null,
+        }))
+        .filter(
+          (entry): entry is typeof entry & { participantId: string } =>
+            entry.participantId !== null,
+        );
+
+      let normalizedOptions = currentOptions;
+
+      if (relinkedOptionEntries.length > 0) {
+        for (const entry of relinkedOptionEntries) {
+          await tx.halisahaQuestionOption.update({
+            where: { id: entry.option.id },
+            data: {
+              participantId: entry.participantId,
+            },
+          });
+        }
+
+        const relinkedOptionMap = new Map(
+          relinkedOptionEntries.map((entry) => [entry.option.id, entry.participantId]),
+        );
+        normalizedOptions = currentOptions.map((option) => ({
+          ...option,
+          participantId: relinkedOptionMap.get(option.id) ?? option.participantId,
+        }));
       }
 
       const optionByParticipantId = await dedupeParticipantQuestionOptions(tx, {
         questionId: question.id,
-        options: question.options,
+        options: normalizedOptions,
         selectedOptionIds,
       });
 
       for (const [index, participant] of optionRows.entries()) {
         const existingOption = optionByParticipantId.get(participant.id);
+        const nextSortOrder = placeholderOption.sortOrder + index + 1;
+
         if (existingOption) {
-          const nextSortOrder = placeholderOption.sortOrder + index + 1;
           if (
             existingOption.label !== participant.pickerLabel ||
             existingOption.kind !== "standard" ||
@@ -1044,20 +1178,21 @@ export async function syncHalisahaPlayerPredictionQuestions(matchId: string) {
               },
             });
           }
-        } else {
-          await tx.halisahaQuestionOption.create({
-            data: {
-              questionId: question.id,
-              label: participant.pickerLabel,
-              kind: "standard",
-              participantId: participant.id,
-              sortOrder: placeholderOption.sortOrder + index + 1,
-            },
-          });
+          continue;
         }
+
+        await tx.halisahaQuestionOption.create({
+          data: {
+            questionId: question.id,
+            label: participant.pickerLabel,
+            kind: "standard",
+            participantId: participant.id,
+            sortOrder: nextSortOrder,
+          },
+        });
       }
 
-      const removableOptionIds = question.options
+      const staleParticipantOptionIds = normalizedOptions
         .filter(
           (option) =>
             option.participantId && !activeParticipantIds.has(option.participantId),
@@ -1065,14 +1200,31 @@ export async function syncHalisahaPlayerPredictionQuestions(matchId: string) {
         .filter((option) => !selectedOptionIds.has(option.id))
         .map((option) => option.id);
 
-      if (removableOptionIds.length > 0) {
+      if (staleParticipantOptionIds.length > 0) {
         await tx.halisahaQuestionOption.deleteMany({
           where: {
             id: {
-              in: removableOptionIds,
+              in: staleParticipantOptionIds,
             },
           },
         });
+      }
+
+      if (question.kind === "player_prediction") {
+        const staleManualChoiceIds = normalizedOptions
+          .filter((option) => option.kind === "standard" && !option.participantId)
+          .filter((option) => !selectedOptionIds.has(option.id))
+          .map((option) => option.id);
+
+        if (staleManualChoiceIds.length > 0) {
+          await tx.halisahaQuestionOption.deleteMany({
+            where: {
+              id: {
+                in: staleManualChoiceIds,
+              },
+            },
+          });
+        }
       }
     }
   });
@@ -1379,11 +1531,52 @@ export async function syncHalisahaMvpPredictionQuestion(matchId: string) {
     existingQuestion.answers.map((answer) => answer.selectedOptionId),
   );
   const activeParticipantIds = new Set(optionRows.map((participant) => participant.id));
+  const participantIdByNormalizedLabel = new Map(
+    optionRows.map((participant) => [
+      normalizePlayerPickerOptionLabel(participant.pickerLabel),
+      participant.id,
+    ]),
+  );
 
   await prisma.$transaction(async (tx) => {
+    const relinkedOptionEntries = existingQuestion.options
+      .filter((option) => option.kind === "standard" && !option.participantId)
+      .map((option) => ({
+        option,
+        participantId:
+          participantIdByNormalizedLabel.get(
+            normalizePlayerPickerOptionLabel(option.label),
+          ) ?? null,
+      }))
+      .filter(
+        (entry): entry is typeof entry & { participantId: string } =>
+          entry.participantId !== null,
+      );
+
+    let normalizedOptions = existingQuestion.options;
+
+    if (relinkedOptionEntries.length > 0) {
+      for (const entry of relinkedOptionEntries) {
+        await tx.halisahaQuestionOption.update({
+          where: { id: entry.option.id },
+          data: {
+            participantId: entry.participantId,
+          },
+        });
+      }
+
+      const relinkedOptionMap = new Map(
+        relinkedOptionEntries.map((entry) => [entry.option.id, entry.participantId]),
+      );
+      normalizedOptions = existingQuestion.options.map((option) => ({
+        ...option,
+        participantId: relinkedOptionMap.get(option.id) ?? option.participantId,
+      }));
+    }
+
     const optionByParticipantId = await dedupeParticipantQuestionOptions(tx, {
       questionId: existingQuestion.id,
-      options: existingQuestion.options,
+      options: normalizedOptions,
       selectedOptionIds,
     });
 
@@ -1429,7 +1622,7 @@ export async function syncHalisahaMvpPredictionQuestion(matchId: string) {
       }
     }
 
-    const removableOptionIds = existingQuestion.options
+    const removableOptionIds = normalizedOptions
       .filter(
         (option) =>
           !option.participantId || !activeParticipantIds.has(option.participantId),
@@ -2308,9 +2501,42 @@ export async function getHalisahaPublicSnapshot(
   );
 
   const userAnswersLocked = (match?.answers ?? []).some((answer) => answer.isFinal);
+  const otherAnswersByQuestionId =
+    match?.id && baseMatch.answersResolvedAt
+      ? buildHalisahaOtherAnswerMap(
+          await prisma.halisahaAnswer.findMany({
+            where: {
+              matchId: match.id,
+              isFinal: true,
+              userId: {
+                not: userId,
+              },
+            },
+            select: {
+              questionId: true,
+              customScoreHome: true,
+              customScoreAway: true,
+              selectedOption: {
+                select: {
+                  label: true,
+                  kind: true,
+                },
+              },
+              user: {
+                select: {
+                  id: true,
+                  name: true,
+                  surname: true,
+                },
+              },
+            },
+          }),
+        )
+      : new Map();
   const questions = (match?.questions ?? []).map((question) =>
     toPublicQuestionRow(question, {
       hideResolution: hideResolvedResults,
+      otherAnswers: otherAnswersByQuestionId.get(question.id) ?? [],
     }),
   );
   const winnerQuestion = questions.find((question) => question.kind === "winner") ?? null;
@@ -2387,7 +2613,12 @@ export async function getHalisahaPublicSnapshot(
           : null,
       participants: persistedVoteParticipants,
     },
-    results: gate.canRevealResults ? await getHalisahaLeaderboardResults() : [],
+    results: gate.canRevealResults
+      ? await getHalisahaLeaderboardResults({
+          activeMatchId: activeMatch.id,
+          includePendingAnswerCounts: !baseMatch.answersResolvedAt,
+        })
+      : [],
   };
 }
 
@@ -2550,7 +2781,58 @@ async function ensureCurrentHalisahaLeaderboardRoundBackfill() {
   });
 }
 
-async function getHalisahaLeaderboardResults(): Promise<HalisahaResultRow[]> {
+async function getHalisahaPendingAnswerCounts(
+  matchId: string,
+): Promise<HalisahaPendingAnswerCountRow[]> {
+  const answerGroups = await prisma.halisahaAnswer.groupBy({
+    by: ["userId"],
+    where: {
+      matchId,
+    },
+    _count: {
+      _all: true,
+    },
+  });
+
+  if (answerGroups.length === 0) {
+    return [];
+  }
+
+  const users = await prisma.user.findMany({
+    where: {
+      id: {
+        in: answerGroups.map((group) => group.userId),
+      },
+    },
+    select: {
+      id: true,
+      name: true,
+      surname: true,
+    },
+  });
+  const userById = new Map(users.map((user) => [user.id, user]));
+
+  return answerGroups
+    .map((group) => {
+      const user = userById.get(group.userId);
+      if (!user) {
+        return null;
+      }
+
+      return {
+        userId: user.id,
+        name: user.name,
+        surname: user.surname,
+        answersSent: group._count._all,
+      } satisfies HalisahaPendingAnswerCountRow;
+    })
+    .filter((row): row is HalisahaPendingAnswerCountRow => row !== null);
+}
+
+async function getHalisahaLeaderboardResults(input?: {
+  activeMatchId?: string;
+  includePendingAnswerCounts?: boolean;
+}): Promise<HalisahaResultRow[]> {
   await ensureCurrentHalisahaLeaderboardRoundBackfill();
 
   const mvpGroups = await prisma.halisahaMvpRoundAward.groupBy({
@@ -2601,7 +2883,7 @@ async function getHalisahaLeaderboardResults(): Promise<HalisahaResultRow[]> {
         })
       : [];
 
-  return composeHalisahaCumulativeLeaderboard(
+  const cumulativeResults = composeHalisahaCumulativeLeaderboard(
     roundSnapshots,
     mvpCountByUser,
     mvpOnlyProfiles.map((u) => ({
@@ -2609,6 +2891,16 @@ async function getHalisahaLeaderboardResults(): Promise<HalisahaResultRow[]> {
       name: u.name,
       surname: u.surname,
     })),
+  );
+
+  if (!input?.includePendingAnswerCounts || !input.activeMatchId) {
+    return cumulativeResults;
+  }
+
+  const pendingAnswerCounts = await getHalisahaPendingAnswerCounts(input.activeMatchId);
+  return mergeHalisahaPendingAnswerCountsIntoLeaderboard(
+    cumulativeResults,
+    pendingAnswerCounts,
   );
 }
 

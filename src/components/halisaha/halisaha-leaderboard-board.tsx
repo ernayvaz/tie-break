@@ -2,66 +2,6 @@
 
 import type { HalisahaResultRow } from "@/lib/halisaha/server";
 
-const placeholderResults: HalisahaResultRow[] = [
-  {
-    userId: "placeholder-1",
-    name: "Golden",
-    surname: "Striker",
-    totalPoints: 14,
-    correctAnswers: 5,
-    answeredQuestions: 5,
-    mvpWins: 2,
-    accuracyLabel: "100%",
-    rank: 1,
-    podiumPlace: 1,
-    recentAnswers: [
-      { id: "p1-1", status: "correct", label: "Placeholder answer" },
-      { id: "p1-2", status: "correct", label: "Placeholder answer" },
-      { id: "p1-3", status: "correct", label: "Placeholder answer" },
-      { id: "p1-4", status: "correct", label: "Placeholder answer" },
-      { id: "p1-5", status: "correct", label: "Placeholder answer" },
-    ],
-  },
-  {
-    userId: "placeholder-2",
-    name: "Silver",
-    surname: "Playmaker",
-    totalPoints: 11,
-    correctAnswers: 4,
-    answeredQuestions: 5,
-    mvpWins: 1,
-    accuracyLabel: "80%",
-    rank: 2,
-    podiumPlace: 2,
-    recentAnswers: [
-      { id: "p2-1", status: "correct", label: "Placeholder answer" },
-      { id: "p2-2", status: "correct", label: "Placeholder answer" },
-      { id: "p2-3", status: "pending", label: "Placeholder answer" },
-      { id: "p2-4", status: "correct", label: "Placeholder answer" },
-      { id: "p2-5", status: "correct", label: "Placeholder answer" },
-    ],
-  },
-  {
-    userId: "placeholder-3",
-    name: "Bronze",
-    surname: "Captain",
-    totalPoints: 9,
-    correctAnswers: 3,
-    answeredQuestions: 5,
-    mvpWins: 0,
-    accuracyLabel: "60%",
-    rank: 3,
-    podiumPlace: 3,
-    recentAnswers: [
-      { id: "p3-1", status: "correct", label: "Placeholder answer" },
-      { id: "p3-2", status: "incorrect", label: "Placeholder answer" },
-      { id: "p3-3", status: "correct", label: "Placeholder answer" },
-      { id: "p3-4", status: "pending", label: "Placeholder answer" },
-      { id: "p3-5", status: "correct", label: "Placeholder answer" },
-    ],
-  },
-];
-
 function PremiumBootIcon({ className }: { className?: string }) {
   return (
     <svg
@@ -285,7 +225,7 @@ function HalisahaLeaderboardMobileCard({
       {/* Stats row – matches desktop columns: ANSWERS SENT, CORRECT HITS, SUCCESS RATE, MVP, FUN POINTS */}
       <div className="mt-3 border-t border-white/8 pt-2.5">
         <div className="grid grid-cols-5 gap-x-0 divide-x divide-white/8 text-center">
-          <InlineStat label="Answers sent" value={result.answeredQuestions} />
+          <InlineStat label="Answers sent" value={result.answersSent ?? result.answeredQuestions} />
           <InlineStat label="Correct hits" value={result.correctAnswers} />
           <InlineStat label="Success rate" value={result.accuracyLabel} />
           <InlineStat label="MVP" value={result.mvpWins} />
@@ -338,8 +278,10 @@ export function HalisahaLeaderboardBoard({
   results: HalisahaResultRow[];
   answersResolved: boolean;
 }) {
-  const displayResults = results.length > 0 ? results : placeholderResults;
-  const isPlaceholder = results.length === 0;
+  const hasResults = results.length > 0;
+  const emptyStateCopy = answersResolved
+    ? "Leaderboard will populate after the first scored Halisaha round is recorded."
+    : "Players who save answers for the current Halisaha match will appear here.";
 
   return (
     <div className="flex h-full min-h-0 flex-col rounded-[1.35rem] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.06),rgba(255,255,255,0.02))] p-3 shadow-[0_20px_54px_rgba(0,0,0,0.24)] sm:rounded-[1.55rem] sm:p-4">
@@ -350,15 +292,13 @@ export function HalisahaLeaderboardBoard({
       </div>
 
       <>
-        {isPlaceholder ? (
+        {!hasResults ? (
           <div className="mb-3 rounded-[1rem] border border-dashed border-white/12 bg-white/[0.03] px-4 py-4 text-center text-sm text-white/45 sm:hidden">
-            {answersResolved
-              ? "Showing a temporary podium preview until the first real Halisaha answers are scored."
-              : "Showing a temporary podium preview until players start answering."}
+            {emptyStateCopy}
           </div>
         ) : (
           <ul className="min-h-0 flex-1 space-y-2.5 overflow-y-auto pr-1 sm:hidden">
-            {displayResults.map((result) => (
+            {results.map((result) => (
               <HalisahaLeaderboardMobileCard
                 key={result.userId}
                 result={result}
@@ -382,8 +322,8 @@ export function HalisahaLeaderboardBoard({
               </tr>
             </thead>
             <tbody>
-              {displayResults.length > 0 ? (
-                displayResults.map((result) => (
+              {results.length > 0 ? (
+                results.map((result) => (
                   <tr
                     key={result.userId}
                     className="border-b border-white/8 align-middle"
@@ -402,7 +342,7 @@ export function HalisahaLeaderboardBoard({
                       </div>
                     </td>
                     <td className="py-3.5 pr-4 text-center tabular-nums text-white/72">
-                      {result.answeredQuestions}
+                      {result.answersSent ?? result.answeredQuestions}
                     </td>
                     <td className="py-3.5 pr-4 text-center tabular-nums text-white/72">
                       {result.correctAnswers}
@@ -429,7 +369,7 @@ export function HalisahaLeaderboardBoard({
                     colSpan={8}
                     className="py-12 text-center text-sm text-white/42"
                   >
-                    Leaderboard is ready.
+                    {emptyStateCopy}
                   </td>
                 </tr>
               )}

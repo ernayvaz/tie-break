@@ -1578,7 +1578,8 @@ export function HalisahaAdminClient({
             <div className="overflow-x-auto rounded-lg border border-nord-polarLighter/35">
               {snapshot.results.length === 0 ? (
                 <div className="px-4 py-8 text-center text-sm text-nord-polarLight">
-                  No scored answers yet. Winners will appear here after scoring.
+                  No leaderboard activity yet. Saved answers will appear here before scoring,
+                  and points will update after scoring.
                 </div>
               ) : (
                 <table className="w-full text-sm">
@@ -1586,7 +1587,7 @@ export function HalisahaAdminClient({
                     <tr className="border-b border-nord-polarLighter/50 bg-nord-snow/70 text-left text-nord-polarLight">
                       <th className="px-4 py-3 font-semibold">Player</th>
                       <th className="px-4 py-3 font-semibold">Correct</th>
-                      <th className="px-4 py-3 font-semibold">Answered</th>
+                      <th className="px-4 py-3 font-semibold">Answers sent</th>
                       <th className="px-4 py-3 font-semibold">Points</th>
                     </tr>
                   </thead>
@@ -1600,7 +1601,7 @@ export function HalisahaAdminClient({
                           {row.correctAnswers}
                         </td>
                         <td className="px-4 py-3 text-nord-polarLight">
-                          {row.answeredQuestions}
+                          {row.answersSent ?? row.answeredQuestions}
                         </td>
                         <td className="px-4 py-3 font-semibold text-nord-frostDark">
                           {row.totalPoints}

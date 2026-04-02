@@ -13,6 +13,7 @@ export type HalisahaResultRow = {
   totalPoints: number;
   correctAnswers: number;
   answeredQuestions: number;
+  answersSent?: number;
   /** Community MVP selections across all completed Halisaha rounds (registered users only). */
   mvpWins: number;
   accuracyLabel: string;
@@ -37,7 +38,15 @@ export type HalisahaRoundSnapshotRow = {
   totalPoints: number;
   correctAnswers: number;
   answeredQuestions: number;
+  answersSent?: number;
   recentAnswers: HalisahaRecentAnswerRow[];
+};
+
+export type HalisahaPendingAnswerCountRow = {
+  userId: string;
+  name: string;
+  surname: string;
+  answersSent: number;
 };
 
 /**
@@ -54,6 +63,7 @@ export function composeHalisahaCumulativeLeaderboard(
   const merged = mergeHalisahaResultRowSeeds(
     roundSnapshots.map((row) => ({
       ...row,
+      answersSent: row.answersSent ?? row.answeredQuestions,
       mvpWins: 0,
     })),
   );
@@ -82,12 +92,53 @@ export function composeHalisahaCumulativeLeaderboard(
       totalPoints: wins,
       correctAnswers: 0,
       answeredQuestions: 0,
+      answersSent: 0,
       mvpWins: wins,
       recentAnswers: [],
     });
   }
 
   return rankHalisahaResultRows([...mergedWithMvp, ...mvpOnlySeeds]);
+}
+
+export function mergeHalisahaPendingAnswerCountsIntoLeaderboard(
+  baseRows: readonly HalisahaResultRow[],
+  pendingAnswerCounts: readonly HalisahaPendingAnswerCountRow[],
+) {
+  if (pendingAnswerCounts.length === 0) {
+    return baseRows.map((row) => ({
+      ...row,
+      answersSent: row.answersSent ?? row.answeredQuestions,
+      recentAnswers: [...row.recentAnswers],
+    }));
+  }
+
+  const merged = mergeHalisahaResultRowSeeds([
+    ...baseRows.map((row) => ({
+      userId: row.userId,
+      name: row.name,
+      surname: row.surname,
+      totalPoints: row.totalPoints,
+      correctAnswers: row.correctAnswers,
+      answeredQuestions: row.answeredQuestions,
+      answersSent: row.answersSent ?? row.answeredQuestions,
+      mvpWins: row.mvpWins,
+      recentAnswers: [...row.recentAnswers],
+    })),
+    ...pendingAnswerCounts.map((row) => ({
+      userId: row.userId,
+      name: row.name,
+      surname: row.surname,
+      totalPoints: 0,
+      correctAnswers: 0,
+      answeredQuestions: 0,
+      answersSent: row.answersSent,
+      mvpWins: 0,
+      recentAnswers: [],
+    })),
+  ]);
+
+  return rankHalisahaResultRows(merged);
 }
 
 export function mergeHalisahaResultRowSeeds(seeds: HalisahaResultRowSeed[]) {
@@ -98,6 +149,7 @@ export function mergeHalisahaResultRowSeeds(seeds: HalisahaResultRowSeed[]) {
     if (!existing) {
       byUser.set(seed.userId, {
         ...seed,
+        answersSent: seed.answersSent ?? seed.answeredQuestions,
         mvpWins: seed.mvpWins ?? 0,
         recentAnswers: [...seed.recentAnswers],
       });
@@ -107,6 +159,9 @@ export function mergeHalisahaResultRowSeeds(seeds: HalisahaResultRowSeed[]) {
     existing.totalPoints += seed.totalPoints;
     existing.correctAnswers += seed.correctAnswers;
     existing.answeredQuestions += seed.answeredQuestions;
+    existing.answersSent =
+      (existing.answersSent ?? existing.answeredQuestions) +
+      (seed.answersSent ?? seed.answeredQuestions);
     existing.mvpWins = (existing.mvpWins ?? 0) + (seed.mvpWins ?? 0);
     existing.recentAnswers.push(...seed.recentAnswers);
   }
@@ -118,6 +173,7 @@ export function rankHalisahaResultRows(seeds: HalisahaResultRowSeed[]): Halisaha
   const rows = seeds
     .map((seed) => ({
       ...seed,
+      answersSent: seed.answersSent ?? seed.answeredQuestions,
       mvpWins: seed.mvpWins ?? 0,
       recentAnswers: [...seed.recentAnswers],
       accuracyLabel: "–",
@@ -127,8 +183,8 @@ export function rankHalisahaResultRows(seeds: HalisahaResultRowSeed[]): Halisaha
     .sort((a, b) => {
       if (b.totalPoints !== a.totalPoints) return b.totalPoints - a.totalPoints;
       if (b.correctAnswers !== a.correctAnswers) return b.correctAnswers - a.correctAnswers;
-      if (b.answeredQuestions !== a.answeredQuestions) {
-        return b.answeredQuestions - a.answeredQuestions;
+      if ((b.answersSent ?? b.answeredQuestions) !== (a.answersSent ?? a.answeredQuestions)) {
+        return (b.answersSent ?? b.answeredQuestions) - (a.answersSent ?? a.answeredQuestions);
       }
       return `${a.name} ${a.surname}`.localeCompare(`${b.name} ${b.surname}`);
     });

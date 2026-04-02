@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  mergeHalisahaPendingAnswerCountsIntoLeaderboard,
   mergeHalisahaResultRowSeeds,
   rankHalisahaResultRows,
   type HalisahaResultRowSeed,
@@ -48,6 +49,7 @@ describe("halisaha/leaderboard", () => {
         totalPoints: 5,
         correctAnswers: 5,
         answeredQuestions: 9,
+        answersSent: 9,
         mvpWins: 0,
         recentAnswers: [
           {
@@ -129,6 +131,69 @@ describe("halisaha/leaderboard", () => {
       ["user-3", 3, 3],
     ]);
     expect(ranked[0]?.accuracyLabel).toBe("56%");
+  });
+
+  it("keeps historical accuracy and points when pending answers only increase answers sent", () => {
+    const merged = mergeHalisahaPendingAnswerCountsIntoLeaderboard(
+      [
+        {
+          userId: "user-1",
+          name: "Ada",
+          surname: "Yilmaz",
+          totalPoints: 6,
+          correctAnswers: 5,
+          answeredQuestions: 5,
+          answersSent: 5,
+          mvpWins: 1,
+          accuracyLabel: "100%",
+          rank: 1,
+          podiumPlace: 1,
+          recentAnswers: [],
+        },
+      ],
+      [
+        {
+          userId: "user-1",
+          name: "Ada",
+          surname: "Yilmaz",
+          answersSent: 3,
+        },
+      ],
+    );
+
+    expect(merged[0]).toMatchObject({
+      userId: "user-1",
+      totalPoints: 6,
+      correctAnswers: 5,
+      answeredQuestions: 5,
+      answersSent: 8,
+      mvpWins: 1,
+      accuracyLabel: "100%",
+    });
+  });
+
+  it("adds pending-only users to the board with neutral scored stats", () => {
+    const merged = mergeHalisahaPendingAnswerCountsIntoLeaderboard(
+      [],
+      [
+        {
+          userId: "user-2",
+          name: "Bora",
+          surname: "Kaya",
+          answersSent: 4,
+        },
+      ],
+    );
+
+    expect(merged[0]).toMatchObject({
+      userId: "user-2",
+      totalPoints: 0,
+      correctAnswers: 0,
+      answeredQuestions: 0,
+      answersSent: 4,
+      mvpWins: 0,
+      accuracyLabel: "–",
+    });
   });
 
   it("keeps only the latest five answer markers after cumulative merge", () => {

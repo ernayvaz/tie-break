@@ -1,4 +1,8 @@
-import type { HalisahaQuestionKind, HalisahaQuestionOptionKind } from "@prisma/client";
+import type {
+  HalisahaQuestionKind,
+  HalisahaQuestionOptionKind,
+  HalisahaTeamSide,
+} from "@prisma/client";
 
 export type ManagedHalisahaQuestionKind =
   | "standard"
@@ -140,6 +144,13 @@ type OptionLike = {
   participantId?: string | null;
 };
 
+type PlayerPickerChoiceOptionLike = OptionLike & {
+  id: string;
+  label: string;
+  sortOrder: number;
+  teamSide?: HalisahaTeamSide | null;
+};
+
 type ResolvedOptionLike = OptionLike & {
   isCorrect?: boolean;
   resolvedScoreHome?: number | null;
@@ -184,6 +195,71 @@ export function getHalisahaParticipantOptions<T extends OptionLike>(options: T[]
 
 export function getHalisahaFixedChoiceOptions<T extends OptionLike>(options: T[]) {
   return options.filter(isHalisahaFixedChoiceOption);
+}
+
+function usesSyncedPlayerPickerOptions(
+  questionKind: HalisahaQuestionKind,
+  options: readonly OptionLike[],
+) {
+  return (
+    questionKind === "mvp_prediction" ||
+    questionKind === "player_prediction" ||
+    options.some(isHalisahaPlayerPickerPlaceholderOption)
+  );
+}
+
+export function getHalisahaPlayerPickerChoiceOptions<T extends PlayerPickerChoiceOptionLike>(
+  questionKind: HalisahaQuestionKind,
+  options: readonly T[],
+) {
+  if (usesSyncedPlayerPickerOptions(questionKind, options)) {
+    return [...options]
+      .filter((option) => Boolean(option.participantId) && Boolean(option.teamSide))
+      .sort((left, right) => left.sortOrder - right.sortOrder);
+  }
+
+  return [...options]
+    .filter((option) => option.kind === "standard" && !option.participantId)
+    .sort((left, right) => left.sortOrder - right.sortOrder);
+}
+
+export function getHalisahaPlayerPickerOptionGroups<T extends PlayerPickerChoiceOptionLike>(
+  questionKind: HalisahaQuestionKind,
+  options: readonly T[],
+) {
+  const pickerOptions = getHalisahaPlayerPickerChoiceOptions(questionKind, options);
+
+  if (!usesSyncedPlayerPickerOptions(questionKind, options)) {
+    return [
+      {
+        label: "Available choices",
+        options: pickerOptions,
+      },
+    ];
+  }
+
+  const homeOptions = pickerOptions.filter((option) => option.teamSide === "home");
+  const awayOptions = pickerOptions.filter((option) => option.teamSide === "away");
+  const unassignedOptions = pickerOptions.filter((option) => !option.teamSide);
+
+  return [
+    {
+      label: "Home team",
+      options: homeOptions,
+    },
+    {
+      label: "Away team",
+      options: awayOptions,
+    },
+    ...(unassignedOptions.length > 0
+      ? [
+          {
+            label: "Unassigned",
+            options: unassignedOptions,
+          },
+        ]
+      : []),
+  ];
 }
 
 export function getHalisahaQuestionTypeBadgesFromOptionKinds(

@@ -1175,9 +1175,7 @@ export async function updateHalisahaQuestionAction(
         prompt,
         points,
         isActive:
-          question.kind === "winner" || question.kind === "mvp_prediction"
-            ? true
-            : data.isActive,
+          question.kind === "winner" || question.kind === "mvp_prediction" ? true : data.isActive,
         sortOrder: question.kind === "winner" ? 0 : question.sortOrder,
         ...(optionSetChanged
           ? {
@@ -1229,6 +1227,9 @@ export async function updateHalisahaQuestionAction(
     resolvedNextKind === "player_prediction"
   ) {
     await syncHalisahaPlayerPredictionQuestions(question.matchId);
+  }
+  if (question.kind === "mvp_prediction") {
+    await syncHalisahaMvpPredictionQuestion(question.matchId);
   }
 
   await resetResolutionState(question.matchId);

@@ -28,6 +28,29 @@ import {
 
 const UCL_ID = "CL";
 const MATCH_CENTER_TAB_STORAGE_KEY = "tie-break-match-center-tabs";
+const SCHEDULE_DISPLAY_TIME_ZONE = "Europe/Istanbul";
+
+const scheduleDateFormatter = new Intl.DateTimeFormat("en-GB", {
+  day: "2-digit",
+  month: "2-digit",
+  year: "numeric",
+  timeZone: SCHEDULE_DISPLAY_TIME_ZONE,
+});
+
+const scheduleTimeFormatter = new Intl.DateTimeFormat("en-GB", {
+  hour: "2-digit",
+  minute: "2-digit",
+  timeZone: SCHEDULE_DISPLAY_TIME_ZONE,
+});
+
+const scheduleDateTimeFormatter = new Intl.DateTimeFormat("en-GB", {
+  day: "2-digit",
+  month: "2-digit",
+  year: "numeric",
+  hour: "2-digit",
+  minute: "2-digit",
+  timeZone: SCHEDULE_DISPLAY_TIME_ZONE,
+});
 
 export type ScheduleMatch = {
   id: string;
@@ -85,6 +108,18 @@ function formatStage(stage: string): string {
 function formatResult(value: PredictionValue | null): string {
   if (!value) return "–";
   return toDisplay(value);
+}
+
+function formatScheduleDate(dateLike: string | Date) {
+  return scheduleDateFormatter.format(new Date(dateLike));
+}
+
+function formatScheduleTime(dateLike: string | Date) {
+  return scheduleTimeFormatter.format(new Date(dateLike));
+}
+
+function formatScheduleDateTime(dateLike: string | Date) {
+  return scheduleDateTimeFormatter.format(new Date(dateLike));
 }
 
 type Props = {
@@ -794,17 +829,10 @@ export function ScheduleTabs({
                 Time
               </span>
               <span className="mt-1 block text-base font-semibold text-nord-polar">
-                {matchDate.toLocaleDateString("en-GB", {
-                  day: "2-digit",
-                  month: "2-digit",
-                  year: "numeric",
-                })}
+                {formatScheduleDate(matchDate)}
               </span>
               <span className="mt-0.5 block text-sm">
-                {matchDate.toLocaleTimeString("en-GB", {
-                  hour: "2-digit",
-                  minute: "2-digit",
-                })}
+                {formatScheduleTime(matchDate)}
               </span>
               <span className="mt-1 block text-xs">{formatStage(m.stage)}</span>
             </div>
@@ -855,7 +883,7 @@ export function ScheduleTabs({
               {canPredict && teamsDetermined && (
                 <div className="space-y-1.5">
                   <span className="block text-[11px] uppercase tracking-wide text-nord-polarLight">
-                    Lock {new Date(m.lockAt).toLocaleTimeString("en-GB", { timeStyle: "short" })}
+                    Lock {formatScheduleTime(m.lockAt)}
                   </span>
                   <div className="flex flex-wrap items-center gap-1.5">
                     {(["1", "X", "2"] as const).map((val) => (
@@ -936,17 +964,10 @@ export function ScheduleTabs({
         <div className={`${scheduleGrid} hidden min-h-[4rem] text-sm sm:grid`}>
           <div className="flex flex-col justify-center text-nord-polarLight">
             <span className="font-medium text-nord-polar">
-              {matchDate.toLocaleDateString("en-GB", {
-                day: "2-digit",
-                month: "2-digit",
-                year: "numeric",
-              })}
+              {formatScheduleDate(matchDate)}
             </span>
             <span className="mt-0.5">
-              {matchDate.toLocaleTimeString("en-GB", {
-                hour: "2-digit",
-                minute: "2-digit",
-              })}
+              {formatScheduleTime(matchDate)}
             </span>
             <span className="mt-1 text-xs">{formatStage(m.stage)}</span>
           </div>
@@ -992,7 +1013,7 @@ export function ScheduleTabs({
             {canPredict && (
               <div className="flex flex-col gap-1.5">
                 <span className="text-[11px] text-nord-polarLight uppercase tracking-wide">
-                  Lock {new Date(m.lockAt).toLocaleTimeString("en-GB", { timeStyle: "short" })}
+                  Lock {formatScheduleTime(m.lockAt)}
                 </span>
                 <div className="flex flex-wrap items-center gap-1.5">
                   {(["1", "X", "2"] as const).map((val) => (
@@ -1112,7 +1133,7 @@ export function ScheduleTabs({
                 {others.map((o, i) => (
                   <li key={i}>
                     {o.name} {o.surname}: {o.selectedPrediction} (finalized{" "}
-                    {new Date(o.finalizedAt).toLocaleString("en-GB")})
+                    {formatScheduleDateTime(o.finalizedAt)})
                   </li>
                 ))}
               </ul>

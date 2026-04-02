@@ -44,22 +44,31 @@ async function ensureQuestionOverlayOpen(page) {
     return choosePlayerButton;
   }
 
-  const toggleButtons = page.locator("button[aria-label]");
-  const toggleCount = await toggleButtons.count();
   let toggle = null;
+  for (const delayMs of [0, 1000, 2000]) {
+    if (delayMs > 0) {
+      await page.waitForTimeout(delayMs);
+    }
 
-  for (let index = 0; index < toggleCount; index += 1) {
-    const candidate = toggleButtons.nth(index);
-    const label = await candidate.getAttribute("aria-label");
-    if (label && /reveal lineups|hide lineups|reveal mvp vote|hide mvp vote/i.test(label)) {
-      const visible = await candidate.isVisible().catch(() => false);
-      if (visible) {
-        toggle = candidate;
-        break;
+    const toggleButtons = page.locator("button[aria-label]");
+    const toggleCount = await toggleButtons.count();
+
+    for (let index = 0; index < toggleCount; index += 1) {
+      const candidate = toggleButtons.nth(index);
+      const label = await candidate.getAttribute("aria-label");
+      if (label && /reveal lineups|hide lineups|reveal mvp vote|hide mvp vote/i.test(label)) {
+        const visible = await candidate.isVisible().catch(() => false);
+        if (visible) {
+          toggle = candidate;
+          break;
+        }
+        if (!toggle) {
+          toggle = candidate;
+        }
       }
-      if (!toggle) {
-        toggle = candidate;
-      }
+    }
+    if (toggle) {
+      break;
     }
   }
 
@@ -69,7 +78,7 @@ async function ensureQuestionOverlayOpen(page) {
 
   const toggleLabel = await toggle.getAttribute("aria-label");
   if (toggleLabel && /reveal/i.test(toggleLabel)) {
-    await toggle.click();
+    await toggle.click({ force: true });
     await page.waitForTimeout(1200);
   }
 

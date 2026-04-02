@@ -7,6 +7,7 @@ import {
   finalizeHalisahaAnswersAction,
   unlockHalisahaAnswersAction,
 } from "@/app/(app)/halisaha/actions";
+import { getHalisahaPlayerPickerOptionGroups } from "@/lib/halisaha/question-option-utils";
 import { HalisahaQuestionCard } from "./halisaha-question-card";
 import type {
   HalisahaPublicAnswerState,
@@ -50,6 +51,7 @@ function areDraftAnswersEqual(
 function questionHasPlayerPickerRow(question: HalisahaPublicQuestion) {
   return (
     question.kind === "mvp_prediction" ||
+    question.kind === "player_prediction" ||
     question.options.some((option) => option.kind === "player_picker" || Boolean(option.participantId))
   );
 }
@@ -273,11 +275,8 @@ function PlayerPickerModal({
   onSelectOption: (optionId: string) => void;
   onClose: () => void;
 }) {
-  const participantOptions = question.options.filter((option) => option.participantId);
-  const homeOptions = participantOptions.filter((option) => option.teamSide === "home");
-  const awayOptions = participantOptions.filter((option) => option.teamSide === "away");
-  const unassignedOptions = participantOptions.filter((option) => !option.teamSide);
   const isMvpPickerQuestion = question.kind === "mvp_prediction";
+  const optionGroups = getHalisahaPlayerPickerOptionGroups(question.kind, question.options);
 
   return (
     <div className="pointer-events-auto absolute inset-0 z-[30] flex items-center justify-center px-4 py-4">
@@ -298,8 +297,9 @@ function PlayerPickerModal({
                 {isMvpPickerQuestion ? "Choose your MVP candidate" : "Choose one player"}
               </h4>
               <p className="mt-1 text-[0.72rem] leading-[1.5] text-white/62">
-                All available players are grouped by team so you can pick quickly without the
-                list being cut off by the question layout.
+                {isMvpPickerQuestion
+                  ? "All available players are grouped by team so you can pick quickly without the list being cut off by the question layout."
+                  : "Current squad players are grouped by team so you can pick the right name quickly."}
               </p>
             </div>
             <button
@@ -313,13 +313,7 @@ function PlayerPickerModal({
         </div>
 
         <div className="grid min-h-0 flex-1 gap-3 overflow-y-auto px-4 py-4 md:grid-cols-2">
-          {[
-            { label: "Home team", options: homeOptions },
-            { label: "Away team", options: awayOptions },
-            ...(unassignedOptions.length > 0
-              ? [{ label: "Unassigned", options: unassignedOptions }]
-              : []),
-          ].map((group) => (
+          {optionGroups.map((group) => (
             <div
               key={group.label}
               className="flex min-h-0 flex-col rounded-[0.96rem] border border-white/10 bg-white/[0.04] p-3"
@@ -351,12 +345,81 @@ function PlayerPickerModal({
                   ))
                 ) : (
                   <div className="rounded-[0.78rem] border border-dashed border-white/10 bg-black/10 px-3 py-3 text-[0.72rem] text-white/42">
-                    No players are assigned to this group yet.
+                    {isMvpPickerQuestion
+                      ? "No players are assigned to this group yet."
+                      : "No squad players are available in this group yet."}
                   </div>
                 )}
               </div>
             </div>
           ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function OthersAnswersModal({
+  question,
+  onClose,
+}: {
+  question: HalisahaPublicQuestion;
+  onClose: () => void;
+}) {
+  return (
+    <div className="pointer-events-auto absolute inset-0 z-[30] flex items-center justify-center px-4 py-4">
+      <button
+        type="button"
+        aria-label="Close others answers"
+        onClick={onClose}
+        className="absolute inset-0 bg-[rgba(3,8,8,0.68)] backdrop-blur-[9px]"
+      />
+      <div className="relative flex max-h-[calc(100%-0.75rem)] w-full max-w-[35rem] flex-col overflow-hidden rounded-[1.18rem] border border-white/12 bg-[linear-gradient(180deg,rgba(10,18,17,0.98),rgba(8,14,14,0.94))] shadow-[0_28px_66px_rgba(0,0,0,0.36)]">
+        <div className="border-b border-white/8 px-4 pb-3 pt-4">
+          <div className="text-[0.56rem] font-semibold uppercase tracking-[0.2em] text-white/42">
+            Others
+          </div>
+          <div className="mt-2 flex items-start justify-between gap-3">
+            <div>
+              <h4 className="text-[1rem] font-semibold text-white">
+                See how other players answered
+              </h4>
+              <p className="mt-1 text-[0.72rem] leading-[1.5] text-white/62">
+                {question.prompt}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              className="shrink-0 rounded-full border border-white/10 bg-white/[0.04] px-3.5 py-[0.55rem] text-[0.56rem] font-semibold uppercase tracking-[0.16em] text-white/74 transition-colors hover:bg-white/[0.08]"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+
+        <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
+          {question.otherAnswers.length > 0 ? (
+            <div className="space-y-2.5">
+              {question.otherAnswers.map((answer) => (
+                <div
+                  key={`${question.id}-${answer.userId}`}
+                  className="rounded-[0.96rem] border border-white/10 bg-white/[0.04] px-3 py-3"
+                >
+                  <div className="text-[0.78rem] font-semibold text-white">
+                    {answer.displayName}
+                  </div>
+                  <div className="mt-1 text-[0.72rem] leading-[1.45] text-white/68">
+                    Answer: <span className="text-white/88">{answer.answerLabel}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="rounded-[0.96rem] border border-dashed border-white/10 bg-black/10 px-3 py-4 text-[0.74rem] text-white/44">
+              No other answers were submitted for this question.
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -533,6 +596,7 @@ export function HalisahaChallengeOverlay({
   const [activePlayerPickerQuestionId, setActivePlayerPickerQuestionId] = useState<string | null>(
     null,
   );
+  const [activeOthersQuestionId, setActiveOthersQuestionId] = useState<string | null>(null);
 
   const initialSelections = useMemo(
     () =>
@@ -609,6 +673,16 @@ export function HalisahaChallengeOverlay({
       setActivePlayerPickerQuestionId(null);
     }
   }, [activePlayerPickerQuestionId, answersLocked, answersResolved]);
+
+  useEffect(() => {
+    if (!activeOthersQuestionId) {
+      return;
+    }
+
+    if (!answersResolved) {
+      setActiveOthersQuestionId(null);
+    }
+  }, [activeOthersQuestionId, answersResolved]);
 
   useEffect(() => {
     setAnimateBars(false);
@@ -700,6 +774,10 @@ export function HalisahaChallengeOverlay({
           questionHasPlayerPickerRow(question),
       ) ?? null,
     [activePlayerPickerQuestionId, standardQuestions],
+  );
+  const activeOthersQuestion = useMemo(
+    () => questions.find((question) => question.id === activeOthersQuestionId) ?? null,
+    [activeOthersQuestionId, questions],
   );
   const winnerSelectionTone = useMemo<WinnerSelectionTone>(() => {
     if (!winnerQuestion || !effectiveWinnerVoteSummary) {
@@ -840,7 +918,18 @@ export function HalisahaChallengeOverlay({
         }
         onRequestPlayerPicker={
           questionHasPlayerPickerRow(question)
-            ? () => setActivePlayerPickerQuestionId(question.id)
+            ? () => {
+                setActiveOthersQuestionId(null);
+                setActivePlayerPickerQuestionId(question.id);
+              }
+            : undefined
+        }
+        onRequestOthers={
+          answersResolved
+            ? () => {
+                setActivePlayerPickerQuestionId(null);
+                setActiveOthersQuestionId(question.id);
+              }
             : undefined
         }
         answersResolved={answersResolved}
@@ -881,8 +970,24 @@ export function HalisahaChallengeOverlay({
               <span className="halisaha-winner-prompt min-w-0 justify-self-center whitespace-nowrap text-center text-[clamp(0.94rem,1.42vw,1.04rem)] font-semibold uppercase leading-none tracking-[0.16em] text-[#d4e4df]/78">
                 {winnerQuestion.prompt}
               </span>
-              <span className="justify-self-end rounded-full border border-white/10 bg-white/[0.045] px-2 py-[0.18rem] text-[0.48rem] font-semibold uppercase tracking-[0.14em] text-[#d4e4df]">
-                {winnerQuestion.points} pt
+              <span className="justify-self-end">
+                <span className="inline-flex items-center gap-1.5">
+                  {answersResolved ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setActivePlayerPickerQuestionId(null);
+                        setActiveOthersQuestionId(winnerQuestion.id);
+                      }}
+                      className="rounded-full border border-white/10 bg-white/[0.045] px-2 py-[0.18rem] text-[0.48rem] font-semibold uppercase tracking-[0.14em] text-[#d4e4df] transition-colors hover:bg-white/[0.09]"
+                    >
+                      Others
+                    </button>
+                  ) : null}
+                  <span className="rounded-full border border-white/10 bg-white/[0.045] px-2 py-[0.18rem] text-[0.48rem] font-semibold uppercase tracking-[0.14em] text-[#d4e4df]">
+                    {winnerQuestion.points} pt
+                  </span>
+                </span>
               </span>
             </div>
 
@@ -1136,6 +1241,13 @@ export function HalisahaChallengeOverlay({
               }))
             }
             onClose={() => setActivePlayerPickerQuestionId(null)}
+          />
+        ) : null}
+
+        {activeOthersQuestion ? (
+          <OthersAnswersModal
+            question={activeOthersQuestion}
+            onClose={() => setActiveOthersQuestionId(null)}
           />
         ) : null}
 
