@@ -816,8 +816,6 @@ function HalisahaShowcaseTabs({
   return (
     <div
       className={`flex max-w-full flex-wrap items-stretch gap-2 transition-[opacity,transform] ${
-        activeTab === "matchday" ? "max-md:-translate-y-px" : ""
-      } ${
         transitioning ? "opacity-90" : "opacity-100"
       }`}
       aria-busy={transitioning}
@@ -1297,10 +1295,8 @@ function PitchBoard({
                     closedPortraitDefenderInwardShift={
                       useClosedPortraitPitchLayout ? CLOSED_PORTRAIT_DEFENDER_INWARD_SVG_UNITS : 0
                     }
-                    closedPortraitForwardMidTowardOwnGoalShiftSvgUnits={
-                      useClosedPortraitPitchLayout
-                        ? CLOSED_PORTRAIT_FORWARD_MID_TOWARD_OWN_GOAL_SVG_UNITS
-                        : 0
+                    closedMidfieldTowardOwnGoalShiftSvgUnits={
+                      !showLineups ? CLOSED_MIDFIELD_TOWARD_OWN_GOAL_SVG_UNITS : 0
                     }
                   />
                 </div>
@@ -1367,8 +1363,8 @@ function PitchBoard({
 const PITCH_VIEWBOX_HEIGHT = 620;
 /** ViewBox units: mobilde slicer kapalıyken defans isimlerini sahada merkeze doğru */
 const CLOSED_PORTRAIT_DEFENDER_INWARD_SVG_UNITS = 10;
-/** ViewBox units: closed mobile portrait — nudge striker/midfield name anchors 2u toward own goal */
-const CLOSED_PORTRAIT_FORWARD_MID_TOWARD_OWN_GOAL_SVG_UNITS = 2;
+/** ViewBox units: slicer kapalıyken sadece orta saha isimlerini kendi kalelerine doğru 1u çek */
+const CLOSED_MIDFIELD_TOWARD_OWN_GOAL_SVG_UNITS = 1;
 
 /** Nudge first-line tspan (em) so stacked 3-word labels in each occupied line share a line. */
 function computeStackedFirstLineDyEmExtra(
@@ -1407,7 +1403,7 @@ function PitchOverlay({
   portraitNameDropShadow = true,
   stackThreeWordNames = false,
   closedPortraitDefenderInwardShift = 0,
-  closedPortraitForwardMidTowardOwnGoalShiftSvgUnits = 0,
+  closedMidfieldTowardOwnGoalShiftSvgUnits = 0,
 }: {
   homeLineup: PlayerSpot[];
   awayLineup: PlayerSpot[];
@@ -1416,8 +1412,8 @@ function PitchOverlay({
   portraitNameDropShadow?: boolean;
   stackThreeWordNames?: boolean;
   closedPortraitDefenderInwardShift?: number;
-  /** ViewBox units: striker + midfield labels nudged toward own goal when closed-portrait layout. */
-  closedPortraitForwardMidTowardOwnGoalShiftSvgUnits?: number;
+  /** ViewBox units: only midfield labels nudged toward own goal while slicers stay closed. */
+  closedMidfieldTowardOwnGoalShiftSvgUnits?: number;
 }) {
   const homeLine1DyExtra = useMemo(
     () => (stackThreeWordNames ? computeStackedFirstLineDyEmExtra(homeLineup) : new Map()),
@@ -1445,7 +1441,7 @@ function PitchOverlay({
           stackThreeWordNames={stackThreeWordNames}
           stackedFirstLineDyEmExtra={homeLine1DyExtra}
           defenderInwardShiftSvgUnits={closedPortraitDefenderInwardShift}
-          towardOwnGoalShiftSvgUnits={closedPortraitForwardMidTowardOwnGoalShiftSvgUnits}
+          midfieldTowardOwnGoalShiftSvgUnits={closedMidfieldTowardOwnGoalShiftSvgUnits}
         />
       ))}
 
@@ -1459,7 +1455,7 @@ function PitchOverlay({
           stackThreeWordNames={stackThreeWordNames}
           stackedFirstLineDyEmExtra={awayLine1DyExtra}
           defenderInwardShiftSvgUnits={closedPortraitDefenderInwardShift}
-          towardOwnGoalShiftSvgUnits={closedPortraitForwardMidTowardOwnGoalShiftSvgUnits}
+          midfieldTowardOwnGoalShiftSvgUnits={closedMidfieldTowardOwnGoalShiftSvgUnits}
         />
       ))}
     </svg>
@@ -1789,7 +1785,7 @@ function PitchPlayerLabel({
   stackThreeWordNames = false,
   stackedFirstLineDyEmExtra,
   defenderInwardShiftSvgUnits = 0,
-  towardOwnGoalShiftSvgUnits = 0,
+  midfieldTowardOwnGoalShiftSvgUnits = 0,
 }: {
   player: PlayerSpot;
   side: "left" | "right";
@@ -1798,7 +1794,7 @@ function PitchPlayerLabel({
   stackThreeWordNames?: boolean;
   stackedFirstLineDyEmExtra?: ReadonlyMap<HalisahaPositionKey, number>;
   defenderInwardShiftSvgUnits?: number;
-  towardOwnGoalShiftSvgUnits?: number;
+  midfieldTowardOwnGoalShiftSvgUnits?: number;
 }) {
   const labelRotation = portraitClosedLayout ? -90 : side === "left" ? -90 : 90;
   // Larger font + heavy outline in portrait-closed for crisp legibility on small screens
@@ -1813,10 +1809,10 @@ function PitchPlayerLabel({
   const line1DyEm = line1DyExtraEm;
   const isDefender = player.lineGroup === "defense";
   const inward = defenderInwardShiftSvgUnits > 0 && isDefender ? defenderInwardShiftSvgUnits : 0;
-  const isForwardOrMidfield =
-    player.lineGroup === "midfield" || player.lineGroup === "attack";
   const towardOwn =
-    towardOwnGoalShiftSvgUnits > 0 && isForwardOrMidfield ? towardOwnGoalShiftSvgUnits : 0;
+    midfieldTowardOwnGoalShiftSvgUnits > 0 && player.lineGroup === "midfield"
+      ? midfieldTowardOwnGoalShiftSvgUnits
+      : 0;
   // Home (left): own goal is −x. Away (right): own goal is +x.
   const labelX = player.x + (side === "left" ? inward - towardOwn : -inward + towardOwn);
 
