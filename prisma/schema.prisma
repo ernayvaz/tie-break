@@ -85,6 +85,7 @@ enum HalisahaQuestionKind {
 
 enum HalisahaQuestionOptionKind {
   standard
+  player_picker
   custom_score
   custom_number
 }
@@ -105,17 +106,17 @@ model User {
   approvedAt DateTime?  @map("approved_at")
   approvedBy String?    @map("approved_by")
 
-  sessions             Session[]
-  predictions          Prediction[]
-  leaderboardEntries   LeaderboardEntry[]
-  approvedUsers        User[]                @relation("ApprovedByUser")
-  approver             User?                 @relation("ApprovedByUser", fields: [approvedBy], references: [id])
-  adminLogs            AdminLog[]            @relation("AdminUser")
-  halisahaParticipants HalisahaParticipant[]
-  halisahaAnswers      HalisahaAnswer[]
-  halisahaMvpVotes     HalisahaMvpVote[]
+  sessions                  Session[]
+  predictions               Prediction[]
+  leaderboardEntries        LeaderboardEntry[]
+  approvedUsers             User[]                     @relation("ApprovedByUser")
+  approver                  User?                      @relation("ApprovedByUser", fields: [approvedBy], references: [id])
+  adminLogs                 AdminLog[]                 @relation("AdminUser")
+  halisahaParticipants      HalisahaParticipant[]
+  halisahaAnswers           HalisahaAnswer[]
+  halisahaMvpVotes          HalisahaMvpVote[]
   halisahaLeaderboardRounds HalisahaLeaderboardRound[]
-  halisahaMvpRoundAwards HalisahaMvpRoundAward[]
+  halisahaMvpRoundAwards    HalisahaMvpRoundAward[]
 
   @@map("users")
 }
@@ -353,43 +354,43 @@ model ApiSyncLog {
 }
 
 model HalisahaMatch {
-  id                       String    @id @default(cuid())
-  singletonKey             String?   @unique @map("singleton_key")
-  roundNumber              Int       @default(1) @map("round_number")
-  title                    String    @default("RayNET Matchday Show")
-  homeTeamName             String    @map("home_team_name")
-  awayTeamName             String    @map("away_team_name")
-  venueName                String    @map("venue_name")
+  id                       String            @id @default(cuid())
+  singletonKey             String?           @unique @map("singleton_key")
+  roundNumber              Int               @default(1) @map("round_number")
+  title                    String            @default("RayNET Matchday Show")
+  homeTeamName             String            @map("home_team_name")
+  awayTeamName             String            @map("away_team_name")
+  venueName                String            @map("venue_name")
   homeFormation            HalisahaFormation @default(f1_2_3_1) @map("home_formation")
   awayFormation            HalisahaFormation @default(f1_2_3_1) @map("away_formation")
-  kickoffAt                DateTime  @map("kickoff_at")
-  kickoffTimezone          String    @default("Europe/Istanbul") @map("kickoff_timezone")
-  matchDurationMinutes     Int       @default(60) @map("match_duration_minutes")
-  isPublishedToUsers       Boolean   @default(false) @map("is_published_to_users")
-  answersResolvedAt        DateTime? @map("answers_resolved_at")
-  mvpResolvedParticipantId String?   @map("mvp_resolved_participant_id")
-  mvpResolvedAt            DateTime? @map("mvp_resolved_at")
-  archivedAt               DateTime? @map("archived_at")
-  createdAt                DateTime  @default(now()) @map("created_at")
-  updatedAt                DateTime  @updatedAt @map("updated_at")
+  kickoffAt                DateTime          @map("kickoff_at")
+  kickoffTimezone          String            @default("Europe/Istanbul") @map("kickoff_timezone")
+  matchDurationMinutes     Int               @default(60) @map("match_duration_minutes")
+  isPublishedToUsers       Boolean           @default(false) @map("is_published_to_users")
+  answersResolvedAt        DateTime?         @map("answers_resolved_at")
+  mvpResolvedParticipantId String?           @map("mvp_resolved_participant_id")
+  mvpResolvedAt            DateTime?         @map("mvp_resolved_at")
+  archivedAt               DateTime?         @map("archived_at")
+  createdAt                DateTime          @default(now()) @map("created_at")
+  updatedAt                DateTime          @updatedAt @map("updated_at")
 
   participants           HalisahaParticipant[]
   questions              HalisahaQuestion[]
   answers                HalisahaAnswer[]
   mvpVotes               HalisahaMvpVote[]
-  resolvedMvpParticipant HalisahaParticipant? @relation("ResolvedHalisahaMvp", fields: [mvpResolvedParticipantId], references: [id], onDelete: SetNull)
+  resolvedMvpParticipant HalisahaParticipant?  @relation("ResolvedHalisahaMvp", fields: [mvpResolvedParticipantId], references: [id], onDelete: SetNull)
 
   @@index([archivedAt])
   @@map("halisaha_matches")
 }
 
 model HalisahaGuest {
-  id             String               @id @default(cuid())
-  displayName    String               @map("display_name")
-  normalizedName String               @unique @map("normalized_name")
-  isActive       Boolean              @default(true) @map("is_active")
-  createdAt      DateTime             @default(now()) @map("created_at")
-  updatedAt      DateTime             @updatedAt @map("updated_at")
+  id             String   @id @default(cuid())
+  displayName    String   @map("display_name")
+  normalizedName String   @unique @map("normalized_name")
+  isActive       Boolean  @default(true) @map("is_active")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
 
   participants HalisahaParticipant[]
 
@@ -398,23 +399,24 @@ model HalisahaGuest {
 }
 
 model HalisahaParticipant {
-  id                 String               @id @default(cuid())
-  matchId            String               @map("match_id")
-  userId             String?              @map("user_id")
-  guestId            String?              @map("guest_id")
-  guestName          String?              @map("guest_name")
-  teamSide           HalisahaTeamSide?    @map("team_side")
-  positionKey        HalisahaPositionKey? @map("position_key")
-  displayOrder       Int                  @default(0) @map("display_order")
-  createdAt          DateTime             @default(now()) @map("created_at")
-  updatedAt          DateTime             @updatedAt @map("updated_at")
+  id                  String               @id @default(cuid())
+  matchId             String               @map("match_id")
+  userId              String?              @map("user_id")
+  guestId             String?              @map("guest_id")
+  guestName           String?              @map("guest_name")
+  displayNameOverride String?              @map("display_name_override")
+  teamSide            HalisahaTeamSide?    @map("team_side")
+  positionKey         HalisahaPositionKey? @map("position_key")
+  displayOrder        Int                  @default(0) @map("display_order")
+  createdAt           DateTime             @default(now()) @map("created_at")
+  updatedAt           DateTime             @updatedAt @map("updated_at")
 
-  match                 HalisahaMatch          @relation(fields: [matchId], references: [id], onDelete: Cascade)
-  user                  User?                  @relation(fields: [userId], references: [id], onDelete: SetNull)
-  guest                 HalisahaGuest?         @relation(fields: [guestId], references: [id], onDelete: SetNull)
+  match                 HalisahaMatch            @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  user                  User?                    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  guest                 HalisahaGuest?           @relation(fields: [guestId], references: [id], onDelete: SetNull)
   predictionOptions     HalisahaQuestionOption[] @relation("HalisahaParticipantQuestionOption")
-  receivedMvpVotes      HalisahaMvpVote[]      @relation("HalisahaParticipantVote")
-  resolvedMvpForMatches HalisahaMatch[]        @relation("ResolvedHalisahaMvp")
+  receivedMvpVotes      HalisahaMvpVote[]        @relation("HalisahaParticipantVote")
+  resolvedMvpForMatches HalisahaMatch[]          @relation("ResolvedHalisahaMvp")
 
   @@unique([matchId, userId])
   @@unique([matchId, guestId])
@@ -426,17 +428,17 @@ model HalisahaParticipant {
 }
 
 model HalisahaQuestion {
-  id              String              @id @default(cuid())
-  matchId         String              @map("match_id")
+  id              String               @id @default(cuid())
+  matchId         String               @map("match_id")
   kind            HalisahaQuestionKind @default(standard)
   prompt          String
-  points          Int                 @default(1)
-  sortOrder       Int                 @default(0) @map("sort_order")
-  scoreHomeResult Int?                @map("score_home_result")
-  scoreAwayResult Int?                @map("score_away_result")
-  isActive        Boolean             @default(true) @map("is_active")
-  createdAt       DateTime            @default(now()) @map("created_at")
-  updatedAt       DateTime            @updatedAt @map("updated_at")
+  points          Int                  @default(1)
+  sortOrder       Int                  @default(0) @map("sort_order")
+  scoreHomeResult Int?                 @map("score_home_result")
+  scoreAwayResult Int?                 @map("score_away_result")
+  isActive        Boolean              @default(true) @map("is_active")
+  createdAt       DateTime             @default(now()) @map("created_at")
+  updatedAt       DateTime             @updatedAt @map("updated_at")
 
   match   HalisahaMatch            @relation(fields: [matchId], references: [id], onDelete: Cascade)
   options HalisahaQuestionOption[]
@@ -448,19 +450,21 @@ model HalisahaQuestion {
 }
 
 model HalisahaQuestionOption {
-  id            String                   @id @default(cuid())
-  questionId    String                   @map("question_id")
-  label         String
-  kind          HalisahaQuestionOptionKind @default(standard)
-  participantId String?                  @map("participant_id")
-  sortOrder     Int                      @default(0) @map("sort_order")
-  isCorrect     Boolean                  @default(false) @map("is_correct")
-  createdAt     DateTime                 @default(now()) @map("created_at")
-  updatedAt     DateTime                 @updatedAt @map("updated_at")
+  id                String                     @id @default(cuid())
+  questionId        String                     @map("question_id")
+  label             String
+  kind              HalisahaQuestionOptionKind @default(standard)
+  participantId     String?                    @map("participant_id")
+  resolvedScoreHome Int?                       @map("resolved_score_home")
+  resolvedScoreAway Int?                       @map("resolved_score_away")
+  sortOrder         Int                        @default(0) @map("sort_order")
+  isCorrect         Boolean                    @default(false) @map("is_correct")
+  createdAt         DateTime                   @default(now()) @map("created_at")
+  updatedAt         DateTime                   @updatedAt @map("updated_at")
 
-  question    HalisahaQuestion   @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  question    HalisahaQuestion     @relation(fields: [questionId], references: [id], onDelete: Cascade)
   participant HalisahaParticipant? @relation("HalisahaParticipantQuestionOption", fields: [participantId], references: [id], onDelete: SetNull)
-  answers     HalisahaAnswer[]   @relation("SelectedHalisahaAnswer")
+  answers     HalisahaAnswer[]     @relation("SelectedHalisahaAnswer")
 
   @@index([questionId, sortOrder])
   @@index([questionId, kind])
@@ -469,19 +473,19 @@ model HalisahaQuestionOption {
 }
 
 model HalisahaAnswer {
-  id               String   @id @default(cuid())
-  matchId          String   @map("match_id")
-  questionId       String   @map("question_id")
-  userId           String   @map("user_id")
-  selectedOptionId String   @map("selected_option_id")
-  customScoreHome  Int?     @map("custom_score_home")
-  customScoreAway  Int?     @map("custom_score_away")
-  isCorrect        Boolean? @map("is_correct")
-  isFinal          Boolean  @default(false) @map("is_final")
+  id               String    @id @default(cuid())
+  matchId          String    @map("match_id")
+  questionId       String    @map("question_id")
+  userId           String    @map("user_id")
+  selectedOptionId String    @map("selected_option_id")
+  customScoreHome  Int?      @map("custom_score_home")
+  customScoreAway  Int?      @map("custom_score_away")
+  isCorrect        Boolean?  @map("is_correct")
+  isFinal          Boolean   @default(false) @map("is_final")
   finalizedAt      DateTime? @map("finalized_at")
-  awardedPoints    Int      @default(0) @map("awarded_points")
-  createdAt        DateTime @default(now()) @map("created_at")
-  updatedAt        DateTime @updatedAt @map("updated_at")
+  awardedPoints    Int       @default(0) @map("awarded_points")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
 
   match          HalisahaMatch          @relation(fields: [matchId], references: [id], onDelete: Cascade)
   question       HalisahaQuestion       @relation(fields: [questionId], references: [id], onDelete: Cascade)
@@ -514,15 +518,15 @@ model HalisahaMvpVote {
 }
 
 model HalisahaLeaderboardRound {
-  id               String   @id @default(cuid())
-  roundNumber      Int      @map("round_number")
-  userId           String   @map("user_id")
-  totalPoints      Int      @default(0) @map("total_points")
-  correctAnswers   Int      @default(0) @map("correct_answers")
-  answeredQuestions Int     @default(0) @map("answered_questions")
-  recentAnswers    Json     @map("recent_answers")
-  createdAt        DateTime @default(now()) @map("created_at")
-  updatedAt        DateTime @updatedAt @map("updated_at")
+  id                String   @id @default(cuid())
+  roundNumber       Int      @map("round_number")
+  userId            String   @map("user_id")
+  totalPoints       Int      @default(0) @map("total_points")
+  correctAnswers    Int      @default(0) @map("correct_answers")
+  answeredQuestions Int      @default(0) @map("answered_questions")
+  recentAnswers     Json     @map("recent_answers")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 

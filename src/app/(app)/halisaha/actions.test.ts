@@ -45,7 +45,10 @@ type MockTx = {
 function buildQuestion(
   id: string,
   kickoffAt: Date,
-  options: Array<{ id: string; kind: "standard" | "custom_score" | "custom_number" }> = [
+  options: Array<{
+    id: string;
+    kind: "standard" | "player_picker" | "custom_score" | "custom_number";
+  }> = [
     {
       id: "option-1",
       kind: "standard" as const,
@@ -191,6 +194,34 @@ describe("halisaha actions", () => {
     expect(result).toEqual({
       ok: false,
       error: "Enter a whole number for this prediction.",
+    });
+    expect(mocks.transaction).not.toHaveBeenCalled();
+  });
+
+  it("rejects player-picker placeholder rows without a chosen player option", async () => {
+    mocks.getCurrentUser.mockResolvedValue({
+      id: "admin-1",
+      role: "admin",
+    });
+    mocks.findMany.mockResolvedValue([
+      buildQuestion("question-1", new Date(Date.now() + 10 * 60_000), [
+        {
+          id: "option-picker",
+          kind: "player_picker",
+        },
+      ]),
+    ]);
+
+    const result = await submitHalisahaAnswersAction([
+      {
+        questionId: "question-1",
+        optionId: "option-picker",
+      },
+    ]);
+
+    expect(result).toEqual({
+      ok: false,
+      error: "Choose one player before saving this answer.",
     });
     expect(mocks.transaction).not.toHaveBeenCalled();
   });

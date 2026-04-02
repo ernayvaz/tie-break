@@ -35,8 +35,6 @@ import {
 } from "./match-state";
 import {
   buildHalisahaMvpGateState,
-  getMatchingFixedScoreOptionIds,
-  isCustomScoreExactMatch,
   maskHalisahaAnswerForGate,
   type HalisahaMvpGateMode,
 } from "./rules";
@@ -49,6 +47,11 @@ import {
   type HalisahaResultRowSeed,
 } from "./leaderboard";
 import { canAccessHalisahaMode } from "./public-access";
+import {
+  PLAYER_PICKER_OPTION_LABEL,
+  getHalisahaFixedChoiceOptions,
+  hasResolvedHalisahaQuestionResult,
+} from "./question-option-utils";
 
 const DEFAULT_KICKOFF_AT = createIstanbulDateFromParts(2026, 3, 27, 20, 0);
 const DEFAULT_WINNER_QUESTION_PROMPT = "Who wins?";
@@ -184,6 +187,8 @@ type PublicQuestionInput = {
     label: string;
     kind: HalisahaQuestionOptionKind;
     participantId: string | null;
+    resolvedScoreHome: number | null;
+    resolvedScoreAway: number | null;
     sortOrder: number;
     isCorrect: boolean;
     participant: {
@@ -210,6 +215,8 @@ export type HalisahaAdminQuestionRow = {
     participantId: string | null;
     participantName: string | null;
     teamSide: HalisahaTeamSide | null;
+    resolvedScoreHome: number | null;
+    resolvedScoreAway: number | null;
     sortOrder: number;
     isCorrect: boolean;
   }>;
@@ -230,6 +237,8 @@ export type HalisahaAdminParticipantRow = {
   userId: string | null;
   guestId: string | null;
   guestName: string | null;
+  defaultDisplayName: string;
+  displayNameOverride: string | null;
   displayName: string;
   isGuest: boolean;
   teamSide: HalisahaTeamSide | null;
@@ -270,6 +279,8 @@ export type HalisahaPublicQuestion = {
     kind: HalisahaQuestionOptionKind;
     participantId: string | null;
     teamSide: HalisahaTeamSide | null;
+    resolvedScoreHome: number | null;
+    resolvedScoreAway: number | null;
     sortOrder: number;
     isCorrect: boolean;
   }>;
@@ -473,7 +484,7 @@ export async function canUserAccessPublishedHalisahaMatch(
   return isHalisahaPublishedToUsers(match);
 }
 
-function getParticipantDisplayName(participant: {
+function getParticipantDefaultDisplayName(participant: {
   guestName?: string | null;
   guest?: { displayName: string } | null;
   user?: { name: string; surname: string } | null;
@@ -483,6 +494,15 @@ function getParticipantDisplayName(participant: {
   }
 
   return participant.guestName?.trim() || participant.guest?.displayName?.trim() || "Guest";
+}
+
+function getParticipantDisplayName(participant: {
+  displayNameOverride?: string | null;
+  guestName?: string | null;
+  guest?: { displayName: string } | null;
+  user?: { name: string; surname: string } | null;
+}) {
+  return participant.displayNameOverride?.trim() || getParticipantDefaultDisplayName(participant);
 }
 
 function normalizeWinnerQuestionPrompt(prompt: string) {
@@ -509,11 +529,14 @@ function toAdminParticipantRow(
   match: HalisahaFormationPair,
 ): HalisahaAdminParticipantRow {
   const formation = getParticipantFormation(match, participant);
+  const defaultDisplayName = getParticipantDefaultDisplayName(participant);
   return {
     id: participant.id,
     userId: participant.userId,
     guestId: participant.guestId,
     guestName: participant.guestName,
+    defaultDisplayName,
+    displayNameOverride: participant.displayNameOverride?.trim() || null,
     displayName: getParticipantDisplayName(participant),
     isGuest: !participant.userId,
     teamSide: participant.teamSide,
@@ -528,6 +551,7 @@ function toAdminParticipantRow(
 
 function toPublicParticipantRow(participant: {
   id: string;
+  displayNameOverride?: string | null;
   guestName?: string | null;
   guest?: { displayName: string } | null;
   user?: { name: string; surname: string } | null;
@@ -547,14 +571,7 @@ function toPublicParticipantRow(participant: {
 }
 
 function questionHasResolvedResult(question: PublicQuestionInput) {
-  if (question.kind === "score_prediction") {
-    return question.scoreHomeResult !== null && question.scoreAwayResult !== null;
-  }
-  if (question.kind === "number_prediction") {
-    return question.scoreHomeResult !== null;
-  }
-
-  return question.options.some((option) => option.isCorrect);
+  return hasResolvedHalisahaQuestionResult(question.options);
 }
 
 function toPublicQuestionRow(
@@ -580,6 +597,8 @@ function toPublicQuestionRow(
       kind: option.kind,
       participantId: option.participantId,
       teamSide: option.participant?.teamSide ?? null,
+      resolvedScoreHome: hideResolution ? null : option.resolvedScoreHome,
+      resolvedScoreAway: hideResolution ? null : option.resolvedScoreAway,
       sortOrder: option.sortOrder,
       isCorrect: hideResolution ? false : option.isCorrect,
     })),
@@ -603,6 +622,13 @@ function formatAnswerSelectionLabel(answer: {
       home: answer.customScoreHome,
       away: answer.customScoreAway,
     });
+  }
+
+  if (
+    answer.selectedOption.kind === "custom_number" &&
+    answer.customScoreHome !== null
+  ) {
+    return String(answer.customScoreHome);
   }
 
   return answer.selectedOption.label;
@@ -817,7 +843,27 @@ export async function syncHalisahaPlayerPredictionQuestions(matchId: string) {
     prisma.halisahaQuestion.findMany({
       where: {
         matchId,
-        kind: "player_prediction",
+        OR: [
+          {
+            kind: "player_prediction",
+          },
+          {
+            options: {
+              some: {
+                kind: "player_picker",
+              },
+            },
+          },
+          {
+            options: {
+              some: {
+                participantId: {
+                  not: null,
+                },
+              },
+            },
+          },
+        ],
       },
       include: {
         options: {
@@ -849,6 +895,24 @@ export async function syncHalisahaPlayerPredictionQuestions(matchId: string) {
       const selectedOptionIds = new Set(
         question.answers.map((answer) => answer.selectedOptionId),
       );
+      let placeholderOption =
+        question.options.find((option) => option.kind === "player_picker") ?? null;
+
+      if (!placeholderOption) {
+        const sortAnchor =
+          question.options.length > 0
+            ? Math.min(...question.options.map((option) => option.sortOrder))
+            : 100;
+        placeholderOption = await tx.halisahaQuestionOption.create({
+          data: {
+            questionId: question.id,
+            label: PLAYER_PICKER_OPTION_LABEL,
+            kind: "player_picker",
+            sortOrder: sortAnchor,
+          },
+        });
+      }
+
       const optionByParticipantId = new Map(
         question.options
           .filter((option) => option.participantId)
@@ -858,7 +922,7 @@ export async function syncHalisahaPlayerPredictionQuestions(matchId: string) {
       for (const [index, participant] of optionRows.entries()) {
         const existingOption = optionByParticipantId.get(participant.id);
         if (existingOption) {
-          const nextSortOrder = (index + 1) * 10;
+          const nextSortOrder = placeholderOption.sortOrder + index + 1;
           if (
             existingOption.label !== participant.displayName ||
             existingOption.kind !== "standard" ||
@@ -880,7 +944,7 @@ export async function syncHalisahaPlayerPredictionQuestions(matchId: string) {
               label: participant.displayName,
               kind: "standard",
               participantId: participant.id,
-              sortOrder: (index + 1) * 10,
+              sortOrder: placeholderOption.sortOrder + index + 1,
             },
           });
         }
@@ -889,7 +953,7 @@ export async function syncHalisahaPlayerPredictionQuestions(matchId: string) {
       const removableOptionIds = question.options
         .filter(
           (option) =>
-            !option.participantId || !activeParticipantIds.has(option.participantId),
+            option.participantId && !activeParticipantIds.has(option.participantId),
         )
         .filter((option) => !selectedOptionIds.has(option.id))
         .map((option) => option.id);
@@ -1475,6 +1539,7 @@ async function archiveHalisahaMatchForNextRoundTx(
         userId: participant.userId,
         guestId: participant.guestId,
         guestName: participant.guestName,
+        displayNameOverride: participant.displayNameOverride,
         teamSide: participant.teamSide,
         positionKey: participant.positionKey,
         displayOrder: participant.displayOrder,
@@ -1901,6 +1966,8 @@ export async function getHalisahaAdminSnapshot(): Promise<HalisahaAdminSnapshot>
           ? getParticipantDisplayName(option.participant)
           : null,
         teamSide: option.participant?.teamSide ?? null,
+        resolvedScoreHome: option.resolvedScoreHome,
+        resolvedScoreAway: option.resolvedScoreAway,
         sortOrder: option.sortOrder,
         isCorrect: option.isCorrect,
       })),
@@ -2074,6 +2141,7 @@ export async function getHalisahaPublicSnapshot(
           persistedParticipants.map((participant) =>
             toPublicParticipantRow({
               id: participant.id,
+              displayNameOverride: participant.displayNameOverride,
               guest: participant.guest,
               guestName: participant.guestName,
               user: participant.user,
@@ -2148,6 +2216,7 @@ export async function getHalisahaPublicSnapshot(
           persistedParticipants.map((participant) =>
             toPublicParticipantRow({
               id: participant.id,
+              displayNameOverride: participant.displayNameOverride,
               guest: participant.guest,
               guestName: participant.guestName,
               user: participant.user,
@@ -2483,23 +2552,16 @@ export async function scoreHalisahaAnswers(matchId: string) {
     (question) => question.kind !== "mvp_prediction",
   );
 
-  const unresolvedQuestions = scorableQuestions.filter((question) => {
-    if (question.kind === "score_prediction") {
-      return question.scoreHomeResult === null || question.scoreAwayResult === null;
-    }
-    if (question.kind === "number_prediction") {
-      return question.scoreHomeResult === null;
-    }
-
-    return question.options.filter((option) => option.isCorrect).length !== 1;
-  });
+  const unresolvedQuestions = scorableQuestions.filter(
+    (question) => !hasResolvedHalisahaQuestionResult(question.options),
+  );
 
   if (unresolvedQuestions.length > 0) {
     return {
       ok: false as const,
       error:
         `Resolve ${unresolvedQuestions.length} active question(s) before scoring. ` +
-        "Standard questions need one correct option, and score questions need the actual score.",
+        "Fixed-choice rows need one correct option, and every numeric row needs its actual result.",
     };
   }
 
@@ -2519,138 +2581,67 @@ export async function scoreHalisahaAnswers(matchId: string) {
     });
 
     for (const question of scorableQuestions) {
-      if (question.kind === "score_prediction") {
-        const actualScore = {
-          home: question.scoreHomeResult!,
-          away: question.scoreAwayResult!,
-        };
-        const matchingFixedOptionIds = getMatchingFixedScoreOptionIds({
-          options: question.options,
-          actualScore,
+      const fixedChoiceOptionIds = getHalisahaFixedChoiceOptions(question.options)
+        .filter((option) => option.isCorrect)
+        .map((option) => option.id);
+
+      if (fixedChoiceOptionIds.length > 0) {
+        await tx.halisahaAnswer.updateMany({
+          where: {
+            questionId: question.id,
+            selectedOptionId: {
+              in: fixedChoiceOptionIds,
+            },
+            isFinal: true,
+          },
+          data: {
+            isCorrect: true,
+            awardedPoints: question.points,
+          },
         });
-
-        if (matchingFixedOptionIds.length > 0) {
-          await tx.halisahaAnswer.updateMany({
-            where: {
-              questionId: question.id,
-              selectedOptionId: {
-                in: matchingFixedOptionIds,
-              },
-              isFinal: true,
-            },
-            data: {
-              isCorrect: true,
-              awardedPoints: question.points,
-            },
-          });
-        }
-
-        const customOptionIds = question.options
-          .filter((option) => option.kind === "custom_score")
-          .map((option) => option.id);
-
-        if (customOptionIds.length > 0) {
-          const matchingCustomAnswerIds = (
-            await tx.halisahaAnswer.findMany({
-              where: {
-                questionId: question.id,
-                selectedOptionId: {
-                  in: customOptionIds,
-                },
-                isFinal: true,
-              },
-              select: {
-                id: true,
-                customScoreHome: true,
-                customScoreAway: true,
-              },
-            })
-          )
-            .filter((answer) =>
-              isCustomScoreExactMatch({
-                actualScore,
-                customScoreHome: answer.customScoreHome,
-                customScoreAway: answer.customScoreAway,
-              }),
-            )
-            .map((answer) => answer.id);
-
-          if (matchingCustomAnswerIds.length > 0) {
-            await tx.halisahaAnswer.updateMany({
-              where: {
-                id: {
-                  in: matchingCustomAnswerIds,
-                },
-              },
-              data: {
-                isCorrect: true,
-                awardedPoints: question.points,
-              },
-            });
-          }
-        }
-
-        continue;
       }
 
-      if (question.kind === "number_prediction") {
-        const customOptionIds = question.options
-          .filter((option) => option.kind === "custom_number")
-          .map((option) => option.id);
-
-        if (customOptionIds.length > 0) {
-          const matchingAnswerIds = (
-            await tx.halisahaAnswer.findMany({
-              where: {
-                questionId: question.id,
-                selectedOptionId: {
-                  in: customOptionIds,
-                },
-                isFinal: true,
-              },
-              select: {
-                id: true,
-                customScoreHome: true,
-              },
-            })
-          )
-            .filter((answer) => answer.customScoreHome === question.scoreHomeResult)
-            .map((answer) => answer.id);
-
-          if (matchingAnswerIds.length > 0) {
-            await tx.halisahaAnswer.updateMany({
-              where: {
-                id: {
-                  in: matchingAnswerIds,
-                },
-              },
-              data: {
-                isCorrect: true,
-                awardedPoints: question.points,
-              },
-            });
-          }
+      for (const option of question.options.filter((entry) => entry.kind === "custom_score")) {
+        if (
+          option.resolvedScoreHome === null ||
+          option.resolvedScoreAway === null
+        ) {
+          continue;
         }
 
-        continue;
+        await tx.halisahaAnswer.updateMany({
+          where: {
+            questionId: question.id,
+            selectedOptionId: option.id,
+            customScoreHome: option.resolvedScoreHome,
+            customScoreAway: option.resolvedScoreAway,
+            isFinal: true,
+          },
+          data: {
+            isCorrect: true,
+            awardedPoints: question.points,
+          },
+        });
       }
 
-      const correctOption = question.options.find((option) => option.isCorrect);
-      if (!correctOption) {
-        continue;
-      }
+      for (const option of question.options.filter((entry) => entry.kind === "custom_number")) {
+        if (option.resolvedScoreHome === null) {
+          continue;
+        }
 
-      await tx.halisahaAnswer.updateMany({
-        where: {
-          questionId: question.id,
-          selectedOptionId: correctOption.id,
-          isFinal: true,
-        },
-        data: {
-          isCorrect: true,
-          awardedPoints: question.points,
-        },
-      });
+        await tx.halisahaAnswer.updateMany({
+          where: {
+            questionId: question.id,
+            selectedOptionId: option.id,
+            customScoreHome: option.resolvedScoreHome,
+            isFinal: true,
+          },
+          data: {
+            isCorrect: true,
+            awardedPoints: question.points,
+          },
+        });
+      }
     }
 
     await tx.halisahaMatch.update({

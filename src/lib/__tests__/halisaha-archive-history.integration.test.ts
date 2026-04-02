@@ -17,6 +17,7 @@ async function wipeSqlite(prisma: SqlitePrismaClient) {
   await prisma.halisahaLeaderboardRound.deleteMany();
   await prisma.halisahaMvpRoundAward.deleteMany();
   await prisma.halisahaMatch.deleteMany();
+  await prisma.halisahaGuest.deleteMany();
   await prisma.user.deleteMany();
 }
 
@@ -94,6 +95,7 @@ describe("Halisaha archive lifecycle (SQLite integration)", () => {
       data: {
         matchId: match.id,
         userId: registeredPlayer.id,
+        displayNameOverride: "Captain Mert",
         teamSide: "home",
         positionKey: "striker",
         displayOrder: 10,
@@ -256,6 +258,10 @@ describe("Halisaha archive lifecycle (SQLite integration)", () => {
     );
     expect(nextParticipantIds.has(homeParticipant.id)).toBe(false);
     expect(nextParticipantIds.has(guestParticipant.id)).toBe(false);
+    expect(
+      nextActive?.participants.find((participant) => participant.userId === registeredPlayer.id)
+        ?.displayNameOverride,
+    ).toBe("Captain Mert");
     expect(
       nextActive?.participants.find((participant) => participant.userId == null)?.guestId,
     ).toBe(savedGuest.id);

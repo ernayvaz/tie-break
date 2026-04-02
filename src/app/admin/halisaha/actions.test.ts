@@ -178,19 +178,28 @@ describe("admin halisaha question actions", () => {
           questionId: "question-1",
           label: "New A",
           kind: "standard",
-          sortOrder: 10,
+          participantId: null,
+          resolvedScoreHome: null,
+          resolvedScoreAway: null,
+          sortOrder: 100,
         },
         {
           questionId: "question-1",
           label: "New B",
           kind: "standard",
-          sortOrder: 20,
+          participantId: null,
+          resolvedScoreHome: null,
+          resolvedScoreAway: null,
+          sortOrder: 200,
         },
         {
           questionId: "question-1",
           label: "New C",
           kind: "standard",
-          sortOrder: 30,
+          participantId: null,
+          resolvedScoreHome: null,
+          resolvedScoreAway: null,
+          sortOrder: 300,
         },
       ],
     });
@@ -217,7 +226,66 @@ describe("admin halisaha question actions", () => {
         points: 2,
         sortOrder: 30,
         options: {
-          create: [],
+          create: [
+            {
+              label: "Pick a player",
+              kind: "player_picker",
+              sortOrder: 100,
+            },
+          ],
+        },
+      },
+    });
+    expect(mocks.syncPlayerQuestions).toHaveBeenCalledWith("match-1");
+  });
+
+  it("keeps mixed option rows in one question and maps every row kind", async () => {
+    const result = await createHalisahaQuestionAction({
+      kind: "standard",
+      prompt: "How does this match start?",
+      points: 5,
+      options: [
+        { label: "Home will dominate", kind: "standard" },
+        { label: "Pick the scorer", kind: "player_prediction" },
+        { label: "Final score", kind: "score_prediction" },
+        { label: "Total goals", kind: "number_prediction" },
+      ],
+    });
+
+    expect(result).toEqual({
+      ok: true,
+      message: "Question created.",
+    });
+    expect(mocks.questionCreate).toHaveBeenCalledWith({
+      data: {
+        matchId: "match-1",
+        kind: "standard",
+        prompt: "How does this match start?",
+        points: 5,
+        sortOrder: 30,
+        options: {
+          create: [
+            {
+              label: "Home will dominate",
+              kind: "standard",
+              sortOrder: 100,
+            },
+            {
+              label: "Pick the scorer",
+              kind: "player_picker",
+              sortOrder: 200,
+            },
+            {
+              label: "Final score",
+              kind: "custom_score",
+              sortOrder: 300,
+            },
+            {
+              label: "Total goals",
+              kind: "custom_number",
+              sortOrder: 400,
+            },
+          ],
         },
       },
     });
@@ -273,9 +341,12 @@ describe("admin halisaha question actions", () => {
       data: [
         {
           questionId: "question-1",
-          label: "Your number guess",
+          label: "Any number",
           kind: "custom_number",
-          sortOrder: 10,
+          participantId: null,
+          resolvedScoreHome: null,
+          resolvedScoreAway: null,
+          sortOrder: 100,
         },
       ],
     });

@@ -17,7 +17,14 @@ import {
   getHalisahaPositionDisplayOrder,
   isHalisahaPositionAllowed,
 } from "@/lib/halisaha/config";
-import { parseScoreLabel } from "@/lib/halisaha/match-state";
+import {
+  collapseStoredHalisahaQuestionOptionsToDrafts,
+  deriveManagedHalisahaQuestionKindFromDrafts,
+  normalizeManagedHalisahaQuestionKind,
+  normalizeManagedHalisahaQuestionOptionLabel,
+  type ManagedHalisahaQuestionKind,
+  type ManagedHalisahaQuestionOptionInput,
+} from "@/lib/halisaha/question-option-utils";
 import {
   archiveHalisahaMatchForNextRound,
   ensureActiveHalisahaMatch,
@@ -33,34 +40,28 @@ export type HalisahaAdminActionState =
   | { ok: true; message?: string }
   | { ok: false; error: string };
 
-const CUSTOM_SCORE_OPTION_LABEL = "Your exact score";
-const CUSTOM_NUMBER_OPTION_LABEL = "Your number guess";
 const QUESTION_SORT_STEP = 10;
+const QUESTION_OPTION_SORT_STEP = 100;
 
-type ManagedHalisahaQuestionKind =
-  | "standard"
-  | "player_prediction"
-  | "score_prediction"
-  | "number_prediction";
-
-export type ManagedHalisahaQuestionOptionInput = {
-  label: string;
-  kind: ManagedHalisahaQuestionKind;
-};
+export type { ManagedHalisahaQuestionOptionInput };
 
 function normalizeOptions(options: Array<string | ManagedHalisahaQuestionOptionInput>) {
   return options
     .map((option) =>
       typeof option === "string"
         ? {
-            label: option.trim(),
+            label: option,
             kind: "standard" as const,
           }
         : {
-            label: option.label.trim(),
+            label: option.label,
             kind: option.kind,
           },
     )
+    .map((option) => ({
+      label: normalizeManagedHalisahaQuestionOptionLabel(option),
+      kind: option.kind,
+    }))
     .filter((option) => (option.kind === "standard" ? Boolean(option.label) : true));
 }
 
@@ -72,15 +73,21 @@ function normalizeGuestLookupKey(value: string) {
   return normalizeGuestDisplayName(value).toLocaleLowerCase("tr-TR");
 }
 
-function normalizeManagedQuestionKind(kind: HalisahaQuestionKind): ManagedHalisahaQuestionKind {
-  if (
-    kind === "player_prediction" ||
-    kind === "score_prediction" ||
-    kind === "number_prediction"
-  ) {
-    return kind;
+function normalizeParticipantVisibleName(value: string | null | undefined) {
+  const normalized = value?.trim().replace(/\s+/g, " ") ?? "";
+  return normalized || null;
+}
+
+function getParticipantDefaultDisplayName(participant: {
+  guestName?: string | null;
+  guest?: { displayName: string } | null;
+  user?: { name: string; surname: string } | null;
+}) {
+  if (participant.user) {
+    return `${participant.user.name} ${participant.user.surname}`.trim();
   }
-  return "standard";
+
+  return participant.guestName?.trim() || participant.guest?.displayName?.trim() || "Guest";
 }
 
 function getFormationForTeamSide(
@@ -149,102 +156,43 @@ function prepareQuestionOptions(input: {
   options: Array<string | ManagedHalisahaQuestionOptionInput>;
 }) {
   const normalizedOptions = normalizeOptions(input.options);
-  const standardOptions = normalizedOptions.filter((option) => option.kind === "standard");
-  const selectedNonStandardKinds = [...new Set(
-    normalizedOptions
-      .map((option) => option.kind)
-      .filter((kind): kind is Exclude<ManagedHalisahaQuestionKind, "standard"> => kind !== "standard"),
-  )];
+  if (normalizedOptions.length === 0) {
+    return { ok: false as const, error: "Add at least 1 answer option." };
+  }
 
-  if (selectedNonStandardKinds.length > 1) {
+  const playerPickerCount = normalizedOptions.filter(
+    (option) => option.kind === "player_prediction",
+  ).length;
+  if (playerPickerCount > 1) {
     return {
       ok: false as const,
-      error:
-        "Use one option type per question. Player picker and numeric prediction types cannot be mixed together.",
+      error: "Use only one player picker row per question.",
     };
   }
 
-  if (selectedNonStandardKinds.length === 1 && standardOptions.length > 0) {
-    return {
-      ok: false as const,
-      error:
-        "Use either standard multiple-choice options or a single non-standard option type for this question.",
-    };
-  }
-
-  const derivedKind = selectedNonStandardKinds[0] ?? input.kind;
-  const nonStandardOptionCount = normalizedOptions.length - standardOptions.length;
-
-  if (derivedKind === "player_prediction") {
-    if (selectedNonStandardKinds.length === 1 && nonStandardOptionCount !== 1) {
-      return {
-        ok: false as const,
-        error: "Player picker questions can only use one option type row.",
-      };
-    }
-
-    return {
-      ok: true as const,
-      kind: derivedKind,
-      preparedOptions: [] as Array<{
-        label: string;
-        kind: "standard" | "custom_score" | "custom_number";
-      }>,
-    };
-  }
-
-  if (derivedKind === "score_prediction") {
-    if (selectedNonStandardKinds.length === 1 && nonStandardOptionCount !== 1) {
-      return {
-        ok: false as const,
-        error: "Two-number prediction questions can only use one option type row.",
-      };
-    }
-
-    return {
-      ok: true as const,
-      kind: derivedKind,
-      preparedOptions: [
-        {
-          label: CUSTOM_SCORE_OPTION_LABEL,
-          kind: "custom_score" as const,
-        },
-      ],
-    };
-  }
-
-  if (derivedKind === "number_prediction") {
-    if (selectedNonStandardKinds.length === 1 && nonStandardOptionCount !== 1) {
-      return {
-        ok: false as const,
-        error: "Single-number prediction questions can only use one option type row.",
-      };
-    }
-
-    return {
-      ok: true as const,
-      kind: derivedKind,
-      preparedOptions: [
-        {
-          label: CUSTOM_NUMBER_OPTION_LABEL,
-          kind: "custom_number" as const,
-        },
-      ],
-    };
-  }
-
-  const preparedOptions = standardOptions.map((option) => ({
-    label: option.label,
-    kind: "standard" as const,
-  }));
-
-  if (preparedOptions.length < 2) {
+  const standardOnly = normalizedOptions.every((option) => option.kind === "standard");
+  if (standardOnly && normalizedOptions.length < 2) {
     return { ok: false as const, error: "Add at least 2 answer options." };
   }
+
+  const derivedKind = deriveManagedHalisahaQuestionKindFromDrafts(normalizedOptions);
+  const preparedOptions = normalizedOptions.map((option, index) => ({
+    label: option.label,
+    kind:
+      option.kind === "player_prediction"
+        ? ("player_picker" as const)
+        : option.kind === "score_prediction"
+          ? ("custom_score" as const)
+          : option.kind === "number_prediction"
+            ? ("custom_number" as const)
+            : ("standard" as const),
+    sortOrder: (index + 1) * QUESTION_OPTION_SORT_STEP,
+  }));
 
   return {
     ok: true as const,
     kind: derivedKind,
+    normalizedOptions,
     preparedOptions,
   };
 }
@@ -842,6 +790,7 @@ export async function updateHalisahaParticipantAssignmentAction(
   data: {
     teamSide: HalisahaTeamSide | null;
     positionKey: HalisahaPositionKey | null;
+    displayName?: string | null;
   },
 ): Promise<HalisahaAdminActionState> {
   const admin = await requireAdmin();
@@ -852,8 +801,14 @@ export async function updateHalisahaParticipantAssignmentAction(
       matchId: true,
       guestName: true,
       guestId: true,
+      displayNameOverride: true,
       teamSide: true,
       positionKey: true,
+      guest: {
+        select: {
+          displayName: true,
+        },
+      },
       match: {
         select: {
           homeFormation: true,
@@ -898,14 +853,32 @@ export async function updateHalisahaParticipantAssignmentAction(
         )
       : 0;
 
+  const shouldUpdateDisplayName = Object.prototype.hasOwnProperty.call(data, "displayName");
+  const defaultDisplayName = getParticipantDefaultDisplayName(participant);
+  const normalizedDefaultDisplayName =
+    normalizeParticipantVisibleName(defaultDisplayName) ?? defaultDisplayName;
+  const nextVisibleDisplayName = normalizeParticipantVisibleName(data.displayName);
+  const nextDisplayNameOverride =
+    nextVisibleDisplayName && nextVisibleDisplayName !== normalizedDefaultDisplayName
+      ? nextVisibleDisplayName
+      : null;
+  const previousVisibleDisplayName =
+    normalizeParticipantVisibleName(participant.displayNameOverride) ?? normalizedDefaultDisplayName;
+
+  const updateData: Prisma.HalisahaParticipantUpdateInput = {
+    teamSide: data.teamSide,
+    positionKey: data.positionKey,
+    displayOrder,
+  };
+
+  if (shouldUpdateDisplayName) {
+    updateData.displayNameOverride = nextDisplayNameOverride;
+  }
+
   try {
     await prisma.halisahaParticipant.update({
       where: { id: participantId },
-      data: {
-        teamSide: data.teamSide,
-        positionKey: data.positionKey,
-        displayOrder,
-      },
+      data: updateData,
     });
   } catch (error) {
     if (
@@ -925,8 +898,12 @@ export async function updateHalisahaParticipantAssignmentAction(
     "halisaha_participant_updated",
     "halisaha_participant",
     participantId,
-    `${participant.teamSide ?? "unassigned"} / ${participant.positionKey ?? "unassigned"}`,
-    `${data.teamSide ?? "unassigned"} / ${data.positionKey ?? "unassigned"}`,
+    `${participant.teamSide ?? "unassigned"} / ${participant.positionKey ?? "unassigned"} / ${previousVisibleDisplayName}`,
+    `${data.teamSide ?? "unassigned"} / ${data.positionKey ?? "unassigned"} / ${
+      shouldUpdateDisplayName
+        ? nextDisplayNameOverride ?? normalizedDefaultDisplayName
+        : previousVisibleDisplayName
+    }`,
   );
 
   await syncHalisahaMvpPredictionQuestion(participant.matchId);
@@ -1027,7 +1004,7 @@ export async function createHalisahaQuestionAction(data: {
 }): Promise<HalisahaAdminActionState> {
   const admin = await requireAdmin();
   const match = await ensureActiveHalisahaMatch();
-  const kind = normalizeManagedQuestionKind(data.kind);
+  const kind = normalizeManagedHalisahaQuestionKind(data.kind);
   const prompt = data.prompt.trim();
   const points = Number(data.points);
   const preparedOptionsResult = prepareQuestionOptions({
@@ -1064,16 +1041,19 @@ export async function createHalisahaQuestionAction(data: {
       points,
       sortOrder: maxSortOrder + QUESTION_SORT_STEP,
       options: {
-        create: preparedOptionsResult.preparedOptions.map((option, index) => ({
+        create: preparedOptionsResult.preparedOptions.map((option) => ({
           label: option.label,
           kind: option.kind,
-          sortOrder: (index + 1) * QUESTION_SORT_STEP,
+          sortOrder: option.sortOrder,
         })),
       },
     },
   });
 
-  if (preparedOptionsResult.kind === "player_prediction") {
+  if (
+    preparedOptionsResult.preparedOptions.some((option) => option.kind === "player_picker") ||
+    preparedOptionsResult.kind === "player_prediction"
+  ) {
     await syncHalisahaPlayerPredictionQuestions(match.id);
   }
   await resetResolutionState(match.id);
@@ -1126,15 +1106,17 @@ export async function updateHalisahaQuestionAction(
 
   const prompt = data.prompt.trim();
   const points = Number(data.points);
-  const requestedEditableKind = normalizeManagedQuestionKind(data.kind);
+  const requestedEditableKind = normalizeManagedHalisahaQuestionKind(data.kind);
   const preparedOptionsResult =
     question.kind === "winner" || question.kind === "mvp_prediction"
       ? {
           ok: true as const,
           kind: question.kind,
+          normalizedOptions: collapseStoredHalisahaQuestionOptionsToDrafts(question.options),
           preparedOptions: question.options.map((option) => ({
             label: option.label.trim(),
             kind: option.kind,
+            sortOrder: option.sortOrder,
           })),
         }
       : prepareQuestionOptions({
@@ -1159,21 +1141,25 @@ export async function updateHalisahaQuestionAction(
     return { ok: false, error: preparedOptionsResult.error };
   }
 
-  const existingOptions = question.options.map((option) => ({
-    label: option.label.trim(),
-    kind: option.kind,
-  }));
+  const existingDrafts =
+    question.kind === "winner" || question.kind === "mvp_prediction"
+      ? []
+      : collapseStoredHalisahaQuestionOptionsToDrafts(question.options);
+  const nextDrafts =
+    question.kind === "winner" || question.kind === "mvp_prediction"
+      ? []
+      : preparedOptionsResult.normalizedOptions;
   const nextOptions = preparedOptionsResult.preparedOptions;
   const questionKindChanged = resolvedNextKind !== question.kind;
   const optionSetChanged =
-    resolvedNextKind === "player_prediction"
-      ? question.kind !== "player_prediction"
+    question.kind === "winner" || question.kind === "mvp_prediction"
+      ? false
       : questionKindChanged ||
-        nextOptions.length !== existingOptions.length ||
-        nextOptions.some(
+        nextDrafts.length !== existingDrafts.length ||
+        nextDrafts.some(
           (option, index) =>
-            option.label !== existingOptions[index]?.label ||
-            option.kind !== existingOptions[index]?.kind,
+            option.label !== existingDrafts[index]?.label ||
+            option.kind !== existingDrafts[index]?.kind,
         );
   const shouldClearExistingAnswers =
     question.kind !== "winner" &&
@@ -1217,16 +1203,17 @@ export async function updateHalisahaQuestionAction(
       await tx.halisahaQuestionOption.deleteMany({
         where: { questionId },
       });
-      if (resolvedNextKind !== "player_prediction") {
-        await tx.halisahaQuestionOption.createMany({
-          data: nextOptions.map((option, index) => ({
-            questionId,
-            label: option.label,
-            kind: option.kind,
-            sortOrder: (index + 1) * QUESTION_SORT_STEP,
-          })),
-        });
-      }
+      await tx.halisahaQuestionOption.createMany({
+        data: nextOptions.map((option) => ({
+          questionId,
+          label: option.label,
+          kind: option.kind,
+          sortOrder: option.sortOrder,
+          participantId: null,
+          resolvedScoreHome: null,
+          resolvedScoreAway: null,
+        })),
+      });
     }
   });
 
@@ -1237,7 +1224,10 @@ export async function updateHalisahaQuestionAction(
       awayTeamName: question.match.awayTeamName,
     });
   }
-  if (resolvedNextKind === "player_prediction") {
+  if (
+    nextOptions.some((option) => option.kind === "player_picker") ||
+    resolvedNextKind === "player_prediction"
+  ) {
     await syncHalisahaPlayerPredictionQuestions(question.matchId);
   }
 
@@ -1412,13 +1402,6 @@ export async function setHalisahaQuestionCorrectOptionAction(
     return { ok: false, error: "Question not found." };
   }
 
-  if (question.kind === "score_prediction" || question.kind === "number_prediction") {
-    return {
-      ok: false,
-      error: "Use the actual result input for numeric prediction questions.",
-    };
-  }
-
   if (question.kind === "mvp_prediction") {
     return {
       ok: false,
@@ -1426,9 +1409,17 @@ export async function setHalisahaQuestionCorrectOptionAction(
     };
   }
 
+  const fixedChoiceOptions = question.options.filter((option) => option.kind === "standard");
+  if (fixedChoiceOptions.length === 0) {
+    return {
+      ok: false,
+      error: "This question does not have any fixed-choice rows to resolve.",
+    };
+  }
+
   if (
     optionId &&
-    !question.options.some((option) => option.id === optionId)
+    !fixedChoiceOptions.some((option) => option.id === optionId)
   ) {
     return { ok: false, error: "Correct option is invalid." };
   }
@@ -1468,6 +1459,7 @@ export async function setHalisahaQuestionCorrectOptionAction(
 
 export async function setHalisahaScoreQuestionResultAction(
   questionId: string,
+  optionId: string,
   score: {
     home: number | null;
     away: number | null;
@@ -1485,16 +1477,21 @@ export async function setHalisahaScoreQuestionResultAction(
     return { ok: false, error: "Question not found." };
   }
 
-  if (question.kind !== "score_prediction" && question.kind !== "number_prediction") {
+  const option = question.options.find((entry) => entry.id === optionId);
+  if (!option) {
+    return { ok: false, error: "Question option not found." };
+  }
+
+  if (option.kind !== "custom_score" && option.kind !== "custom_number") {
     return {
       ok: false,
-      error: "Only numeric prediction questions can store an actual result.",
+      error: "Only numeric option rows can store an actual result.",
     };
   }
 
   const home = score?.home;
   const away = score?.away;
-  const isSingleNumberQuestion = question.kind === "number_prediction";
+  const isSingleNumberQuestion = option.kind === "custom_number";
   const shouldClear = home === null || (!isSingleNumberQuestion && away === null);
   const resolvedHome = shouldClear ? null : home;
   const resolvedAway = shouldClear ? null : isSingleNumberQuestion ? null : away;
@@ -1516,51 +1513,40 @@ export async function setHalisahaScoreQuestionResultAction(
     }
   }
 
+  const numericOptions = question.options
+    .filter(
+      (entry) => entry.kind === "custom_score" || entry.kind === "custom_number",
+    )
+    .sort((left, right) => left.sortOrder - right.sortOrder);
+  const primaryNumericOptionId = numericOptions[0]?.id ?? null;
+  const primaryNumericOption =
+    primaryNumericOptionId === option.id
+      ? {
+          ...option,
+          resolvedScoreHome: resolvedHome,
+          resolvedScoreAway: resolvedAway,
+        }
+      : numericOptions[0] ?? null;
+
   await prisma.$transaction(async (tx) => {
-    await tx.halisahaQuestion.update({
-      where: { id: questionId },
+    await tx.halisahaQuestionOption.update({
+      where: { id: optionId },
       data: {
-        scoreHomeResult: resolvedHome,
-        scoreAwayResult: resolvedAway,
+        resolvedScoreHome: resolvedHome,
+        resolvedScoreAway: resolvedAway,
       },
     });
 
-    await tx.halisahaQuestionOption.updateMany({
-      where: { questionId },
-      data: { isCorrect: false },
+    await tx.halisahaQuestion.update({
+      where: { id: questionId },
+      data: {
+        scoreHomeResult: primaryNumericOption?.resolvedScoreHome ?? null,
+        scoreAwayResult:
+          primaryNumericOption?.kind === "custom_score"
+            ? primaryNumericOption.resolvedScoreAway
+            : null,
+      },
     });
-
-    if (!shouldClear) {
-      const correctOptionIds =
-        question.kind === "score_prediction"
-          ? question.options
-              .filter((option) => option.kind === "standard")
-              .filter((option) => {
-                const parsed = parseScoreLabel(option.label);
-                return (
-                  parsed !== null &&
-                  parsed.home === resolvedHome &&
-                  parsed.away === resolvedAway
-                );
-              })
-              .map((option) => option.id)
-          : question.options
-              .filter((option) => option.kind === "custom_number")
-              .map((option) => option.id);
-
-      if (correctOptionIds.length > 0) {
-        await tx.halisahaQuestionOption.updateMany({
-          where: {
-            id: {
-              in: correctOptionIds,
-            },
-          },
-          data: {
-            isCorrect: true,
-          },
-        });
-      }
-    }
   });
 
   await resetResolutionState(question.matchId);
@@ -1568,9 +1554,13 @@ export async function setHalisahaScoreQuestionResultAction(
     admin.id,
     "halisaha_question_score_result",
     "halisaha_question",
-    questionId,
+    optionId,
     null,
-    shouldClear ? "cleared" : `${resolvedHome}-${resolvedAway}`,
+    shouldClear
+      ? "cleared"
+      : isSingleNumberQuestion
+        ? `${option.label}: ${resolvedHome}`
+        : `${option.label}: ${resolvedHome}-${resolvedAway}`,
   );
   revalidateHalisahaPaths();
 
@@ -1578,7 +1568,7 @@ export async function setHalisahaScoreQuestionResultAction(
     ok: true,
     message: shouldClear
       ? "Actual result cleared."
-      : question.kind === "number_prediction"
+      : option.kind === "custom_number"
         ? "Actual value saved."
         : "Actual score saved.",
   };

@@ -232,6 +232,90 @@ describe("admin halisaha participant flows", () => {
     expect(mocks.participantUpdate).not.toHaveBeenCalled();
   });
 
+  it("stores a custom visible name for Halisaha", async () => {
+    mocks.participantFindUnique.mockResolvedValue({
+      id: "participant-1",
+      matchId: "match-1",
+      guestName: null,
+      guestId: null,
+      displayNameOverride: null,
+      teamSide: "home",
+      positionKey: "striker",
+      guest: null,
+      match: {
+        homeFormation: "f1_2_3_1",
+        awayFormation: "f1_2_3_1",
+      },
+      user: {
+        name: "Mert",
+        surname: "Yildiz",
+      },
+    });
+
+    const result = await updateHalisahaParticipantAssignmentAction("participant-1", {
+      teamSide: null,
+      positionKey: null,
+      displayName: "  Captain   Mert  ",
+    });
+
+    expect(result).toEqual({
+      ok: true,
+      message: "Player assignment updated.",
+    });
+    expect(mocks.participantUpdate).toHaveBeenCalledWith({
+      where: { id: "participant-1" },
+      data: {
+        teamSide: null,
+        positionKey: null,
+        displayOrder: 0,
+        displayNameOverride: "Captain Mert",
+      },
+    });
+    expect(mocks.syncMvpQuestion).toHaveBeenCalledWith("match-1");
+    expect(mocks.syncPlayerQuestions).toHaveBeenCalledWith("match-1");
+  });
+
+  it("clears the custom visible name when the default player name is selected again", async () => {
+    mocks.participantFindUnique.mockResolvedValue({
+      id: "participant-1",
+      matchId: "match-1",
+      guestName: null,
+      guestId: null,
+      displayNameOverride: "Captain Mert",
+      teamSide: "home",
+      positionKey: "striker",
+      guest: null,
+      match: {
+        homeFormation: "f1_2_3_1",
+        awayFormation: "f1_2_3_1",
+      },
+      user: {
+        name: "Mert",
+        surname: "Yildiz",
+      },
+    });
+
+    const result = await updateHalisahaParticipantAssignmentAction("participant-1", {
+      teamSide: null,
+      positionKey: null,
+      displayName: "Mert Yildiz",
+    });
+
+    expect(result).toEqual({
+      ok: true,
+      message: "Player assignment updated.",
+    });
+    expect(mocks.participantUpdate).toHaveBeenCalledWith({
+      where: { id: "participant-1" },
+      data: {
+        teamSide: null,
+        positionKey: null,
+        displayOrder: 0,
+        displayNameOverride: null,
+      },
+    });
+  });
+
   it("clears incompatible assignments when tactics change", async () => {
     mocks.participantFindMany.mockResolvedValue([
       {

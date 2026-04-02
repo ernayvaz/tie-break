@@ -35,17 +35,18 @@
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
-    "vitest": "^3.2.4",
     "@types/node": "^22",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "autoprefixer": "^10.4.20",
     "eslint": "^9",
     "eslint-config-next": "15.1.0",
+    "playwright": "^1.50.1",
     "postcss": "^8",
     "prisma": "^6.0.0",
     "tailwindcss": "^3.4.17",
     "tsx": "^4.19.2",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^3.2.4"
   }
 }

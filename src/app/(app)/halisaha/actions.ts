@@ -198,6 +198,13 @@ export async function submitHalisahaAnswersAction(
       return { ok: false, error: "Invalid answer option." };
     }
 
+    if (selectedOption.kind === "player_picker") {
+      return {
+        ok: false,
+        error: "Choose one player before saving this answer.",
+      };
+    }
+
     if (selectedOption.kind === "custom_score") {
       if (
         selection.customScoreHome === null ||

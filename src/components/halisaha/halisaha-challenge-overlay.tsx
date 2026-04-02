@@ -47,6 +47,13 @@ function areDraftAnswersEqual(
   );
 }
 
+function questionHasPlayerPickerRow(question: HalisahaPublicQuestion) {
+  return (
+    question.kind === "mvp_prediction" ||
+    question.options.some((option) => option.kind === "player_picker" || Boolean(option.participantId))
+  );
+}
+
 type WinnerSelectionTone = "home" | "away" | "neutral";
 
 const OPAQUE_WINNER_SAVE_BUTTON_STYLES: Record<
@@ -266,9 +273,10 @@ function PlayerPickerModal({
   onSelectOption: (optionId: string) => void;
   onClose: () => void;
 }) {
-  const homeOptions = question.options.filter((option) => option.teamSide === "home");
-  const awayOptions = question.options.filter((option) => option.teamSide === "away");
-  const unassignedOptions = question.options.filter((option) => !option.teamSide);
+  const participantOptions = question.options.filter((option) => option.participantId);
+  const homeOptions = participantOptions.filter((option) => option.teamSide === "home");
+  const awayOptions = participantOptions.filter((option) => option.teamSide === "away");
+  const unassignedOptions = participantOptions.filter((option) => !option.teamSide);
   const isMvpPickerQuestion = question.kind === "mvp_prediction";
 
   return (
@@ -689,7 +697,7 @@ export function HalisahaChallengeOverlay({
       standardQuestions.find(
         (question) =>
           question.id === activePlayerPickerQuestionId &&
-          (question.kind === "mvp_prediction" || question.kind === "player_prediction"),
+          questionHasPlayerPickerRow(question),
       ) ?? null,
     [activePlayerPickerQuestionId, standardQuestions],
   );
@@ -831,7 +839,7 @@ export function HalisahaChallengeOverlay({
           }))
         }
         onRequestPlayerPicker={
-          question.kind === "mvp_prediction" || question.kind === "player_prediction"
+          questionHasPlayerPickerRow(question)
             ? () => setActivePlayerPickerQuestionId(question.id)
             : undefined
         }

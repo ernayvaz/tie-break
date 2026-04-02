@@ -61,15 +61,53 @@ export function HalisahaQuestionCard({
   const isOverlayLayout = layoutMode === "overlay";
   const useCompactOverlayLayout = isOverlayLayout && compactOverlayLayout;
   const correctOption = question.options.find((option) => option.isCorrect) ?? null;
-  const customNumericOption =
-    question.options.find((option) => option.kind === "custom_number") ??
-    question.options.find((option) => option.kind === "custom_score");
-  const isScoreQuestion = question.kind === "score_prediction";
-  const isNumberPredictionQuestion = question.kind === "number_prediction";
-  const isNumericQuestion = isScoreQuestion || isNumberPredictionQuestion;
   const isMvpPredictionQuestion = question.kind === "mvp_prediction";
-  const isPlayerPickerQuestion =
-    question.kind === "mvp_prediction" || question.kind === "player_prediction";
+  const participantOptions = useMemo(
+    () => question.options.filter((option) => option.participantId),
+    [question.options],
+  );
+  const pickerPlaceholderOption = useMemo<HalisahaPublicQuestion["options"][number] | null>(() => {
+    const storedPlaceholder = question.options.find((option) => option.kind === "player_picker");
+    if (storedPlaceholder) {
+      return storedPlaceholder;
+    }
+
+    if (isMvpPredictionQuestion || participantOptions.length > 0) {
+      return {
+        id: `${question.id}-player-picker`,
+        label: "Choose player",
+        kind: "player_picker",
+        participantId: null,
+        teamSide: null,
+        resolvedScoreHome: null,
+        resolvedScoreAway: null,
+        sortOrder: participantOptions[0]?.sortOrder ?? 0,
+        isCorrect: false,
+      };
+    }
+
+    return null;
+  }, [isMvpPredictionQuestion, participantOptions, question.id, question.options]);
+  const visibleOptions = useMemo(() => {
+    const baseOptions = question.options.filter(
+      (option) => !option.participantId && option.kind !== "player_picker",
+    );
+
+    return pickerPlaceholderOption
+      ? [...baseOptions, pickerPlaceholderOption].sort(
+          (left, right) => left.sortOrder - right.sortOrder,
+        )
+      : baseOptions;
+  }, [pickerPlaceholderOption, question.options]);
+  const selectedOption = question.options.find((option) => option.id === selectedOptionId) ?? null;
+  const selectedNumericOption =
+    selectedOption &&
+    (selectedOption.kind === "custom_score" || selectedOption.kind === "custom_number")
+      ? selectedOption
+      : null;
+  const selectedPlayerOption =
+    selectedOption && selectedOption.participantId ? selectedOption : null;
+  const hasPlayerPickerRow = Boolean(pickerPlaceholderOption);
   const isPredictionWindowClosed =
     predictionWindowClosed && !answersLocked && !answersResolved;
   const isReadOnly = answersResolved || answersLocked || isPredictionWindowClosed || busy;
@@ -119,19 +157,24 @@ export function HalisahaQuestionCard({
     });
   };
 
-  const handleCustomNumericChange = (side: "home" | "away", rawValue: string) => {
+  const handleCustomNumericChange = (
+    optionId: string,
+    side: "home" | "away",
+    rawValue: string,
+  ) => {
     const trimmedValue = rawValue.trim();
     const nextValue =
       trimmedValue === "" ? null : /^\d+$/.test(trimmedValue) ? Number(trimmedValue) : null;
+    const targetOption = question.options.find((option) => option.id === optionId);
 
     updateAnswer({
-      selectedOptionId: customNumericOption?.id ?? "",
+      selectedOptionId: optionId,
       customScoreHome:
         side === "home" ? nextValue : selectedAnswer.customScoreHome,
       customScoreAway:
-        customNumericOption?.kind === "custom_score" && side === "away"
+        targetOption?.kind === "custom_score" && side === "away"
           ? nextValue
-          : customNumericOption?.kind === "custom_score"
+          : targetOption?.kind === "custom_score"
             ? selectedAnswer.customScoreAway
             : null,
     });
@@ -143,10 +186,15 @@ export function HalisahaQuestionCard({
       return;
     }
 
-    if (customNumericOption?.id === selectedOptionId) {
+    if (selectedOption?.kind === "player_picker") {
+      onError?.("Choose one player before saving this answer.");
+      return;
+    }
+
+    if (selectedNumericOption) {
       if (selectedAnswer.customScoreHome === null) {
         onError?.(
-          customNumericOption.kind === "custom_score"
+          selectedNumericOption.kind === "custom_score"
             ? "Enter both home and away values for your custom score."
             : "Enter a whole number for your prediction.",
         );
@@ -154,7 +202,7 @@ export function HalisahaQuestionCard({
       }
 
       if (
-        customNumericOption.kind === "custom_score" &&
+        selectedNumericOption.kind === "custom_score" &&
         selectedAnswer.customScoreAway === null
       ) {
         onError?.("Enter both home and away values for your custom score.");
@@ -195,14 +243,23 @@ export function HalisahaQuestionCard({
           return `Final MVP: ${correctOption.label}.`;
         }
         if (
-          isScoreQuestion &&
-          question.scoreHomeResult !== null &&
-          question.scoreAwayResult !== null
+          selectedNumericOption?.kind === "custom_score" &&
+          selectedNumericOption.resolvedScoreHome !== null &&
+          selectedNumericOption.resolvedScoreAway !== null
         ) {
-          return `Actual score: ${question.scoreHomeResult}-${question.scoreAwayResult}.`;
+          return `Actual score: ${selectedNumericOption.resolvedScoreHome}-${selectedNumericOption.resolvedScoreAway}.`;
         }
-        if (isNumberPredictionQuestion && question.scoreHomeResult !== null) {
-          return `Actual value: ${question.scoreHomeResult}.`;
+        if (
+          selectedNumericOption?.kind === "custom_number" &&
+          selectedNumericOption.resolvedScoreHome !== null
+        ) {
+          return `Actual value: ${selectedNumericOption.resolvedScoreHome}.`;
+        }
+        if (selectedPlayerOption && correctOption) {
+          return `Correct player: ${correctOption.label}.`;
+        }
+        if (selectedOption && correctOption) {
+          return `Correct answer: ${correctOption.label}.`;
         }
         return "This answer did not score.";
       }
@@ -221,7 +278,7 @@ export function HalisahaQuestionCard({
       return "";
     }
 
-    if (isPlayerPickerQuestion) {
+    if (selectedPlayerOption) {
       return selectedOptionId
         ? isMvpPredictionQuestion
           ? "You can still change your MVP pick until answers are locked."
@@ -231,8 +288,8 @@ export function HalisahaQuestionCard({
           : "Choose one player and save your answer.";
     }
 
-    if (isNumericQuestion && customNumericOption?.id === selectedOptionId) {
-      if (customNumericOption.kind === "custom_number") {
+    if (selectedNumericOption) {
+      if (selectedNumericOption.kind === "custom_number") {
         return selectedAnswer.customScoreHome !== null
           ? "You can still change this numeric prediction until answers are locked."
           : "Enter one whole number to save this prediction.";
@@ -246,37 +303,39 @@ export function HalisahaQuestionCard({
 
     return selectedOptionId
         ? "You can still update this answer until the match is resolved."
-      : "Pick one option and save your answer.";
+      : hasPlayerPickerRow && visibleOptions.length === 1
+        ? isMvpPredictionQuestion
+          ? "Choose one player and save your MVP pick."
+          : "Choose one player and save your answer."
+        : "Pick one option and save your answer.";
   }, [
     answersLocked,
     answersResolved,
     correctOption,
-    customNumericOption?.id,
-    customNumericOption?.kind,
+    hasPlayerPickerRow,
     initialAnswer,
-    isNumberPredictionQuestion,
-    isNumericQuestion,
     isPredictionWindowClosed,
     isMvpPredictionQuestion,
-    isPlayerPickerQuestion,
-    isScoreQuestion,
     question.resolved,
-    question.scoreAwayResult,
-    question.scoreHomeResult,
     resolvedButPending,
     selectedAnswer.customScoreAway,
     selectedAnswer.customScoreHome,
+    selectedNumericOption,
+    selectedOption,
     selectedOptionId,
+    selectedPlayerOption,
     showSaveButton,
+    visibleOptions.length,
   ]);
   const shouldShowFooter = !isOverlayLayout && (showSaveButton || answersResolved || Boolean(helperText));
   const mvpTeamGroups = useMemo(
     () => ({
-      home: question.options.filter((option) => option.teamSide === "home"),
-      away: question.options.filter((option) => option.teamSide === "away"),
+      home: participantOptions.filter((option) => option.teamSide === "home"),
+      away: participantOptions.filter((option) => option.teamSide === "away"),
     }),
-    [question.options],
+    [participantOptions],
   );
+  const hasCorrectParticipant = participantOptions.some((option) => option.isCorrect);
   const overlayOptionGapClass = useCompactOverlayLayout
     ? "gap-[clamp(0.2rem,0.54vh,0.3rem)]"
     : "gap-[clamp(0.22rem,0.64vh,0.34rem)]";
@@ -289,21 +348,21 @@ export function HalisahaQuestionCard({
   const overlayOptionTextClass = useCompactOverlayLayout
     ? "text-center text-[0.62rem] leading-[1.04]"
     : "text-center text-[0.66rem] leading-[1.08]";
-  const fixedOptionCount = question.options.filter((option) => option.kind === "standard").length;
-  const hasCustomNumericOption = question.options.some(
-    (option) => option.kind === "custom_score" || option.kind === "custom_number",
-  );
   const overlayOptionGridStyle = isOverlayLayout
-    ? isNumericQuestion && hasCustomNumericOption
-      ? {
-          gridTemplateColumns:
-            fixedOptionCount > 0
-              ? `${Array.from({ length: fixedOptionCount }, () => "minmax(0, 0.76fr)").join(" ")} minmax(0, 1.72fr)`
-              : "minmax(0, 1fr)",
-        }
-      : {
-          gridTemplateColumns: `repeat(${Math.max(question.options.length, 1)}, minmax(0, 1fr))`,
-        }
+    ? {
+        gridTemplateColumns:
+          visibleOptions.length > 0
+            ? visibleOptions
+                .map((option) =>
+                  option.kind === "custom_score" ||
+                  option.kind === "custom_number" ||
+                  option.kind === "player_picker"
+                    ? "minmax(0, 1.72fr)"
+                    : "minmax(0, 0.9fr)",
+                )
+                .join(" ")
+            : "minmax(0, 1fr)",
+      }
     : undefined;
   const compactOverlaySurfaceClass = useCompactOverlayLayout
     ? "border-white/14 shadow-[0_14px_30px_rgba(0,0,0,0.22)] backdrop-blur-[7px]"
@@ -383,327 +442,118 @@ export function HalisahaQuestionCard({
               : "mt-[clamp(0.3rem,0.82vh,0.46rem)]"
         }`}
       >
-        {isPlayerPickerQuestion ? (
-          <>
-            <div
-              className={`grid ${overlayOptionGapClass} ${
-                useCompactOverlayLayout
-                  ? "grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)]"
-                  : "sm:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)]"
-              }`}
-            >
-              <button
-                type="button"
-                onClick={() => {
-                  if (isReadOnly) {
-                    return;
-                  }
-                  if (isOverlayLayout && onRequestPlayerPicker) {
-                    onRequestPlayerPicker();
-                    return;
-                  }
-                  setIsPlayerPickerOpen(true);
-                }}
-                disabled={isReadOnly || question.options.length === 0}
-                className={`halisaha-mvp-control flex ${isOverlayLayout ? overlayOptionHeightClass : overlayOptionMinHeightClass} items-center justify-center overflow-hidden rounded-[0.72rem] border ${compactOverlayMvpActionClass} px-3 ${
-                  isOverlayLayout ? "py-[0.24rem]" : "py-[0.34rem]"
-                } text-[0.66rem] font-semibold uppercase leading-[1.08] tracking-[0.16em] text-white/84 transition-colors disabled:cursor-default disabled:text-white/38`}
-              >
-                {question.options.length === 0 ? "No players yet" : "Choose player"}
-              </button>
-              <div
-                className={`halisaha-mvp-control flex ${isOverlayLayout ? overlayOptionHeightClass : overlayOptionMinHeightClass} items-center overflow-hidden rounded-[0.72rem] border px-3 ${
-                  isOverlayLayout ? "py-[0.24rem]" : "py-[0.34rem]"
-                } text-[0.66rem] font-medium leading-[1.08] ${
-                  question.resolved && initialAnswer?.isCorrect === true
-                    ? "border-emerald-300/38 bg-emerald-400/10 text-emerald-100"
-                    : question.resolved &&
-                        initialAnswer?.selectedOptionId &&
-                        initialAnswer.isCorrect === false
-                      ? "border-rose-300/28 bg-rose-400/10 text-rose-100"
-                      : compactOverlayReadValueClass
-                }`}
-              >
-                <span className="truncate leading-[1.14]">
-                  {question.options.find((option) => option.id === selectedOptionId)?.label ??
-                    "No player selected yet"}
-                </span>
-              </div>
-            </div>
-            {!isOverlayLayout && isPlayerPickerOpen ? (
-              <div className="absolute inset-0 z-20 flex items-center justify-center px-3">
-                <div
-                  className="absolute inset-0 rounded-[0.92rem] bg-[rgba(3,8,8,0.68)] backdrop-blur-[8px]"
-                  onClick={() => setIsPlayerPickerOpen(false)}
-                />
-                <div className="relative w-full max-w-[26rem] rounded-[1rem] border border-white/12 bg-[linear-gradient(180deg,rgba(10,18,17,0.96),rgba(8,14,14,0.92))] p-4 shadow-[0_24px_56px_rgba(0,0,0,0.34)]">
-                  <div className="text-[0.54rem] font-semibold uppercase tracking-[0.2em] text-white/42">
-                    {isMvpPredictionQuestion ? "MVP picker" : "Player picker"}
-                  </div>
-                  <h4 className="mt-2 text-[0.96rem] font-semibold text-white">
-                    {isMvpPredictionQuestion ? "Choose your MVP candidate" : "Choose one player"}
-                  </h4>
-                  <div className="mt-3 grid gap-3 md:grid-cols-2">
-                    {[
-                      {
-                        label: "Home team",
-                        options: mvpTeamGroups.home,
-                      },
-                      {
-                        label: "Away team",
-                        options: mvpTeamGroups.away,
-                      },
-                    ].map((group) => (
-                      <div
-                        key={group.label}
-                        className="rounded-[0.9rem] border border-white/10 bg-white/[0.04] p-3"
-                      >
-                        <div className="text-[0.54rem] font-semibold uppercase tracking-[0.18em] text-white/42">
-                          {group.label}
-                        </div>
-                        <div className="mt-2 space-y-2">
-                          {group.options.length > 0 ? (
-                            group.options.map((option) => (
-                              <button
-                                key={option.id}
-                                type="button"
-                                onClick={() => {
-                                  handleSelectOption(option.id);
-                                  setIsPlayerPickerOpen(false);
-                                }}
-                                className={`flex w-full items-center justify-between rounded-[0.74rem] border px-3 py-2 text-left text-[0.74rem] font-medium transition-colors ${
-                                  selectedOptionId === option.id
-                                    ? "border-white/20 bg-white/[0.12] text-white"
-                                    : "border-white/10 bg-black/10 text-white/82 hover:bg-white/[0.06]"
-                                }`}
-                              >
-                                <span className="truncate">{option.label}</span>
-                                <span className="text-[0.52rem] uppercase tracking-[0.16em] text-white/38">
-                                  Pick
-                                </span>
-                              </button>
-                            ))
-                          ) : (
-                            <div className="text-[0.72rem] text-white/42">
-                              No players have been assigned to this team yet.
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="mt-4 flex justify-end">
-                    <button
-                      type="button"
-                      onClick={() => setIsPlayerPickerOpen(false)}
-                      className="rounded-full border border-white/10 bg-white/[0.04] px-3.5 py-[0.55rem] text-[0.56rem] font-semibold uppercase tracking-[0.16em] text-white/74 transition-colors hover:bg-white/[0.08]"
-                    >
-                      Close
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ) : null}
-          </>
-        ) : isNumericQuestion ? (
-          <div
-            className={
-              isOverlayLayout
-                ? `grid w-full min-w-0 items-stretch ${overlayOptionGapClass}`
-                : `flex flex-wrap ${overlayOptionGapClass}`
-            }
-            style={overlayOptionGridStyle}
-          >
-        {question.options.map((option) => {
-          const isSelected = selectedOptionId === option.id;
-              const isCorrect = option.isCorrect;
-              const isIncorrectSelected =
-                question.resolved &&
+        <div
+          className={
+            isOverlayLayout
+              ? `grid w-full min-w-0 items-stretch ${overlayOptionGapClass}`
+              : `flex flex-wrap ${overlayOptionGapClass}`
+          }
+          style={overlayOptionGridStyle}
+        >
+          {visibleOptions.map((option) => {
+            const isPickerControl = option.kind === "player_picker";
+            const isSelected = isPickerControl
+              ? Boolean(selectedPlayerOption)
+              : selectedOptionId === option.id;
+            const isCorrect = isPickerControl
+              ? Boolean(question.resolved && selectedPlayerOption?.isCorrect)
+              : option.isCorrect;
+            const isIncorrectSelected = isPickerControl
+              ? question.resolved &&
+                Boolean(selectedPlayerOption) &&
+                initialAnswer?.selectedOptionId === selectedPlayerOption?.id &&
+                initialAnswer?.isCorrect === false
+              : question.resolved &&
                 initialAnswer?.selectedOptionId === option.id &&
-                initialAnswer.isCorrect === false;
-              const isCustom =
-                option.kind === "custom_score" || option.kind === "custom_number";
-
-              if (isCustom) {
-                return (
-                  <label
-                    key={option.id}
-                    className={`flex min-w-0 items-center rounded-[0.72rem] border transition-[border-color,background-color,box-shadow] ${
-                      isOverlayLayout
-                        ? `${overlayOptionHeightClass} w-full gap-1 px-[0.52rem] py-[0.22rem]`
-                        : "min-h-[2.24rem] flex-1 gap-2 px-2.5 py-[0.42rem]"
-                    } ${
-                      isCorrect
-                        ? "border-emerald-300/50 bg-emerald-400/10"
-                        : isIncorrectSelected
-                          ? "border-rose-300/30 bg-rose-400/10"
-                          : isSelected
-                            ? compactOverlaySelectedOptionClass
-                            : compactOverlayNeutralOptionClass
-                    }`}
-                  >
-                    <input
-                      type="radio"
-                      name={`question-${question.id}`}
-                      value={option.id}
-                      checked={isSelected}
-                      onChange={(event) => handleSelectOption(event.target.value)}
-                      disabled={isReadOnly}
-                      className="sr-only"
-                    />
-                    <span
-                      className={`shrink-0 font-medium uppercase text-white/58 ${
-                        isOverlayLayout
-                          ? "min-w-[1.72rem] text-[0.48rem] tracking-[0.08em]"
-                          : "text-[0.68rem] tracking-[0.12em]"
-                      }`}
-                    >
-                      {isOverlayLayout ? "Yours" : option.label}
-                    </span>
-                    <div className="ml-auto flex min-w-0 items-center gap-[0.24rem]">
-                      <input
-                        value={selectedOptionId === option.id ? (selectedAnswer.customScoreHome ?? "").toString() : ""}
-                        onFocus={() => handleSelectOption(option.id)}
-                        onChange={(event) => handleCustomNumericChange("home", event.target.value)}
-                        inputMode="numeric"
-                        disabled={isReadOnly}
-                        className={`rounded-[0.6rem] border ${compactOverlayScoreInputClass} px-1 text-center font-semibold text-white outline-none placeholder:text-white/24 ${
-                          isOverlayLayout
-                            ? "h-[1.3rem] w-[2.18rem] text-[0.66rem]"
-                            : "h-8 w-12 px-2 text-[0.78rem]"
-                        }`}
-                        placeholder="0"
-                      />
-                      {option.kind === "custom_score" ? (
-                        <>
-                          <span
-                            className={`shrink-0 text-white/42 ${
-                              isOverlayLayout ? "text-[0.62rem]" : ""
-                            }`}
-                          >
-                            -
-                          </span>
-                          <input
-                            value={
-                              selectedOptionId === option.id
-                                ? (selectedAnswer.customScoreAway ?? "").toString()
-                                : ""
-                            }
-                            onFocus={() => handleSelectOption(option.id)}
-                            onChange={(event) =>
-                              handleCustomNumericChange("away", event.target.value)
-                            }
-                            inputMode="numeric"
-                            disabled={isReadOnly}
-                            className={`rounded-[0.6rem] border ${compactOverlayScoreInputClass} px-1 text-center font-semibold text-white outline-none placeholder:text-white/24 ${
-                              isOverlayLayout
-                                ? "h-[1.3rem] w-[2.18rem] text-[0.66rem]"
-                                : "h-8 w-12 px-2 text-[0.78rem]"
-                            }`}
-                            placeholder="0"
-                          />
-                        </>
-                      ) : null}
-                    </div>
-                  </label>
-                );
-              }
-
-              const showResolutionMeta =
-                !isOverlayLayout &&
+                initialAnswer?.isCorrect === false;
+            const showResolutionMeta = isPickerControl
+              ? !isOverlayLayout &&
+                question.resolved &&
+                (Boolean(selectedPlayerOption) || hasCorrectParticipant)
+              : !isOverlayLayout &&
                 question.resolved &&
                 (initialAnswer?.selectedOptionId === option.id || isCorrect);
 
-          return (
-            <label
-              key={option.id}
-                  className={`group flex ${isOverlayLayout ? overlayOptionHeightClass : overlayOptionMinHeightClass} max-w-full cursor-pointer items-center overflow-hidden ${
-                    isOverlayLayout
-                      ? isNumericQuestion
-                        ? "min-w-0 w-full px-[0.52rem] py-[0.24rem]"
-                        : "min-w-0 w-full px-2 py-[0.24rem]"
-                      : "min-w-[5.7rem] flex-[0_1_auto] px-2.5 py-[0.42rem]"
-                  } ${
-                    showResolutionMeta ? "justify-between" : "justify-center"
-                  } gap-1.4 rounded-[0.72rem] border transition-[border-color,background-color,box-shadow] ${
-                isCorrect
-                      ? "border-emerald-300/50 bg-emerald-400/10 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]"
-                      : isIncorrectSelected
-                        ? "border-rose-300/28 bg-rose-400/10 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]"
-                  : isSelected
-                          ? compactOverlaySelectedOptionClass
-                          : compactOverlayNeutralOptionClass
-              }`}
-            >
-              <input
-                type="radio"
-                name={`question-${question.id}`}
-                value={option.id}
-                checked={isSelected}
-                onChange={(event) => handleSelectOption(event.target.value)}
-                    disabled={isReadOnly}
-                className="sr-only"
-              />
-                  <span
-                    className={`halisaha-question-option-text min-w-0 truncate whitespace-nowrap font-medium text-white/90 ${
-                      isOverlayLayout
-                        ? overlayOptionTextClass
-                        : "text-[0.72rem] leading-[1.14]"
+            if (isPickerControl) {
+              return (
+                <div key={option.id} className="space-y-2">
+                  <div
+                    className={`grid ${overlayOptionGapClass} ${
+                      useCompactOverlayLayout
+                        ? "grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)]"
+                        : "sm:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)]"
                     }`}
                   >
-                {option.label}
-              </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (isReadOnly) {
+                          return;
+                        }
+                        if (isOverlayLayout && onRequestPlayerPicker) {
+                          onRequestPlayerPicker();
+                          return;
+                        }
+                        setIsPlayerPickerOpen(true);
+                      }}
+                      disabled={isReadOnly || participantOptions.length === 0}
+                      className={`halisaha-mvp-control flex ${
+                        isOverlayLayout ? overlayOptionHeightClass : overlayOptionMinHeightClass
+                      } items-center justify-center overflow-hidden rounded-[0.72rem] border ${compactOverlayMvpActionClass} px-3 ${
+                        isOverlayLayout ? "py-[0.24rem]" : "py-[0.34rem]"
+                      } text-[0.66rem] font-semibold uppercase leading-[1.08] tracking-[0.16em] text-white/84 transition-colors disabled:cursor-default disabled:text-white/38`}
+                    >
+                      {participantOptions.length === 0 ? "No players yet" : "Choose player"}
+                    </button>
+                    <div
+                      className={`halisaha-mvp-control flex ${
+                        isOverlayLayout ? overlayOptionHeightClass : overlayOptionMinHeightClass
+                      } items-center overflow-hidden rounded-[0.72rem] border px-3 ${
+                        isOverlayLayout ? "py-[0.24rem]" : "py-[0.34rem]"
+                      } text-[0.66rem] font-medium leading-[1.08] ${
+                        isCorrect
+                          ? "border-emerald-300/38 bg-emerald-400/10 text-emerald-100"
+                          : isIncorrectSelected
+                            ? "border-rose-300/28 bg-rose-400/10 text-rose-100"
+                            : compactOverlayReadValueClass
+                      }`}
+                    >
+                      <span className="truncate leading-[1.14]">
+                        {selectedPlayerOption?.label ?? "No player selected yet"}
+                      </span>
+                    </div>
+                  </div>
                   {showResolutionMeta ? (
-                    <span className="ml-1 flex items-center gap-1 text-[0.44rem] font-semibold uppercase tracking-[0.12em]">
-                      {question.resolved && initialAnswer?.selectedOptionId === option.id ? (
+                    <div className="flex items-center gap-1 text-[0.44rem] font-semibold uppercase tracking-[0.12em]">
+                      {selectedPlayerOption ? (
                         <span className="rounded-full border border-white/12 bg-white/[0.08] px-1.5 py-[0.15rem] text-white/60">
                           Your answer
                         </span>
                       ) : null}
-                      {question.resolved && isCorrect ? (
+                      {isCorrect ? (
                         <span className="rounded-full border border-emerald-300/30 bg-emerald-400/12 px-1.5 py-[0.15rem] text-emerald-200">
                           Correct
                         </span>
                       ) : null}
-                    </span>
+                    </div>
                   ) : null}
-                </label>
+                </div>
               );
-            })}
-          </div>
-        ) : (
-          <div
-            className={
-              isOverlayLayout
-                ? `grid w-full min-w-0 items-stretch ${overlayOptionGapClass}`
-                : `flex flex-wrap ${overlayOptionGapClass}`
             }
-            style={overlayOptionGridStyle}
-          >
-            {question.options.map((option) => {
-              const isSelected = selectedOptionId === option.id;
-              const isCorrect = option.isCorrect;
-              const isIncorrectSelected =
-                question.resolved &&
-                initialAnswer?.selectedOptionId === option.id &&
-                initialAnswer.isCorrect === false;
-              const showResolutionMeta =
-                !isOverlayLayout &&
-                question.resolved &&
-                (initialAnswer?.selectedOptionId === option.id || isCorrect);
 
+            if (option.kind === "custom_score" || option.kind === "custom_number") {
               return (
                 <label
                   key={option.id}
-                  className={`group flex ${isOverlayLayout ? overlayOptionHeightClass : overlayOptionMinHeightClass} max-w-full cursor-pointer items-center overflow-hidden ${
-                    isOverlayLayout ? "min-w-0 w-full px-2 py-[0.24rem]" : "min-w-[5.7rem] flex-[0_1_auto] px-2.5 py-[0.42rem]"
+                  className={`flex min-w-0 items-center rounded-[0.72rem] border transition-[border-color,background-color,box-shadow] ${
+                    isOverlayLayout
+                      ? `${overlayOptionHeightClass} w-full gap-1 px-[0.52rem] py-[0.22rem]`
+                      : "min-h-[2.24rem] flex-1 gap-2 px-2.5 py-[0.42rem]"
                   } ${
-                    showResolutionMeta ? "justify-between" : isOverlayLayout ? "justify-center" : "justify-start"
-                  } gap-1.4 rounded-[0.72rem] border transition-[border-color,background-color,box-shadow] ${
                     isCorrect
-                      ? "border-emerald-300/50 bg-emerald-400/10 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]"
+                      ? "border-emerald-300/50 bg-emerald-400/10"
                       : isIncorrectSelected
-                        ? "border-rose-300/28 bg-rose-400/10 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]"
+                        ? "border-rose-300/30 bg-rose-400/10"
                         : isSelected
                           ? compactOverlaySelectedOptionClass
                           : compactOverlayNeutralOptionClass
@@ -719,31 +569,202 @@ export function HalisahaQuestionCard({
                     className="sr-only"
                   />
                   <span
-                    className={`halisaha-question-option-text min-w-0 truncate whitespace-nowrap font-medium text-white/90 ${
-                      isOverlayLayout ? "text-center text-[0.66rem] leading-[1.08]" : "text-[0.72rem] leading-[1.14]"
+                    className={`shrink-0 font-medium uppercase text-white/58 ${
+                      isOverlayLayout
+                        ? "min-w-[1.72rem] text-[0.48rem] tracking-[0.08em]"
+                        : "text-[0.68rem] tracking-[0.12em]"
                     }`}
                   >
-                    {option.label}
+                    {isOverlayLayout ? "Yours" : option.label}
                   </span>
-                  {showResolutionMeta ? (
-                    <span className="ml-1 flex items-center gap-1 text-[0.44rem] font-semibold uppercase tracking-[0.12em]">
-                      {question.resolved && initialAnswer?.selectedOptionId === option.id ? (
-                  <span className="rounded-full border border-white/12 bg-white/[0.08] px-1.5 py-[0.15rem] text-white/60">
-                    Your answer
+                  <div className="ml-auto flex min-w-0 items-center gap-[0.24rem]">
+                    <input
+                      value={
+                        selectedOptionId === option.id
+                          ? (selectedAnswer.customScoreHome ?? "").toString()
+                          : ""
+                      }
+                      onFocus={() => handleSelectOption(option.id)}
+                      onChange={(event) =>
+                        handleCustomNumericChange(option.id, "home", event.target.value)
+                      }
+                      inputMode="numeric"
+                      disabled={isReadOnly}
+                      className={`rounded-[0.6rem] border ${compactOverlayScoreInputClass} px-1 text-center font-semibold text-white outline-none placeholder:text-white/24 ${
+                        isOverlayLayout
+                          ? "h-[1.3rem] w-[2.18rem] text-[0.66rem]"
+                          : "h-8 w-12 px-2 text-[0.78rem]"
+                      }`}
+                      placeholder="0"
+                    />
+                    {option.kind === "custom_score" ? (
+                      <>
+                        <span
+                          className={`shrink-0 text-white/42 ${
+                            isOverlayLayout ? "text-[0.62rem]" : ""
+                          }`}
+                        >
+                          -
+                        </span>
+                        <input
+                          value={
+                            selectedOptionId === option.id
+                              ? (selectedAnswer.customScoreAway ?? "").toString()
+                              : ""
+                          }
+                          onFocus={() => handleSelectOption(option.id)}
+                          onChange={(event) =>
+                            handleCustomNumericChange(option.id, "away", event.target.value)
+                          }
+                          inputMode="numeric"
+                          disabled={isReadOnly}
+                          className={`rounded-[0.6rem] border ${compactOverlayScoreInputClass} px-1 text-center font-semibold text-white outline-none placeholder:text-white/24 ${
+                            isOverlayLayout
+                              ? "h-[1.3rem] w-[2.18rem] text-[0.66rem]"
+                              : "h-8 w-12 px-2 text-[0.78rem]"
+                          }`}
+                          placeholder="0"
+                        />
+                      </>
+                    ) : null}
+                  </div>
+                </label>
+              );
+            }
+
+            return (
+              <label
+                key={option.id}
+                className={`group flex ${
+                  isOverlayLayout ? overlayOptionHeightClass : overlayOptionMinHeightClass
+                } max-w-full cursor-pointer items-center overflow-hidden ${
+                  isOverlayLayout
+                    ? "min-w-0 w-full px-2 py-[0.24rem]"
+                    : "min-w-[5.7rem] flex-[0_1_auto] px-2.5 py-[0.42rem]"
+                } ${
+                  showResolutionMeta
+                    ? "justify-between"
+                    : isOverlayLayout
+                      ? "justify-center"
+                      : "justify-start"
+                } gap-1.4 rounded-[0.72rem] border transition-[border-color,background-color,box-shadow] ${
+                  isCorrect
+                    ? "border-emerald-300/50 bg-emerald-400/10 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]"
+                    : isIncorrectSelected
+                      ? "border-rose-300/28 bg-rose-400/10 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]"
+                      : isSelected
+                        ? compactOverlaySelectedOptionClass
+                        : compactOverlayNeutralOptionClass
+                }`}
+              >
+                <input
+                  type="radio"
+                  name={`question-${question.id}`}
+                  value={option.id}
+                  checked={isSelected}
+                  onChange={(event) => handleSelectOption(event.target.value)}
+                  disabled={isReadOnly}
+                  className="sr-only"
+                />
+                <span
+                  className={`halisaha-question-option-text min-w-0 truncate whitespace-nowrap font-medium text-white/90 ${
+                    isOverlayLayout ? overlayOptionTextClass : "text-[0.72rem] leading-[1.14]"
+                  }`}
+                >
+                  {option.label}
+                </span>
+                {showResolutionMeta ? (
+                  <span className="ml-1 flex items-center gap-1 text-[0.44rem] font-semibold uppercase tracking-[0.12em]">
+                    {question.resolved && initialAnswer?.selectedOptionId === option.id ? (
+                      <span className="rounded-full border border-white/12 bg-white/[0.08] px-1.5 py-[0.15rem] text-white/60">
+                        Your answer
+                      </span>
+                    ) : null}
+                    {question.resolved && isCorrect ? (
+                      <span className="rounded-full border border-emerald-300/30 bg-emerald-400/12 px-1.5 py-[0.15rem] text-emerald-200">
+                        Correct
+                      </span>
+                    ) : null}
                   </span>
                 ) : null}
-                      {question.resolved && isCorrect ? (
-                  <span className="rounded-full border border-emerald-300/30 bg-emerald-400/12 px-1.5 py-[0.15rem] text-emerald-200">
-                    Correct
-                  </span>
-                ) : null}
-              </span>
-                  ) : null}
-            </label>
-          );
-        })}
+              </label>
+            );
+          })}
+        </div>
+        {hasPlayerPickerRow && !isOverlayLayout && isPlayerPickerOpen ? (
+          <div className="absolute inset-0 z-20 flex items-center justify-center px-3">
+            <div
+              className="absolute inset-0 rounded-[0.92rem] bg-[rgba(3,8,8,0.68)] backdrop-blur-[8px]"
+              onClick={() => setIsPlayerPickerOpen(false)}
+            />
+            <div className="relative w-full max-w-[26rem] rounded-[1rem] border border-white/12 bg-[linear-gradient(180deg,rgba(10,18,17,0.96),rgba(8,14,14,0.92))] p-4 shadow-[0_24px_56px_rgba(0,0,0,0.34)]">
+              <div className="text-[0.54rem] font-semibold uppercase tracking-[0.2em] text-white/42">
+                {isMvpPredictionQuestion ? "MVP picker" : "Player picker"}
+              </div>
+              <h4 className="mt-2 text-[0.96rem] font-semibold text-white">
+                {isMvpPredictionQuestion ? "Choose your MVP candidate" : "Choose one player"}
+              </h4>
+              <div className="mt-3 grid gap-3 md:grid-cols-2">
+                {[
+                  {
+                    label: "Home team",
+                    options: mvpTeamGroups.home,
+                  },
+                  {
+                    label: "Away team",
+                    options: mvpTeamGroups.away,
+                  },
+                ].map((group) => (
+                  <div
+                    key={group.label}
+                    className="rounded-[0.9rem] border border-white/10 bg-white/[0.04] p-3"
+                  >
+                    <div className="text-[0.54rem] font-semibold uppercase tracking-[0.18em] text-white/42">
+                      {group.label}
+                    </div>
+                    <div className="mt-2 space-y-2">
+                      {group.options.length > 0 ? (
+                        group.options.map((option) => (
+                          <button
+                            key={option.id}
+                            type="button"
+                            onClick={() => {
+                              handleSelectOption(option.id);
+                              setIsPlayerPickerOpen(false);
+                            }}
+                            className={`flex w-full items-center justify-between rounded-[0.74rem] border px-3 py-2 text-left text-[0.74rem] font-medium transition-colors ${
+                              selectedOptionId === option.id
+                                ? "border-white/20 bg-white/[0.12] text-white"
+                                : "border-white/10 bg-black/10 text-white/82 hover:bg-white/[0.06]"
+                            }`}
+                          >
+                            <span className="truncate">{option.label}</span>
+                            <span className="text-[0.52rem] uppercase tracking-[0.16em] text-white/38">
+                              Pick
+                            </span>
+                          </button>
+                        ))
+                      ) : (
+                        <div className="text-[0.72rem] text-white/42">
+                          No players have been assigned to this team yet.
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-4 flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => setIsPlayerPickerOpen(false)}
+                  className="rounded-full border border-white/10 bg-white/[0.04] px-3.5 py-[0.55rem] text-[0.56rem] font-semibold uppercase tracking-[0.16em] text-white/74 transition-colors hover:bg-white/[0.08]"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
           </div>
-        )}
+        ) : null}
       </div>
 
       {shouldShowFooter ? (

@@ -815,7 +815,9 @@ function HalisahaShowcaseTabs({
 
   return (
     <div
-      className={`flex max-w-full flex-wrap items-stretch gap-2 transition-opacity ${
+      className={`flex max-w-full flex-wrap items-stretch gap-2 transition-[opacity,transform] ${
+        activeTab === "matchday" ? "max-md:-translate-y-px" : ""
+      } ${
         transitioning ? "opacity-90" : "opacity-100"
       }`}
       aria-busy={transitioning}
