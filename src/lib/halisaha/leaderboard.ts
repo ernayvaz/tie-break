@@ -21,7 +21,7 @@ export type HalisahaResultRow = {
   recentAnswers: HalisahaRecentAnswerRow[];
 };
 
-/** Seed rows may omit `mvpWins`; merge treats missing as 0 (cumulative MVP is applied after round merge in `getHalisahaLeaderboardResults`). */
+/** Seed rows may omit `mvpWins`; merge treats missing as 0. */
 export type HalisahaResultRowSeed = Omit<
   HalisahaResultRow,
   "accuracyLabel" | "rank" | "podiumPlace" | "mvpWins"
@@ -29,7 +29,7 @@ export type HalisahaResultRowSeed = Omit<
   mvpWins?: number;
 };
 
-/** One persisted `HalisahaLeaderboardRound` row before MVP wins are applied. */
+/** One persisted `HalisahaLeaderboardRound` row before MVP bonus points are applied. */
 export type HalisahaRoundSnapshotRow = {
   userId: string;
   name: string;
@@ -42,6 +42,7 @@ export type HalisahaRoundSnapshotRow = {
 
 /**
  * Merges round snapshots, attaches `mvpWins` from `HalisahaMvpRoundAward` counts,
+ * adds +1 fun point per MVP win,
  * appends MVP-only users (awards but no round row), then ranks.
  * This is the pure core of `getHalisahaLeaderboardResults` in server.ts.
  */
@@ -57,10 +58,14 @@ export function composeHalisahaCumulativeLeaderboard(
     })),
   );
 
-  const mergedWithMvp = merged.map((row) => ({
-    ...row,
-    mvpWins: mvpWinCountByUserId.get(row.userId) ?? 0,
-  }));
+  const mergedWithMvp = merged.map((row) => {
+    const mvpWins = mvpWinCountByUserId.get(row.userId) ?? 0;
+    return {
+      ...row,
+      totalPoints: row.totalPoints + mvpWins,
+      mvpWins,
+    };
+  });
 
   const seenUserIds = new Set(mergedWithMvp.map((row) => row.userId));
 
@@ -74,7 +79,7 @@ export function composeHalisahaCumulativeLeaderboard(
       userId: profile.userId,
       name: profile.name,
       surname: profile.surname,
-      totalPoints: 0,
+      totalPoints: wins,
       correctAnswers: 0,
       answeredQuestions: 0,
       mvpWins: wins,

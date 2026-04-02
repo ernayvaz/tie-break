@@ -52,6 +52,7 @@ import {
   getHalisahaFixedChoiceOptions,
   hasResolvedHalisahaQuestionResult,
 } from "./question-option-utils";
+import { buildParticipantPickerLabelMap } from "./participant-picker-labels";
 
 const DEFAULT_KICKOFF_AT = createIstanbulDateFromParts(2026, 3, 27, 20, 0);
 const DEFAULT_WINNER_QUESTION_PROMPT = "Who wins?";
@@ -524,6 +525,39 @@ function sortParticipantsForDisplay<T extends { displayOrder: number; displayNam
   );
 }
 
+function buildSortedParticipantPickerRows<T extends {
+  id: string;
+  displayNameOverride?: string | null;
+  guestName?: string | null;
+  guest?: { displayName: string } | null;
+  user?: { name: string; surname: string } | null;
+  teamSide: HalisahaTeamSide;
+  positionKey: HalisahaPositionKey;
+  displayOrder: number;
+}>(
+  participants: readonly T[],
+  match: HalisahaFormationPair,
+) {
+  const sortedParticipants = sortParticipantsForDisplay(
+    participants.map((participant) => ({
+      id: participant.id,
+      displayName: getParticipantDisplayName(participant),
+      teamSide: participant.teamSide,
+      positionLabel: getHalisahaPositionLabel(
+        participant.positionKey,
+        getHalisahaFormationForSide(match, participant.teamSide),
+      ),
+      displayOrder: getParticipantResolvedDisplayOrder(match, participant),
+    })),
+  );
+  const pickerLabelByParticipantId = buildParticipantPickerLabelMap(sortedParticipants);
+
+  return sortedParticipants.map((participant) => ({
+    ...participant,
+    pickerLabel: pickerLabelByParticipantId.get(participant.id) ?? participant.displayName,
+  }));
+}
+
 function toAdminParticipantRow(
   participant: ParticipantWithUser,
   match: HalisahaFormationPair,
@@ -829,13 +863,86 @@ async function getSyncedParticipantOptionRows(matchId: string) {
 
   const formationMatch = match ?? getDefaultMatchState();
 
-  return sortParticipantsForDisplay(
+  return buildSortedParticipantPickerRows(
     participants.map((participant) => ({
       id: participant.id,
-      displayName: getParticipantDisplayName(participant),
-      displayOrder: getParticipantResolvedDisplayOrder(formationMatch, participant),
+      displayNameOverride: participant.displayNameOverride,
+      guest: participant.guest,
+      guestName: participant.guestName,
+      user: participant.user,
+      teamSide: participant.teamSide as HalisahaTeamSide,
+      positionKey: participant.positionKey as HalisahaPositionKey,
+      displayOrder: participant.displayOrder,
     })),
+    formationMatch,
   );
+}
+
+async function dedupeParticipantQuestionOptions<T extends { id: string; participantId: string | null }>(
+  tx: Prisma.TransactionClient,
+  input: {
+    questionId: string;
+    options: T[];
+    selectedOptionIds: ReadonlySet<string>;
+  },
+) {
+  const optionsByParticipantId = new Map<string, T[]>();
+
+  for (const option of input.options) {
+    if (!option.participantId) {
+      continue;
+    }
+
+    const existing = optionsByParticipantId.get(option.participantId) ?? [];
+    existing.push(option);
+    optionsByParticipantId.set(option.participantId, existing);
+  }
+
+  const canonicalOptionByParticipantId = new Map<string, T>();
+  const duplicateOptionIds: string[] = [];
+
+  for (const [participantId, options] of optionsByParticipantId.entries()) {
+    const canonicalOption =
+      options.find((option) => input.selectedOptionIds.has(option.id)) ?? options[0];
+    if (!canonicalOption) {
+      continue;
+    }
+
+    canonicalOptionByParticipantId.set(participantId, canonicalOption);
+
+    const duplicateIds = options
+      .filter((option) => option.id !== canonicalOption.id)
+      .map((option) => option.id);
+    if (duplicateIds.length === 0) {
+      continue;
+    }
+
+    duplicateOptionIds.push(...duplicateIds);
+
+    for (const duplicateOptionId of duplicateIds) {
+      await tx.halisahaAnswer.updateMany({
+        where: {
+          questionId: input.questionId,
+          selectedOptionId: duplicateOptionId,
+        },
+        data: {
+          selectedOptionId: canonicalOption.id,
+        },
+      });
+    }
+  }
+
+  if (duplicateOptionIds.length > 0) {
+    await tx.halisahaQuestionOption.deleteMany({
+      where: {
+        id: {
+          in: duplicateOptionIds,
+        },
+      },
+    });
+  }
+
+  return canonicalOptionByParticipantId;
 }
 
 export async function syncHalisahaPlayerPredictionQuestions(matchId: string) {
@@ -913,25 +1020,25 @@ export async function syncHalisahaPlayerPredictionQuestions(matchId: string) {
         });
       }
 
-      const optionByParticipantId = new Map(
-        question.options
-          .filter((option) => option.participantId)
-          .map((option) => [option.participantId as string, option]),
-      );
+      const optionByParticipantId = await dedupeParticipantQuestionOptions(tx, {
+        questionId: question.id,
+        options: question.options,
+        selectedOptionIds,
+      });
 
       for (const [index, participant] of optionRows.entries()) {
         const existingOption = optionByParticipantId.get(participant.id);
         if (existingOption) {
           const nextSortOrder = placeholderOption.sortOrder + index + 1;
           if (
-            existingOption.label !== participant.displayName ||
+            existingOption.label !== participant.pickerLabel ||
             existingOption.kind !== "standard" ||
             existingOption.sortOrder !== nextSortOrder
           ) {
             await tx.halisahaQuestionOption.update({
               where: { id: existingOption.id },
               data: {
-                label: participant.displayName,
+                label: participant.pickerLabel,
                 kind: "standard",
                 sortOrder: nextSortOrder,
               },
@@ -941,7 +1048,7 @@ export async function syncHalisahaPlayerPredictionQuestions(matchId: string) {
           await tx.halisahaQuestionOption.create({
             data: {
               questionId: question.id,
-              label: participant.displayName,
+              label: participant.pickerLabel,
               kind: "standard",
               participantId: participant.id,
               sortOrder: placeholderOption.sortOrder + index + 1,
@@ -1228,12 +1335,18 @@ export async function syncHalisahaMvpPredictionQuestion(matchId: string) {
     return;
   }
 
-  const optionRows = sortParticipantsForDisplay(
+  const optionRows = buildSortedParticipantPickerRows(
     participants.map((participant) => ({
       id: participant.id,
-      displayName: getParticipantDisplayName(participant),
-      displayOrder: getParticipantResolvedDisplayOrder(match, participant),
+      displayNameOverride: participant.displayNameOverride,
+      guest: participant.guest,
+      guestName: participant.guestName,
+      user: participant.user,
+      teamSide: participant.teamSide as HalisahaTeamSide,
+      positionKey: participant.positionKey as HalisahaPositionKey,
+      displayOrder: participant.displayOrder,
     })),
+    match,
   );
 
   if (!existingQuestion) {
@@ -1247,7 +1360,7 @@ export async function syncHalisahaMvpPredictionQuestion(matchId: string) {
         isActive: true,
         options: {
           create: optionRows.map((participant, index) => ({
-            label: participant.displayName,
+            label: participant.pickerLabel,
             kind: "standard",
             participantId: participant.id,
             sortOrder: (index + 1) * 10,
@@ -1265,14 +1378,15 @@ export async function syncHalisahaMvpPredictionQuestion(matchId: string) {
   const selectedOptionIds = new Set(
     existingQuestion.answers.map((answer) => answer.selectedOptionId),
   );
-  const optionByParticipantId = new Map(
-    existingQuestion.options
-      .filter((option) => option.participantId)
-      .map((option) => [option.participantId as string, option]),
-  );
   const activeParticipantIds = new Set(optionRows.map((participant) => participant.id));
 
   await prisma.$transaction(async (tx) => {
+    const optionByParticipantId = await dedupeParticipantQuestionOptions(tx, {
+      questionId: existingQuestion.id,
+      options: existingQuestion.options,
+      selectedOptionIds,
+    });
+
     await tx.halisahaQuestion.update({
       where: { id: existingQuestion.id },
       data: {
@@ -1289,14 +1403,14 @@ export async function syncHalisahaMvpPredictionQuestion(matchId: string) {
       if (existingOption) {
         const nextSortOrder = (index + 1) * 10;
         if (
-          existingOption.label !== participant.displayName ||
+          existingOption.label !== participant.pickerLabel ||
           existingOption.kind !== "standard" ||
           existingOption.sortOrder !== nextSortOrder
         ) {
           await tx.halisahaQuestionOption.update({
             where: { id: existingOption.id },
             data: {
-              label: participant.displayName,
+              label: participant.pickerLabel,
               kind: "standard",
               sortOrder: nextSortOrder,
             },
@@ -1306,7 +1420,7 @@ export async function syncHalisahaMvpPredictionQuestion(matchId: string) {
         await tx.halisahaQuestionOption.create({
           data: {
             questionId: existingQuestion.id,
-            label: participant.displayName,
+            label: participant.pickerLabel,
             kind: "standard",
             participantId: participant.id,
             sortOrder: (index + 1) * 10,
@@ -2030,6 +2144,7 @@ export async function getHalisahaPublicSnapshot(
   const activeMatch = await ensureActiveHalisahaMatch();
   await ensureResolvedHalisahaMvp(activeMatch.id);
   await syncHalisahaPlayerPredictionQuestions(activeMatch.id);
+  await syncHalisahaMvpPredictionQuestion(activeMatch.id);
 
   const readPublicMatch = () =>
     prisma.halisahaMatch.findUnique({

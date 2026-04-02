@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { submitPostMatchMvpVoteAction } from "@/app/(app)/halisaha/actions";
+import { buildParticipantPickerLabelMap } from "@/lib/halisaha/participant-picker-labels";
 import type { HalisahaPostMatchMvpVoteState } from "@/lib/halisaha/server";
 
 export function HalisahaPostMatchMvpVote({
@@ -24,6 +25,18 @@ export function HalisahaPostMatchMvpVote({
       home: voteState.participants.filter((participant) => participant.teamSide === "home"),
       away: voteState.participants.filter((participant) => participant.teamSide === "away"),
     }),
+    [voteState.participants],
+  );
+  const pickerLabelByParticipantId = useMemo(
+    () =>
+      buildParticipantPickerLabelMap(
+        voteState.participants.map((participant) => ({
+          id: participant.id,
+          displayName: participant.displayName,
+          teamSide: participant.teamSide,
+          positionLabel: participant.positionLabel,
+        })),
+      ),
     [voteState.participants],
   );
 
@@ -107,7 +120,7 @@ export function HalisahaPostMatchMvpVote({
                     >
                       <div>
                         <div className="text-[0.78rem] font-medium">
-                          {participant.displayName}
+                          {pickerLabelByParticipantId.get(participant.id) ?? participant.displayName}
                         </div>
                         <div className="mt-0.5 text-[0.54rem] uppercase tracking-[0.14em] text-white/34">
                           {participant.positionLabel}

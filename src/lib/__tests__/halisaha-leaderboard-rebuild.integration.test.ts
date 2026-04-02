@@ -307,7 +307,7 @@ describe("Halisaha leaderboard rebuild (SQLite integration)", () => {
     expect(composed).toHaveLength(1);
     expect(composed[0]).toMatchObject({
       userId: u1.id,
-      totalPoints: 2,
+      totalPoints: 3,
       mvpWins: 1,
       rank: 1,
     });

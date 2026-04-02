@@ -12,7 +12,7 @@ describe("composeHalisahaCumulativeLeaderboard (MVP + round snapshots)", () => {
     expect(composeHalisahaCumulativeLeaderboard([], new Map(), [])).toEqual([]);
   });
 
-  it("attaches mvpWins from the award count map onto merged round rows", () => {
+  it("adds MVP wins into total fun points and exposes the MVP count", () => {
     const rows = composeHalisahaCumulativeLeaderboard(
       [
         {
@@ -32,7 +32,7 @@ describe("composeHalisahaCumulativeLeaderboard (MVP + round snapshots)", () => {
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({
       userId: "u1",
-      totalPoints: 4,
+      totalPoints: 6,
       correctAnswers: 4,
       answeredQuestions: 5,
       mvpWins: 2,
@@ -89,7 +89,7 @@ describe("composeHalisahaCumulativeLeaderboard (MVP + round snapshots)", () => {
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({
       userId: "u1",
-      totalPoints: 5,
+      totalPoints: 8,
       correctAnswers: 4,
       answeredQuestions: 7,
       mvpWins: 3,
@@ -122,7 +122,7 @@ describe("composeHalisahaCumulativeLeaderboard (MVP + round snapshots)", () => {
       userId: "u2",
       name: "Bora",
       surname: "Kaya",
-      totalPoints: 0,
+      totalPoints: 1,
       correctAnswers: 0,
       answeredQuestions: 0,
       mvpWins: 1,
@@ -160,7 +160,7 @@ describe("composeHalisahaCumulativeLeaderboard (MVP + round snapshots)", () => {
     expect(rows).toHaveLength(0);
   });
 
-  it("does not use mvpWins to break ties: higher mvpWins does not rank above equal points", () => {
+  it("uses MVP wins as fun points, so extra MVPs can move a player ahead", () => {
     const rows = composeHalisahaCumulativeLeaderboard(
       [
         {
@@ -189,10 +189,11 @@ describe("composeHalisahaCumulativeLeaderboard (MVP + round snapshots)", () => {
       [],
     );
 
-    expect(rows[0]?.userId).toBe("u-ada");
-    expect(rows[1]?.userId).toBe("u-bora");
-    expect(rows[0]?.mvpWins).toBe(0);
-    expect(rows[1]?.mvpWins).toBe(99);
+    expect(rows[0]?.userId).toBe("u-bora");
+    expect(rows[1]?.userId).toBe("u-ada");
+    expect(rows[0]?.totalPoints).toBe(109);
+    expect(rows[0]?.mvpWins).toBe(99);
+    expect(rows[1]?.mvpWins).toBe(0);
   });
 
   it("ranks by points first, then correct answers, then answered count, then name", () => {
@@ -264,6 +265,8 @@ describe("composeHalisahaCumulativeLeaderboard (MVP + round snapshots)", () => {
 
     const byId = Object.fromEntries(rows.map((r) => [r.userId, r.mvpWins]));
     expect(byId).toEqual({ u2: 2, u1: 1 });
+    expect(rows.find((r) => r.userId === "u1")?.totalPoints).toBe(2);
+    expect(rows.find((r) => r.userId === "u2")?.totalPoints).toBe(4);
   });
 
   it("creates MVP-only row with mvpWins 0 when map entry is 0 (defensive)", () => {
