@@ -43,8 +43,6 @@ export type HalisahaAdminActionState =
 const QUESTION_SORT_STEP = 10;
 const QUESTION_OPTION_SORT_STEP = 100;
 
-export type { ManagedHalisahaQuestionOptionInput };
-
 function normalizeOptions(options: Array<string | ManagedHalisahaQuestionOptionInput>) {
   return options
     .map((option) =>

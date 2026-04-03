@@ -27,7 +27,6 @@ import {
   updateHalisahaParticipantAssignmentAction,
   updateHalisahaQuestionAction,
   type HalisahaAdminActionState,
-  type ManagedHalisahaQuestionOptionInput,
 } from "./actions";
 import type {
   HalisahaAdminParticipantRow,
@@ -42,6 +41,7 @@ import {
   getManagedHalisahaQuestionKindLabel,
   getManagedHalisahaQuestionOptionDefaultLabel,
   type ManagedHalisahaQuestionKind,
+  type ManagedHalisahaQuestionOptionInput,
 } from "@/lib/halisaha/question-option-utils";
 import {
   getHalisahaFormationLabel,

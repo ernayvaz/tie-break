@@ -248,6 +248,7 @@ describe("Halisaha archive lifecycle (SQLite integration)", () => {
       homeFormation: "f1_3_2_1",
       awayFormation: "f1_2_2_2",
       matchDurationMinutes: 70,
+      isPublishedToUsers: false,
     });
     expect(nextActive?.answers).toHaveLength(0);
     expect(nextActive?.mvpVotes).toHaveLength(0);

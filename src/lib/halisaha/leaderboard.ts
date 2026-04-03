@@ -42,12 +42,36 @@ export type HalisahaRoundSnapshotRow = {
   recentAnswers: HalisahaRecentAnswerRow[];
 };
 
+export type HalisahaRoundSnapshotWithRoundNumber = HalisahaRoundSnapshotRow & {
+  roundNumber: number;
+};
+
 export type HalisahaPendingAnswerCountRow = {
   userId: string;
   name: string;
   surname: string;
   answersSent: number;
 };
+
+export function excludeHalisahaRoundSnapshotsByRoundNumber(
+  roundSnapshots: readonly HalisahaRoundSnapshotWithRoundNumber[],
+  roundNumberToExclude: number | null | undefined,
+): HalisahaRoundSnapshotRow[] {
+  return roundSnapshots
+    .filter((row) =>
+      roundNumberToExclude == null ? true : row.roundNumber !== roundNumberToExclude,
+    )
+    .map((row) => ({
+      userId: row.userId,
+      name: row.name,
+      surname: row.surname,
+      totalPoints: row.totalPoints,
+      correctAnswers: row.correctAnswers,
+      answeredQuestions: row.answeredQuestions,
+      answersSent: row.answersSent,
+      recentAnswers: [...row.recentAnswers],
+    }));
+}
 
 /**
  * Merges round snapshots, attaches `mvpWins` from `HalisahaMvpRoundAward` counts,

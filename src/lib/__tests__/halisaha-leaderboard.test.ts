@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  composeHalisahaCumulativeLeaderboard,
+  excludeHalisahaRoundSnapshotsByRoundNumber,
   mergeHalisahaPendingAnswerCountsIntoLeaderboard,
   mergeHalisahaResultRowSeeds,
   rankHalisahaResultRows,
@@ -194,6 +196,99 @@ describe("halisaha/leaderboard", () => {
       mvpWins: 0,
       accuracyLabel: "–",
     });
+  });
+
+  it("counts live-round answers once when the active round snapshot is excluded", () => {
+    const visibleSnapshots = excludeHalisahaRoundSnapshotsByRoundNumber(
+      [
+        {
+          roundNumber: 7,
+          userId: "user-1",
+          name: "Ada",
+          surname: "Yilmaz",
+          totalPoints: 0,
+          correctAnswers: 0,
+          answeredQuestions: 6,
+          recentAnswers: [{ id: "live-1", status: "pending", label: "Live answer" }],
+        },
+      ],
+      7,
+    );
+
+    const merged = mergeHalisahaPendingAnswerCountsIntoLeaderboard(
+      composeHalisahaCumulativeLeaderboard(visibleSnapshots, new Map(), []),
+      [
+        {
+          userId: "user-1",
+          name: "Ada",
+          surname: "Yilmaz",
+          answersSent: 6,
+        },
+      ],
+    );
+
+    expect(merged[0]).toMatchObject({
+      userId: "user-1",
+      totalPoints: 0,
+      correctAnswers: 0,
+      answeredQuestions: 0,
+      answersSent: 6,
+      mvpWins: 0,
+      accuracyLabel: "–",
+    });
+  });
+
+  it("keeps scored history intact while merging live-round answer counts", () => {
+    const visibleSnapshots = excludeHalisahaRoundSnapshotsByRoundNumber(
+      [
+        {
+          roundNumber: 1,
+          userId: "user-1",
+          name: "Ada",
+          surname: "Yilmaz",
+          totalPoints: 5,
+          correctAnswers: 5,
+          answeredQuestions: 5,
+          recentAnswers: [{ id: "round-1", status: "correct", label: "Round 1" }],
+        },
+        {
+          roundNumber: 2,
+          userId: "user-1",
+          name: "Ada",
+          surname: "Yilmaz",
+          totalPoints: 0,
+          correctAnswers: 0,
+          answeredQuestions: 6,
+          recentAnswers: [{ id: "live-1", status: "pending", label: "Live answer" }],
+        },
+      ],
+      2,
+    );
+
+    const merged = mergeHalisahaPendingAnswerCountsIntoLeaderboard(
+      composeHalisahaCumulativeLeaderboard(visibleSnapshots, new Map(), []),
+      [
+        {
+          userId: "user-1",
+          name: "Ada",
+          surname: "Yilmaz",
+          answersSent: 6,
+        },
+      ],
+    );
+
+    expect(merged[0]).toMatchObject({
+      userId: "user-1",
+      totalPoints: 5,
+      correctAnswers: 5,
+      answeredQuestions: 5,
+      answersSent: 11,
+      mvpWins: 0,
+      accuracyLabel: "100%",
+    });
+    expect(merged[0]?.recentAnswers).toEqual([
+      { id: "round-1", status: "correct", label: "Round 1" },
+    ]);
   });
 
   it("keeps only the latest five answer markers after cumulative merge", () => {

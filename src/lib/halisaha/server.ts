@@ -40,6 +40,7 @@ import {
 } from "./rules";
 import {
   composeHalisahaCumulativeLeaderboard,
+  excludeHalisahaRoundSnapshotsByRoundNumber,
   mergeHalisahaPendingAnswerCountsIntoLeaderboard,
   mergeHalisahaResultRowSeeds,
   rankHalisahaResultRows,
@@ -2835,6 +2836,21 @@ async function getHalisahaLeaderboardResults(input?: {
 }): Promise<HalisahaResultRow[]> {
   await ensureCurrentHalisahaLeaderboardRoundBackfill();
 
+  const activePendingMatch =
+    input?.includePendingAnswerCounts && input.activeMatchId
+      ? await prisma.halisahaMatch.findUnique({
+          where: { id: input.activeMatchId },
+          select: {
+            roundNumber: true,
+            answersResolvedAt: true,
+          },
+        })
+      : null;
+  const livePendingRoundNumber =
+    activePendingMatch && !activePendingMatch.answersResolvedAt
+      ? activePendingMatch.roundNumber
+      : null;
+
   const mvpGroups = await prisma.halisahaMvpRoundAward.groupBy({
     by: ["userId"],
     _count: { _all: true },
@@ -2856,15 +2872,21 @@ async function getHalisahaLeaderboardResults(input?: {
     },
   });
 
-  const roundSnapshots = rounds.map((round) => ({
-    userId: round.user.id,
-    name: round.user.name,
-    surname: round.user.surname,
-    totalPoints: round.totalPoints,
-    correctAnswers: round.correctAnswers,
-    answeredQuestions: round.answeredQuestions,
-    recentAnswers: parseHalisahaRecentAnswers(round.recentAnswers),
-  }));
+  const roundSnapshots = excludeHalisahaRoundSnapshotsByRoundNumber(
+    rounds.map((round) => ({
+      roundNumber: round.roundNumber,
+      userId: round.user.id,
+      name: round.user.name,
+      surname: round.user.surname,
+      totalPoints: round.totalPoints,
+      correctAnswers: round.correctAnswers,
+      answeredQuestions: round.answeredQuestions,
+      recentAnswers: parseHalisahaRecentAnswers(round.recentAnswers),
+    })),
+    // Live answers are merged separately, so the active unresolved round must not be counted
+    // from persisted snapshots as well.
+    livePendingRoundNumber,
+  );
 
   const seenFromSnapshots = new Set(
     mergeHalisahaResultRowSeeds(

@@ -19,6 +19,8 @@ const mocks = vi.hoisted(() => ({
   participantUpdate: vi.fn(),
   participantUpdateMany: vi.fn(),
   userFindUnique: vi.fn(),
+  answerCount: vi.fn(),
+  mvpVoteCount: vi.fn(),
   matchUpdate: vi.fn(),
 }));
 
@@ -61,6 +63,12 @@ vi.mock("@/lib/db", () => ({
       update: mocks.participantUpdate,
       updateMany: mocks.participantUpdateMany,
     },
+    halisahaAnswer: {
+      count: mocks.answerCount,
+    },
+    halisahaMvpVote: {
+      count: mocks.mvpVoteCount,
+    },
     halisahaMatch: {
       update: mocks.matchUpdate,
     },
@@ -96,6 +104,8 @@ describe("admin halisaha participant flows", () => {
     mocks.matchUpdate.mockResolvedValue(undefined);
     mocks.participantUpdateMany.mockResolvedValue({ count: 1 });
     mocks.participantFindMany.mockResolvedValue([]);
+    mocks.answerCount.mockResolvedValue(0);
+    mocks.mvpVoteCount.mockResolvedValue(0);
     mocks.transaction.mockImplementation(async (callback: unknown) => {
       if (typeof callback === "function") {
         return callback({
@@ -376,5 +386,52 @@ describe("admin halisaha participant flows", () => {
     });
     expect(mocks.syncMvpQuestion).toHaveBeenCalledWith("match-1");
     expect(mocks.syncPlayerQuestions).toHaveBeenCalledWith("match-1");
+  });
+
+  it("archives the current round when match identity changes after answers exist", async () => {
+    mocks.answerCount.mockResolvedValue(2);
+    mocks.archiveMatch.mockResolvedValue({
+      ok: true,
+      archivedAt: "2026-04-03T18:00:00.000Z",
+      archivedMatchId: "match-1",
+      archivedRoundNumber: 1,
+      nextMatchId: "match-2",
+      nextRoundNumber: 2,
+    });
+
+    const result = await saveHalisahaMatchSettingsAction({
+      homeTeamName: "Next Home",
+      awayTeamName: "Next Away",
+      venueName: "Pitch",
+      homeFormation: "f1_2_3_1",
+      awayFormation: "f1_2_3_1",
+      kickoffDate: "2026-04-08",
+      kickoffTime: "20:00",
+      matchDurationMinutes: 60,
+    });
+
+    expect(result).toEqual({
+      ok: true,
+      message:
+        "Halisaha match settings saved. Previous round archived and a new active match was created.",
+    });
+    expect(mocks.archiveMatch).toHaveBeenCalledWith({
+      matchId: "match-1",
+      homeTeamName: "Next Home",
+      awayTeamName: "Next Away",
+      venueName: "Pitch",
+      homeFormation: "f1_2_3_1",
+      awayFormation: "f1_2_3_1",
+      kickoffAt: new Date("2026-04-08T17:00:00.000Z"),
+      matchDurationMinutes: 60,
+    });
+    expect(mocks.matchUpdate).not.toHaveBeenCalled();
+    expect(mocks.syncWinnerQuestion).toHaveBeenCalledWith({
+      id: "match-2",
+      homeTeamName: "Next Home",
+      awayTeamName: "Next Away",
+    });
+    expect(mocks.syncMvpQuestion).toHaveBeenCalledWith("match-2");
+    expect(mocks.syncPlayerQuestions).toHaveBeenCalledWith("match-2");
   });
 });
