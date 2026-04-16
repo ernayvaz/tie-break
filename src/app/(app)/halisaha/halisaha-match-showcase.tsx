@@ -1311,12 +1311,6 @@ function PitchBoard({
                 </div>
               ) : null}
             </div>
-            {useClosedPortraitPitchLayout ? (
-              <ClosedPortraitPitchTeamLabels
-                homeTeamName={homeTeamName}
-                awayTeamName={awayTeamName}
-              />
-            ) : null}
           </div>
           {renderChallengeOverlay ? (
             <div
@@ -1465,51 +1459,97 @@ function ClosedPortraitPitchTeamLabels({
   awayTeamName: string;
 }) {
   return (
-    <div
-      data-pitch-team-label-layout="portrait"
-      className="pointer-events-none absolute inset-0 z-[12]"
-      aria-hidden="true"
-    >
-      <ClosedPortraitPitchTeamLabel side="left" teamName={homeTeamName} />
-      <ClosedPortraitPitchTeamLabel side="right" teamName={awayTeamName} />
-    </div>
+    <>
+      <ClosedPortraitPitchTeamLabel
+        dataSide="left"
+        kicker="HOME CLUB"
+        teamName={homeTeamName}
+        anchorX={52}
+        anchorY={592}
+      />
+      <ClosedPortraitPitchTeamLabel
+        dataSide="right"
+        kicker="AWAY CLUB"
+        teamName={awayTeamName}
+        anchorX={948}
+        anchorY={592}
+      />
+    </>
   );
 }
 
 function ClosedPortraitPitchTeamLabel({
-  side,
+  dataSide,
+  kicker,
   teamName,
+  anchorX,
+  anchorY,
 }: {
-  side: "left" | "right";
+  dataSide: "left" | "right";
+  kicker: string;
   teamName: string;
+  anchorX: number;
+  anchorY: number;
 }) {
   const normalizedTeamName = normalizeClosedPitchTeamLabel(teamName);
-  const isLeft = side === "left";
+  const textWidth = 126;
+  const shouldConstrain = normalizedTeamName.length > 14;
 
   return (
-    <div
-      data-pitch-team-label-side={side}
-      className={`absolute bottom-[3.2%] flex max-w-[38%] flex-col gap-[0.16rem] ${
-        isLeft ? "left-[4.4%] items-start text-left" : "right-[4.4%] items-end text-right"
-      }`}
+    <g
+      data-pitch-team-label-layout="portrait"
+      data-pitch-team-label-side={dataSide}
+      transform={`translate(${anchorX} ${anchorY}) rotate(-90)`}
+      aria-hidden="true"
     >
-      <div className={`flex items-center gap-[0.28rem] ${isLeft ? "" : "flex-row-reverse"}`}>
-        <span className="h-[0.28rem] w-[0.28rem] rounded-full border border-black/55 bg-[rgba(245,248,246,0.84)] shadow-[0_0_0_1px_rgba(255,255,255,0.06)]" />
-        <span
-          className={`h-px w-[clamp(2.55rem,17vw,4.1rem)] ${
-            isLeft
-              ? "bg-[linear-gradient(90deg,rgba(235,241,238,0.4),rgba(235,241,238,0.04))]"
-              : "bg-[linear-gradient(270deg,rgba(235,241,238,0.4),rgba(235,241,238,0.04))]"
-          }`}
-        />
-      </div>
-      <span className="text-[0.32rem] font-semibold uppercase tracking-[0.28em] text-white/34">
-        {isLeft ? "HOME CLUB" : "AWAY CLUB"}
-      </span>
-      <span className="max-w-full truncate text-[clamp(0.5rem,1.55vw,0.66rem)] font-semibold uppercase tracking-[0.18em] text-white/86 [text-shadow:0_1px_3px_rgba(0,0,0,0.56)]">
+      <circle
+        cx="-8"
+        cy="0"
+        r="2.4"
+        fill="rgba(245,248,246,0.82)"
+        stroke="rgba(0,0,0,0.52)"
+        strokeWidth="0.75"
+      />
+      <path
+        d="M0 0 H58"
+        stroke="rgba(235,241,238,0.24)"
+        strokeWidth="1.05"
+        strokeLinecap="round"
+      />
+      <text
+        x="0"
+        y="-8.8"
+        textAnchor="start"
+        fill="rgba(230,236,233,0.38)"
+        fontSize="4.8"
+        fontWeight="600"
+        letterSpacing="2.3"
+        fontFamily="system-ui, sans-serif"
+      >
+        {kicker}
+      </text>
+      <text
+        x="0"
+        y="12"
+        textAnchor="start"
+        fill="rgba(247,250,248,0.9)"
+        stroke="rgba(8,10,10,0.78)"
+        strokeWidth="0.78"
+        paintOrder="stroke"
+        fontSize="9.15"
+        fontWeight="700"
+        letterSpacing="1.55"
+        fontFamily="system-ui, sans-serif"
+        {...(shouldConstrain
+          ? {
+              textLength: textWidth,
+              lengthAdjust: "spacingAndGlyphs" as const,
+            }
+          : {})}
+      >
         {normalizedTeamName}
-      </span>
-    </div>
+      </text>
+    </g>
   );
 }
 
@@ -1584,11 +1624,18 @@ function PitchOverlay({
       className="absolute inset-0 z-10 h-full w-full"
       fill="none"
     >
-      {showClosedTeamLabels && !portraitClosedLayout ? (
-        <>
-          <ClosedPitchTeamLabel side="left" teamName={homeTeamName} />
-          <ClosedPitchTeamLabel side="right" teamName={awayTeamName} />
-        </>
+      {showClosedTeamLabels ? (
+        portraitClosedLayout ? (
+          <ClosedPortraitPitchTeamLabels
+            homeTeamName={homeTeamName}
+            awayTeamName={awayTeamName}
+          />
+        ) : (
+          <>
+            <ClosedPitchTeamLabel side="left" teamName={homeTeamName} />
+            <ClosedPitchTeamLabel side="right" teamName={awayTeamName} />
+          </>
+        )
       ) : null}
 
       {homeLineup.map((player) => (
