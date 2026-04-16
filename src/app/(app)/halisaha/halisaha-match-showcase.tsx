@@ -681,6 +681,8 @@ export function HalisahaMatchShowcase({
     <PitchBoard
       showLineups={showLineups}
       onToggle={handleShowLineupsToggle}
+      homeTeamName={snapshot.match.homeTeamName}
+      awayTeamName={snapshot.match.awayTeamName}
       homeLineup={homeLineup}
       awayLineup={awayLineup}
       questions={snapshot.questions}
@@ -1047,6 +1049,8 @@ function ObserverVoteWindowNotice({
 function PitchBoard({
   showLineups,
   onToggle,
+  homeTeamName,
+  awayTeamName,
   homeLineup,
   awayLineup,
   questions,
@@ -1065,6 +1069,8 @@ function PitchBoard({
 }: {
   showLineups: boolean;
   onToggle: () => void;
+  homeTeamName: string;
+  awayTeamName: string;
   homeLineup: PlayerSpot[];
   awayLineup: PlayerSpot[];
   questions: HalisahaPublicSnapshot["questions"];
@@ -1287,8 +1293,11 @@ function PitchBoard({
                   }`}
                 >
                   <PitchOverlay
+                    homeTeamName={homeTeamName}
+                    awayTeamName={awayTeamName}
                     homeLineup={homeLineup}
                     awayLineup={awayLineup}
+                    showClosedTeamLabels={!showLineups}
                     portraitClosedLayout={usePortraitMobilePitch}
                     portraitNameDropShadow={showLineups}
                     stackThreeWordNames={useClosedPortraitPitchLayout}
@@ -1302,6 +1311,12 @@ function PitchBoard({
                 </div>
               ) : null}
             </div>
+            {useClosedPortraitPitchLayout ? (
+              <ClosedPortraitPitchTeamLabels
+                homeTeamName={homeTeamName}
+                awayTeamName={awayTeamName}
+              />
+            ) : null}
           </div>
           {renderChallengeOverlay ? (
             <div
@@ -1366,6 +1381,138 @@ const CLOSED_PORTRAIT_DEFENDER_INWARD_SVG_UNITS = 10;
 /** ViewBox units: slicer kapalıyken sadece orta saha isimlerini kendi kalelerine doğru 1u çek */
 const CLOSED_MIDFIELD_TOWARD_OWN_GOAL_SVG_UNITS = 1;
 
+function normalizeClosedPitchTeamLabel(name: string) {
+  return name.trim().replace(/\s+/g, " ").toUpperCase();
+}
+
+function ClosedPitchTeamLabel({
+  side,
+  teamName,
+}: {
+  side: "left" | "right";
+  teamName: string;
+}) {
+  const normalizedTeamName = normalizeClosedPitchTeamLabel(teamName);
+  const isLeft = side === "left";
+  const lineStartX = isLeft ? 52 : 768;
+  const lineEndX = isLeft ? 232 : 948;
+  const kickerY = 575;
+  const labelY = 592;
+  const textWidth = 162;
+  const shouldConstrain = normalizedTeamName.length > 15;
+  const alignment = isLeft ? "start" : "end";
+  const textX = isLeft ? 52 : 948;
+  const accentCircleX = isLeft ? 44 : 956;
+
+  return (
+    <g data-pitch-team-label-side={side} aria-hidden="true">
+      <circle
+        cx={accentCircleX}
+        cy={592}
+        r="2.9"
+        fill="rgba(245,248,246,0.84)"
+        stroke="rgba(0,0,0,0.55)"
+        strokeWidth="0.85"
+      />
+      <path
+        d={`M${lineStartX} 592 H${lineEndX}`}
+        stroke="rgba(235,241,238,0.22)"
+        strokeWidth="1.35"
+        strokeLinecap="round"
+      />
+      <text
+        x={textX}
+        y={kickerY}
+        textAnchor={alignment}
+        fill="rgba(230,236,233,0.42)"
+        fontSize="6.2"
+        fontWeight="600"
+        letterSpacing="3.1"
+        fontFamily="system-ui, sans-serif"
+      >
+        {isLeft ? "HOME CLUB" : "AWAY CLUB"}
+      </text>
+      <text
+        x={textX}
+        y={labelY}
+        textAnchor={alignment}
+        fill="rgba(247,250,248,0.92)"
+        stroke="rgba(8,10,10,0.82)"
+        strokeWidth="0.9"
+        paintOrder="stroke"
+        fontSize="13.4"
+        fontWeight="700"
+        letterSpacing="2.9"
+        fontFamily="system-ui, sans-serif"
+        {...(shouldConstrain
+          ? {
+              textLength: textWidth,
+              lengthAdjust: "spacingAndGlyphs" as const,
+            }
+          : {})}
+      >
+        {normalizedTeamName}
+      </text>
+    </g>
+  );
+}
+
+function ClosedPortraitPitchTeamLabels({
+  homeTeamName,
+  awayTeamName,
+}: {
+  homeTeamName: string;
+  awayTeamName: string;
+}) {
+  return (
+    <div
+      data-pitch-team-label-layout="portrait"
+      className="pointer-events-none absolute inset-0 z-[12]"
+      aria-hidden="true"
+    >
+      <ClosedPortraitPitchTeamLabel side="left" teamName={homeTeamName} />
+      <ClosedPortraitPitchTeamLabel side="right" teamName={awayTeamName} />
+    </div>
+  );
+}
+
+function ClosedPortraitPitchTeamLabel({
+  side,
+  teamName,
+}: {
+  side: "left" | "right";
+  teamName: string;
+}) {
+  const normalizedTeamName = normalizeClosedPitchTeamLabel(teamName);
+  const isLeft = side === "left";
+
+  return (
+    <div
+      data-pitch-team-label-side={side}
+      className={`absolute bottom-[3.2%] flex max-w-[38%] flex-col gap-[0.16rem] ${
+        isLeft ? "left-[4.4%] items-start text-left" : "right-[4.4%] items-end text-right"
+      }`}
+    >
+      <div className={`flex items-center gap-[0.28rem] ${isLeft ? "" : "flex-row-reverse"}`}>
+        <span className="h-[0.28rem] w-[0.28rem] rounded-full border border-black/55 bg-[rgba(245,248,246,0.84)] shadow-[0_0_0_1px_rgba(255,255,255,0.06)]" />
+        <span
+          className={`h-px w-[clamp(2.55rem,17vw,4.1rem)] ${
+            isLeft
+              ? "bg-[linear-gradient(90deg,rgba(235,241,238,0.4),rgba(235,241,238,0.04))]"
+              : "bg-[linear-gradient(270deg,rgba(235,241,238,0.4),rgba(235,241,238,0.04))]"
+          }`}
+        />
+      </div>
+      <span className="text-[0.32rem] font-semibold uppercase tracking-[0.28em] text-white/34">
+        {isLeft ? "HOME CLUB" : "AWAY CLUB"}
+      </span>
+      <span className="max-w-full truncate text-[clamp(0.5rem,1.55vw,0.66rem)] font-semibold uppercase tracking-[0.18em] text-white/86 [text-shadow:0_1px_3px_rgba(0,0,0,0.56)]">
+        {normalizedTeamName}
+      </span>
+    </div>
+  );
+}
+
 /** Nudge first-line tspan (em) so stacked 3-word labels in each occupied line share a line. */
 function computeStackedFirstLineDyEmExtra(
   players: ReadonlyArray<PlayerSpot>,
@@ -1397,16 +1544,22 @@ function computeStackedFirstLineDyEmExtra(
 }
 
 function PitchOverlay({
+  homeTeamName,
+  awayTeamName,
   homeLineup,
   awayLineup,
+  showClosedTeamLabels = false,
   portraitClosedLayout = false,
   portraitNameDropShadow = true,
   stackThreeWordNames = false,
   closedPortraitDefenderInwardShift = 0,
   closedMidfieldTowardOwnGoalShiftSvgUnits = 0,
 }: {
+  homeTeamName: string;
+  awayTeamName: string;
   homeLineup: PlayerSpot[];
   awayLineup: PlayerSpot[];
+  showClosedTeamLabels?: boolean;
   portraitClosedLayout?: boolean;
   /** Mobile portrait pitch: extra name drop-shadow when lineup slicers are open; off when closed. */
   portraitNameDropShadow?: boolean;
@@ -1431,6 +1584,13 @@ function PitchOverlay({
       className="absolute inset-0 z-10 h-full w-full"
       fill="none"
     >
+      {showClosedTeamLabels && !portraitClosedLayout ? (
+        <>
+          <ClosedPitchTeamLabel side="left" teamName={homeTeamName} />
+          <ClosedPitchTeamLabel side="right" teamName={awayTeamName} />
+        </>
+      ) : null}
+
       {homeLineup.map((player) => (
         <PitchPlayerLabel
           key={`home-${player.name}`}

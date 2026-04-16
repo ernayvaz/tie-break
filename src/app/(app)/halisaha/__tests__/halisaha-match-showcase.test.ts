@@ -174,6 +174,40 @@ describe("HalisahaMatchShowcase mobile render", () => {
     expect(html).not.toContain("Share lineup image");
   });
 
+  it("renders premium pitch team labels when the lineup slicers stay closed", async () => {
+    const ReactModule = await import("react");
+    Object.assign(globalThis, { React: ReactModule });
+    const { HalisahaMatchShowcase } = await import("../halisaha-match-showcase");
+    const html = renderToStaticMarkup(
+      createElement(HalisahaMatchShowcase, {
+        snapshot: createSnapshot(),
+        viewerCanManageOwnAnswerLock: false,
+      }),
+    );
+
+    expect(html).toContain('data-pitch-team-label-side="left"');
+    expect(html).toContain('data-pitch-team-label-side="right"');
+    expect(html).toContain("RAYNET GLORY");
+    expect(html).toContain("FLEXERA CLUB");
+  });
+
+  it("renders premium portrait pitch team labels for the phone layout", async () => {
+    const ReactModule = await import("react");
+    Object.assign(globalThis, { React: ReactModule });
+    const { HalisahaMatchShowcase } = await import("../halisaha-match-showcase");
+    const html = renderToStaticMarkup(
+      createElement(HalisahaMatchShowcase, {
+        snapshot: createSnapshot(),
+        viewerCanManageOwnAnswerLock: false,
+        initialPhoneLikeViewport: true,
+      }),
+    );
+
+    expect(html).toContain('data-pitch-team-label-layout="portrait"');
+    expect(html).toContain("HOME CLUB");
+    expect(html).toContain("AWAY CLUB");
+  });
+
   it("uses formation-specific pitch coordinates for alternate tactics", async () => {
     const { buildTeamLineup } = await import("../halisaha-match-showcase");
     const snapshot = createSnapshot({
