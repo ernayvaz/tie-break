@@ -49,6 +49,7 @@ import {
   HALISAHA_FORMATION_OPTIONS,
   HALISAHA_TEAM_SIDE_OPTIONS,
 } from "@/lib/halisaha/config";
+import { groupHalisahaAdminParticipantsByTeam } from "@/lib/halisaha/admin-participant-groups";
 
 type ApprovedUserRow = {
   id: string;
@@ -978,6 +979,15 @@ export function HalisahaAdminClient({
 
     return snapshot.guestRegistry.filter((guest) => !participantGuestIds.has(guest.id));
   }, [snapshot.guestRegistry, snapshot.participants]);
+  const participantGroups = useMemo(
+    () =>
+      groupHalisahaAdminParticipantsByTeam({
+        participants: snapshot.participants,
+        homeTeamName: snapshot.match.homeTeamName,
+        awayTeamName: snapshot.match.awayTeamName,
+      }),
+    [snapshot.match.awayTeamName, snapshot.match.homeTeamName, snapshot.participants],
+  );
 
   const runAction = async (
     fn: () => Promise<HalisahaAdminActionState>,
@@ -1466,8 +1476,8 @@ export function HalisahaAdminClient({
               )}
             </div>
 
-            <div className="overflow-x-auto rounded-lg border border-nord-polarLighter/35">
-              <div className="flex flex-col gap-3 border-b border-nord-polarLighter/35 bg-nord-snow/45 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="space-y-4">
+              <div className="flex flex-col gap-3 rounded-lg border border-nord-polarLighter/35 bg-nord-snow/45 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
                 <p className="text-sm text-nord-polarLight">
                   Current squad size:{" "}
                   <strong className="font-semibold text-nord-polar">
@@ -1484,37 +1494,53 @@ export function HalisahaAdminClient({
                   Remove all players & guests
                 </Button>
               </div>
-              {snapshot.participants.length === 0 ? (
-                <div className="px-4 py-8 text-center text-sm text-nord-polarLight">
-                  No players have been assigned yet.
+
+              {participantGroups.map((group) => (
+                <div
+                  key={group.key}
+                  className="overflow-x-auto rounded-lg border border-nord-polarLighter/35"
+                >
+                  <div className="flex items-center justify-between gap-3 border-b border-nord-polarLighter/35 bg-nord-snow/45 px-4 py-3">
+                    <div>
+                      <div className="text-sm font-semibold text-nord-polar">{group.title}</div>
+                      <p className="mt-1 text-xs text-nord-polarLight">
+                        {group.participants.length} player(s) / guest(s)
+                      </p>
+                    </div>
+                  </div>
+                  {group.participants.length === 0 ? (
+                    <div className="px-4 py-8 text-center text-sm text-nord-polarLight">
+                      {group.emptyMessage}
+                    </div>
+                  ) : (
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-nord-polarLighter/50 bg-nord-snow/70 text-left text-nord-polarLight">
+                          <th className="px-4 py-3 font-semibold">Player</th>
+                          <th className="px-4 py-3 font-semibold">Team</th>
+                          <th className="px-4 py-3 font-semibold">Position</th>
+                          <th className="px-4 py-3 font-semibold">Shown on Halisaha</th>
+                          <th className="px-4 py-3 font-semibold text-right">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {group.participants.map((participant) => (
+                          <ParticipantAssignmentRow
+                            key={participant.id}
+                            participant={participant}
+                            homeTeamName={snapshot.match.homeTeamName}
+                            awayTeamName={snapshot.match.awayTeamName}
+                            homeFormation={snapshot.match.homeFormation}
+                            awayFormation={snapshot.match.awayFormation}
+                            onError={setError}
+                            onSuccess={setSuccess}
+                          />
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
                 </div>
-              ) : (
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-nord-polarLighter/50 bg-nord-snow/70 text-left text-nord-polarLight">
-                      <th className="px-4 py-3 font-semibold">Player</th>
-                      <th className="px-4 py-3 font-semibold">Team</th>
-                      <th className="px-4 py-3 font-semibold">Position</th>
-                      <th className="px-4 py-3 font-semibold">Shown on Halisaha</th>
-                      <th className="px-4 py-3 font-semibold text-right">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {snapshot.participants.map((participant) => (
-                      <ParticipantAssignmentRow
-                        key={participant.id}
-                        participant={participant}
-                        homeTeamName={snapshot.match.homeTeamName}
-                        awayTeamName={snapshot.match.awayTeamName}
-                        homeFormation={snapshot.match.homeFormation}
-                        awayFormation={snapshot.match.awayFormation}
-                        onError={setError}
-                        onSuccess={setSuccess}
-                      />
-                    ))}
-                  </tbody>
-                </table>
-              )}
+              ))}
             </div>
           </CardContent>
         </Card>

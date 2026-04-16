@@ -63,6 +63,10 @@ const DEFAULT_WINNER_QUESTION_POINTS = 1;
 const DEFAULT_MVP_PREDICTION_PROMPT = "Who will be the MVP?";
 const DEFAULT_MVP_PREDICTION_POINTS = 1;
 const DEFAULT_POST_MATCH_MVP_PROMPT = "Who was the MVP?";
+const HALISAHA_INTERACTIVE_TRANSACTION_OPTIONS = {
+  maxWait: 10_000,
+  timeout: 30_000,
+} as const;
 const LEGACY_WINNER_QUESTION_PROMPTS = new Set([
   "kim kazanir?",
   "kim kazanır?",
@@ -1228,7 +1232,7 @@ export async function syncHalisahaPlayerPredictionQuestions(matchId: string) {
         }
       }
     }
-  });
+  }, HALISAHA_INTERACTIVE_TRANSACTION_OPTIONS);
 }
 
 async function scoreResolvedMvpPredictionAnswers(
@@ -1412,7 +1416,7 @@ async function ensureResolvedHalisahaMvp(matchId: string) {
         roundNumber: match.roundNumber,
       });
     }
-  });
+  }, HALISAHA_INTERACTIVE_TRANSACTION_OPTIONS);
 
   return winner.participantId;
 }
@@ -1640,7 +1644,7 @@ export async function syncHalisahaMvpPredictionQuestion(matchId: string) {
         },
       });
     }
-  });
+  }, HALISAHA_INTERACTIVE_TRANSACTION_OPTIONS);
 
   if (match.mvpResolvedParticipantId) {
     await syncHalisahaMvpPredictionResolution(matchId, match.mvpResolvedParticipantId);
@@ -1763,7 +1767,7 @@ export async function syncHalisahaWinnerQuestion(match: {
         },
       });
     }
-  });
+  }, HALISAHA_INTERACTIVE_TRANSACTION_OPTIONS);
 }
 
 type ArchiveHalisahaMatchInput = {
@@ -1857,7 +1861,7 @@ async function archiveHalisahaMatchForNextRoundTx(
   }
 
   for (const question of sourceMatch.questions) {
-    const clonedQuestion = await tx.halisahaQuestion.create({
+    await tx.halisahaQuestion.create({
       data: {
         matchId: nextMatch.id,
         kind: question.kind,
@@ -1867,23 +1871,22 @@ async function archiveHalisahaMatchForNextRoundTx(
         scoreHomeResult: null,
         scoreAwayResult: null,
         isActive: question.isActive,
+        options:
+          question.options.length > 0
+            ? {
+                create: question.options.map((option) => ({
+                  label: option.label,
+                  kind: option.kind,
+                  participantId: option.participantId
+                    ? participantIdMap.get(option.participantId) ?? null
+                    : null,
+                  sortOrder: option.sortOrder,
+                  isCorrect: false,
+                })),
+              }
+            : undefined,
       },
     });
-
-    for (const option of question.options) {
-      await tx.halisahaQuestionOption.create({
-        data: {
-          questionId: clonedQuestion.id,
-          label: option.label,
-          kind: option.kind,
-          participantId: option.participantId
-            ? participantIdMap.get(option.participantId) ?? null
-            : null,
-          sortOrder: option.sortOrder,
-          isCorrect: false,
-        },
-      });
-    }
   }
 
   return {
@@ -1900,8 +1903,9 @@ export async function archiveHalisahaMatchForNextRound(
   db: PrismaClient = prisma,
 ): Promise<ArchiveHalisahaMatchResult> {
   try {
-    const result = await db.$transaction((tx) =>
-      archiveHalisahaMatchForNextRoundTx(tx, input),
+    const result = await db.$transaction(
+      (tx) => archiveHalisahaMatchForNextRoundTx(tx, input),
+      HALISAHA_INTERACTIVE_TRANSACTION_OPTIONS,
     );
 
     return {
@@ -1986,7 +1990,7 @@ export async function purgeArchivedHalisahaMatchesBefore(
         deletedMatches: matches.length,
         deletedRounds: roundNumbers.length,
       };
-    });
+    }, HALISAHA_INTERACTIVE_TRANSACTION_OPTIONS);
 
     return {
       ok: true,
@@ -2736,7 +2740,7 @@ export async function rebuildHalisahaLeaderboardForMatch(
       matchId: match.id,
       roundNumber: match.roundNumber,
     });
-  });
+  }, HALISAHA_INTERACTIVE_TRANSACTION_OPTIONS);
   return { ok: true };
 }
 
@@ -2779,7 +2783,7 @@ async function ensureCurrentHalisahaLeaderboardRoundBackfill() {
       matchId: currentMatch.id,
       roundNumber: currentMatch.roundNumber,
     });
-  });
+  }, HALISAHA_INTERACTIVE_TRANSACTION_OPTIONS);
 }
 
 async function getHalisahaPendingAnswerCounts(
@@ -3084,7 +3088,7 @@ export async function scoreHalisahaAnswers(matchId: string) {
       matchId,
       roundNumber: match.roundNumber,
     });
-  });
+  }, HALISAHA_INTERACTIVE_TRANSACTION_OPTIONS);
 
   return { ok: true as const };
 }
