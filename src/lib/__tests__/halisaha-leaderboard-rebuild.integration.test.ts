@@ -16,6 +16,7 @@ async function wipeSqlite(prisma: SqlitePrismaClient) {
   await prisma.halisahaLeaderboardRound.deleteMany();
   await prisma.halisahaMvpRoundAward.deleteMany();
   await prisma.halisahaMatch.deleteMany();
+  await prisma.adminLog.deleteMany();
   await prisma.user.deleteMany();
 }
 
@@ -311,5 +312,102 @@ describe("Halisaha leaderboard rebuild (SQLite integration)", () => {
       mvpWins: 1,
       rank: 1,
     });
+  });
+
+  it("skips rebuilding archived rounds that were excluded by a leaderboard reset", async () => {
+    const admin = await prisma.user.create({
+      data: {
+        name: "Admin",
+        surname: "Reset",
+        username: "admin_reset",
+        pinHash: TEST_PIN_HASH,
+        status: "approved",
+        role: "admin",
+      },
+    });
+    const user = await prisma.user.create({
+      data: {
+        name: "Legacy",
+        surname: "User",
+        username: "legacy_user",
+        pinHash: TEST_PIN_HASH,
+        status: "approved",
+        role: "user",
+      },
+    });
+
+    const archivedMatch = await prisma.halisahaMatch.create({
+      data: {
+        roundNumber: 4,
+        homeTeamName: "Old Home",
+        awayTeamName: "Old Away",
+        venueName: "Archive",
+        kickoffAt: new Date("2026-03-01T18:00:00.000Z"),
+        archivedAt: new Date("2026-03-01T20:00:00.000Z"),
+      },
+    });
+    await prisma.halisahaMatch.create({
+      data: {
+        singletonKey: "active",
+        roundNumber: 6,
+        homeTeamName: "New Home",
+        awayTeamName: "New Away",
+        venueName: "Current",
+        kickoffAt: new Date("2026-04-01T18:00:00.000Z"),
+      },
+    });
+
+    await prisma.adminLog.create({
+      data: {
+        adminUserId: admin.id,
+        actionType: "halisaha_leaderboard_reset",
+        targetType: "halisaha_leaderboard",
+        targetId: "global",
+        newValue: "baseline_round:6",
+      },
+    });
+
+    const question = await prisma.halisahaQuestion.create({
+      data: {
+        matchId: archivedMatch.id,
+        kind: "standard",
+        prompt: "Legacy question?",
+        points: 1,
+        sortOrder: 0,
+      },
+    });
+    const option = await prisma.halisahaQuestionOption.create({
+      data: {
+        questionId: question.id,
+        label: "Yes",
+        kind: "standard",
+        sortOrder: 0,
+        isCorrect: true,
+      },
+    });
+
+    await prisma.halisahaAnswer.create({
+      data: {
+        matchId: archivedMatch.id,
+        questionId: question.id,
+        userId: user.id,
+        selectedOptionId: option.id,
+        isFinal: true,
+        finalizedAt: new Date("2026-03-01T17:30:00.000Z"),
+        isCorrect: true,
+        awardedPoints: 1,
+      },
+    });
+
+    const result = await rebuildHalisahaLeaderboardForMatch(
+      archivedMatch.id,
+      asAppPrisma(prisma),
+    );
+
+    expect(result).toEqual({ ok: true });
+    const rows = await prisma.halisahaLeaderboardRound.findMany({
+      where: { roundNumber: 4 },
+    });
+    expect(rows).toHaveLength(0);
   });
 });

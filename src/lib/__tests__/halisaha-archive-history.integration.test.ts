@@ -18,6 +18,7 @@ async function wipeSqlite(prisma: SqlitePrismaClient) {
   await prisma.halisahaMvpRoundAward.deleteMany();
   await prisma.halisahaMatch.deleteMany();
   await prisma.halisahaGuest.deleteMany();
+  await prisma.adminLog.deleteMany();
   await prisma.user.deleteMany();
 }
 

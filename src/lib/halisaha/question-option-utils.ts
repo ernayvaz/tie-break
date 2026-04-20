@@ -18,6 +18,7 @@ export type ManagedHalisahaQuestionOptionInput = {
 export const CUSTOM_SCORE_OPTION_LABEL = "Your exact score";
 export const CUSTOM_NUMBER_OPTION_LABEL = "Your number guess";
 export const PLAYER_PICKER_OPTION_LABEL = "Choose player";
+export const HALISAHA_NO_CORRECT_OPTION_SENTINEL = -1;
 
 export function normalizeManagedHalisahaQuestionKind(
   kind: HalisahaQuestionKind,
@@ -157,6 +158,12 @@ type ResolvedOptionLike = OptionLike & {
   resolvedScoreAway?: number | null;
 };
 
+type ResolvedQuestionLike = {
+  options: ResolvedOptionLike[];
+  scoreHomeResult?: number | null;
+  scoreAwayResult?: number | null;
+};
+
 export function isHalisahaPlayerPickerPlaceholderOption(option: OptionLike) {
   return option.kind === "player_picker";
 }
@@ -294,4 +301,24 @@ export function hasResolvedHalisahaQuestionResult(options: ResolvedOptionLike[])
   );
 
   return fixedChoiceResolved && customScoreResolved && customNumberResolved;
+}
+
+export function hasHalisahaQuestionResolvedWithoutCorrectOption(question: ResolvedQuestionLike) {
+  const fixedChoiceOptions = getHalisahaFixedChoiceOptions(question.options);
+  const hasNumericOptions = question.options.some((option) => isHalisahaNumericOption(option));
+
+  return (
+    fixedChoiceOptions.length > 0 &&
+    !hasNumericOptions &&
+    fixedChoiceOptions.every((option) => !option.isCorrect) &&
+    question.scoreHomeResult === HALISAHA_NO_CORRECT_OPTION_SENTINEL &&
+    (question.scoreAwayResult === null || question.scoreAwayResult === undefined)
+  );
+}
+
+export function hasResolvedHalisahaQuestionOutcome(question: ResolvedQuestionLike) {
+  return (
+    hasResolvedHalisahaQuestionResult(question.options) ||
+    hasHalisahaQuestionResolvedWithoutCorrectOption(question)
+  );
 }

@@ -5,6 +5,9 @@ import { prisma } from "@/lib/db";
 import { createAdminLog } from "@/lib/admin-log";
 import { requireAdmin } from "@/lib/auth/get-user";
 import {
+  buildHalisahaLeaderboardResetLogValue,
+  ensureActiveHalisahaMatch,
+  getHalisahaLeaderboardBaselineRoundNumber,
   purgeArchivedHalisahaMatchesBefore,
   rebuildHalisahaLeaderboardForMatch,
 } from "@/lib/halisaha/server";
@@ -139,6 +142,130 @@ export async function adminResetUserHalisahaMatchAnswersAction(
   return {
     ok: true,
     message: `Removed ${count} answer(s) for this user.${options?.deleteMvpVotes ? " MVP votes removed." : ""}`,
+  };
+}
+
+export async function adminResetMatchHalisahaAnswersAction(
+  matchId: string,
+): Promise<HalisahaPredictionAdminState> {
+  const admin = await requireAdmin();
+
+  const [match, questions, answerCount, voteCount] = await Promise.all([
+    prisma.halisahaMatch.findUnique({
+      where: { id: matchId },
+      select: {
+        id: true,
+        roundNumber: true,
+        homeTeamName: true,
+        awayTeamName: true,
+      },
+    }),
+    prisma.halisahaQuestion.findMany({
+      where: { matchId },
+      select: {
+        id: true,
+        kind: true,
+      },
+    }),
+    prisma.halisahaAnswer.count({
+      where: { matchId },
+    }),
+    prisma.halisahaMvpVote.count({
+      where: { matchId },
+    }),
+  ]);
+  if (!match) return { ok: false, error: "Match not found." };
+
+  const mvpQuestionIds = questions
+    .filter((question) => question.kind === "mvp_prediction")
+    .map((question) => question.id);
+
+  await prisma.$transaction(async (tx) => {
+    await tx.halisahaAnswer.deleteMany({
+      where: { matchId },
+    });
+    await tx.halisahaMvpVote.deleteMany({
+      where: { matchId },
+    });
+    await tx.halisahaMatch.update({
+      where: { id: matchId },
+      data: {
+        answersResolvedAt: null,
+        mvpResolvedParticipantId: null,
+        mvpResolvedAt: null,
+      },
+    });
+
+    if (mvpQuestionIds.length > 0) {
+      await tx.halisahaQuestionOption.updateMany({
+        where: {
+          questionId: {
+            in: mvpQuestionIds,
+          },
+        },
+        data: {
+          isCorrect: false,
+        },
+      });
+    }
+
+    await tx.halisahaLeaderboardRound.deleteMany({
+      where: {
+        roundNumber: match.roundNumber,
+      },
+    });
+    await tx.halisahaMvpRoundAward.deleteMany({
+      where: {
+        roundNumber: match.roundNumber,
+      },
+    });
+  });
+
+  await createAdminLog(
+    admin.id,
+    "halisaha_match_answers_reset_all",
+    "halisaha_match",
+    matchId,
+    `${match.homeTeamName} vs ${match.awayTeamName}`,
+    `deleted_answers:${answerCount}/deleted_mvp_votes:${voteCount}/round:${match.roundNumber}`,
+  );
+  revalidateHalisahaPredictionPaths();
+
+  return {
+    ok: true,
+    message: `Reset ${answerCount} answer(s) and ${voteCount} MVP vote(s) for this match. Saved answer keys stay in place, but scoring is open again.`,
+  };
+}
+
+export async function resetHalisahaLeaderboardAction(): Promise<HalisahaPredictionAdminState> {
+  const admin = await requireAdmin();
+  const [activeMatch, currentBaselineRoundNumber] = await Promise.all([
+    ensureActiveHalisahaMatch(),
+    getHalisahaLeaderboardBaselineRoundNumber(),
+  ]);
+  const computedBaselineRoundNumber = activeMatch.answersResolvedAt
+    ? activeMatch.roundNumber + 1
+    : activeMatch.roundNumber;
+  const nextBaselineRoundNumber = Math.max(
+    currentBaselineRoundNumber,
+    computedBaselineRoundNumber,
+  );
+
+  await createAdminLog(
+    admin.id,
+    "halisaha_leaderboard_reset",
+    "halisaha_leaderboard",
+    "global",
+    buildHalisahaLeaderboardResetLogValue(currentBaselineRoundNumber),
+    buildHalisahaLeaderboardResetLogValue(nextBaselineRoundNumber),
+  );
+  revalidateHalisahaPredictionPaths();
+
+  return {
+    ok: true,
+    message: activeMatch.answersResolvedAt
+      ? "Leaderboard reset. Previous totals are no longer counted, and the next Halisaha round will start from zero."
+      : "Leaderboard reset. Previous totals are no longer counted, and the active Halisaha round now starts from zero.",
   };
 }
 

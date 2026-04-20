@@ -20,6 +20,8 @@ import {
 import {
   collapseStoredHalisahaQuestionOptionsToDrafts,
   deriveManagedHalisahaQuestionKindFromDrafts,
+  HALISAHA_NO_CORRECT_OPTION_SENTINEL,
+  hasResolvedHalisahaQuestionOutcome,
   normalizeManagedHalisahaQuestionKind,
   normalizeManagedHalisahaQuestionOptionLabel,
   type ManagedHalisahaQuestionKind,
@@ -272,6 +274,66 @@ async function resetResolutionState(matchId: string) {
   }
 
   await prisma.$transaction(operations);
+}
+
+type HalisahaAutoScoreState =
+  | { status: "auto_scored" }
+  | { status: "pending_unresolved" }
+  | { status: "score_failed"; error: string };
+
+async function autoScoreHalisahaAnswersIfReady(matchId: string): Promise<HalisahaAutoScoreState> {
+  const activeQuestions = await prisma.halisahaQuestion.findMany({
+    where: {
+      matchId,
+      isActive: true,
+    },
+    select: {
+      kind: true,
+      scoreHomeResult: true,
+      scoreAwayResult: true,
+      options: {
+        select: {
+          kind: true,
+          isCorrect: true,
+          resolvedScoreHome: true,
+          resolvedScoreAway: true,
+        },
+      },
+    },
+  });
+
+  const scorableQuestions = activeQuestions.filter((question) => question.kind !== "mvp_prediction");
+  if (
+    scorableQuestions.length === 0 ||
+    scorableQuestions.some((question) => !hasResolvedHalisahaQuestionOutcome(question))
+  ) {
+    return { status: "pending_unresolved" };
+  }
+
+  const result = await scoreHalisahaAnswers(matchId);
+  if (!result.ok) {
+    return {
+      status: "score_failed",
+      error: result.error,
+    };
+  }
+
+  return { status: "auto_scored" };
+}
+
+function buildCorrectOptionResolutionMessage(
+  baseMessage: string,
+  autoScoreState: HalisahaAutoScoreState,
+) {
+  switch (autoScoreState.status) {
+    case "auto_scored":
+      return `${baseMessage} User points refreshed automatically.`;
+    case "score_failed":
+      return `${baseMessage} Automatic re-scoring could not finish, so use Score all answers after checking the remaining results.`;
+    case "pending_unresolved":
+    default:
+      return `${baseMessage} User points will refresh once every active question has a saved result.`;
+  }
 }
 
 function hasHalisahaMatchIdentityChanged(input: {
@@ -1388,6 +1450,7 @@ export async function deleteHalisahaQuestionAction(
 export async function setHalisahaQuestionCorrectOptionAction(
   questionId: string,
   optionId: string | null,
+  resolveWithoutCorrectOption = false,
 ): Promise<HalisahaAdminActionState> {
   const admin = await requireAdmin();
   const question = await prisma.halisahaQuestion.findUnique({
@@ -1416,10 +1479,14 @@ export async function setHalisahaQuestionCorrectOptionAction(
     };
   }
 
-  if (
-    optionId &&
-    !fixedChoiceOptions.some((option) => option.id === optionId)
-  ) {
+  if (resolveWithoutCorrectOption && optionId) {
+    return {
+      ok: false,
+      error: "A question cannot save both a correct option and a no-correct-answer result.",
+    };
+  }
+
+  if (optionId && !fixedChoiceOptions.some((option) => option.id === optionId)) {
     return { ok: false, error: "Correct option is invalid." };
   }
 
@@ -1435,9 +1502,18 @@ export async function setHalisahaQuestionCorrectOptionAction(
         data: { isCorrect: true },
       });
     }
+
+    await tx.halisahaQuestion.update({
+      where: { id: questionId },
+      data: {
+        scoreHomeResult: resolveWithoutCorrectOption ? HALISAHA_NO_CORRECT_OPTION_SENTINEL : null,
+        scoreAwayResult: null,
+      },
+    });
   });
 
   await resetResolutionState(question.matchId);
+  const autoScoreState = await autoScoreHalisahaAnswersIfReady(question.matchId);
   await createAdminLog(
     admin.id,
     "halisaha_question_resolved_option",
@@ -1450,9 +1526,14 @@ export async function setHalisahaQuestionCorrectOptionAction(
 
   return {
     ok: true,
-    message: optionId
-      ? "Correct option updated."
-      : "Correct option cleared.",
+    message: buildCorrectOptionResolutionMessage(
+      optionId
+        ? "Correct option updated."
+        : resolveWithoutCorrectOption
+          ? "Saved as no correct option."
+          : "Correct option cleared.",
+      autoScoreState,
+    ),
   };
 }
 
@@ -1549,6 +1630,7 @@ export async function setHalisahaScoreQuestionResultAction(
   });
 
   await resetResolutionState(question.matchId);
+  const autoScoreState = await autoScoreHalisahaAnswersIfReady(question.matchId);
   await createAdminLog(
     admin.id,
     "halisaha_question_score_result",
@@ -1565,11 +1647,14 @@ export async function setHalisahaScoreQuestionResultAction(
 
   return {
     ok: true,
-    message: shouldClear
-      ? "Actual result cleared."
-      : option.kind === "custom_number"
-        ? "Actual value saved."
-        : "Actual score saved.",
+    message: buildCorrectOptionResolutionMessage(
+      shouldClear
+        ? "Actual result cleared."
+        : option.kind === "custom_number"
+          ? "Actual value saved."
+          : "Actual score saved.",
+      autoScoreState,
+    ),
   };
 }
 

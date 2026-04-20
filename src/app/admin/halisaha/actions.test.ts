@@ -4,6 +4,7 @@ const mocks = vi.hoisted(() => ({
   revalidatePath: vi.fn(),
   requireAdmin: vi.fn(),
   createAdminLog: vi.fn(),
+  scoreAnswers: vi.fn(),
   questionFindUnique: vi.fn(),
   questionFindMany: vi.fn(),
   questionAggregate: vi.fn(),
@@ -11,6 +12,7 @@ const mocks = vi.hoisted(() => ({
   questionUpdate: vi.fn(),
   questionOptionDeleteMany: vi.fn(),
   questionOptionCreateMany: vi.fn(),
+  questionOptionUpdate: vi.fn(),
   questionOptionUpdateMany: vi.fn(),
   answerDeleteMany: vi.fn(),
   answerUpdateMany: vi.fn(),
@@ -42,7 +44,7 @@ vi.mock("@/lib/halisaha/server", () => ({
   archiveHalisahaMatchForNextRound: vi.fn(),
   ensureActiveHalisahaMatch: mocks.ensureActiveMatch,
   resolveHalisahaMvpFromVotes: vi.fn(),
-  scoreHalisahaAnswers: vi.fn(),
+  scoreHalisahaAnswers: mocks.scoreAnswers,
   syncHalisahaPlayerPredictionQuestions: mocks.syncPlayerQuestions,
   syncHalisahaMvpPredictionQuestion: mocks.syncMvpQuestion,
   syncHalisahaWinnerQuestion: mocks.syncWinnerQuestion,
@@ -60,6 +62,7 @@ vi.mock("@/lib/db", () => ({
     halisahaQuestionOption: {
       deleteMany: mocks.questionOptionDeleteMany,
       createMany: mocks.questionOptionCreateMany,
+      update: mocks.questionOptionUpdate,
       updateMany: mocks.questionOptionUpdateMany,
     },
     halisahaAnswer: {
@@ -86,9 +89,12 @@ vi.mock("@/lib/db", () => ({
 import {
   clearHalisahaParticipantsAction,
   createHalisahaQuestionAction,
+  setHalisahaQuestionCorrectOptionAction,
   setHalisahaMatchPublishedAction,
+  setHalisahaScoreQuestionResultAction,
   updateHalisahaQuestionAction,
 } from "./actions";
+import { HALISAHA_NO_CORRECT_OPTION_SENTINEL } from "@/lib/halisaha/question-option-utils";
 
 describe("admin halisaha question actions", () => {
   beforeEach(() => {
@@ -99,6 +105,7 @@ describe("admin halisaha question actions", () => {
     mocks.questionUpdate.mockResolvedValue(undefined);
     mocks.questionOptionDeleteMany.mockResolvedValue({ count: 2 });
     mocks.questionOptionCreateMany.mockResolvedValue({ count: 3 });
+    mocks.questionOptionUpdate.mockResolvedValue(undefined);
     mocks.questionOptionUpdateMany.mockResolvedValue({ count: 0 });
     mocks.answerDeleteMany.mockResolvedValue({ count: 2 });
     mocks.answerUpdateMany.mockResolvedValue({ count: 2 });
@@ -112,6 +119,7 @@ describe("admin halisaha question actions", () => {
     mocks.questionFindMany.mockResolvedValue([{ id: "question-1", kind: "standard" }]);
     mocks.leaderboardDeleteMany.mockResolvedValue({ count: 1 });
     mocks.mvpAwardDeleteMany.mockResolvedValue({ count: 0 });
+    mocks.scoreAnswers.mockResolvedValue({ ok: true });
     mocks.transaction.mockImplementation(async (arg: unknown) => {
       if (typeof arg === "function") {
         return arg({
@@ -121,6 +129,8 @@ describe("admin halisaha question actions", () => {
           halisahaQuestionOption: {
             deleteMany: mocks.questionOptionDeleteMany,
             createMany: mocks.questionOptionCreateMany,
+            update: mocks.questionOptionUpdate,
+            updateMany: mocks.questionOptionUpdateMany,
           },
           halisahaAnswer: {
             deleteMany: mocks.answerDeleteMany,
@@ -368,6 +378,128 @@ describe("admin halisaha question actions", () => {
       },
     });
     expect(mocks.revalidatePath).toHaveBeenCalledWith("/halisaha");
+  });
+
+  it("auto-scores users after saving a fixed correct answer when every active question is resolved", async () => {
+    mocks.questionFindUnique.mockResolvedValue({
+      id: "question-1",
+      kind: "standard",
+      matchId: "match-1",
+      options: [
+        { id: "opt-home", kind: "standard", isCorrect: false },
+        { id: "opt-away", kind: "standard", isCorrect: false },
+      ],
+    });
+    mocks.questionFindMany
+      .mockResolvedValueOnce([{ id: "question-1", kind: "standard" }])
+      .mockResolvedValueOnce([
+        {
+          kind: "standard",
+          options: [{ kind: "standard", isCorrect: true, resolvedScoreHome: null, resolvedScoreAway: null }],
+        },
+      ]);
+
+    const result = await setHalisahaQuestionCorrectOptionAction("question-1", "opt-home");
+
+    expect(result).toEqual({
+      ok: true,
+      message: "Correct option updated. User points refreshed automatically.",
+    });
+    expect(mocks.scoreAnswers).toHaveBeenCalledWith("match-1");
+  });
+
+  it("auto-scores users after saving an actual score when every active question is resolved", async () => {
+    mocks.questionFindUnique.mockResolvedValue({
+      id: "question-2",
+      kind: "score_prediction",
+      matchId: "match-1",
+      options: [
+        {
+          id: "opt-score",
+          label: "13 - 7",
+          kind: "custom_score",
+          resolvedScoreHome: null,
+          resolvedScoreAway: null,
+          sortOrder: 100,
+        },
+      ],
+    });
+    mocks.questionFindMany
+      .mockResolvedValueOnce([{ id: "question-1", kind: "standard" }])
+      .mockResolvedValueOnce([
+        {
+          kind: "score_prediction",
+          options: [
+            {
+              kind: "custom_score",
+              isCorrect: false,
+              resolvedScoreHome: 13,
+              resolvedScoreAway: 7,
+            },
+          ],
+        },
+      ]);
+
+    const result = await setHalisahaScoreQuestionResultAction("question-2", "opt-score", {
+      home: 13,
+      away: 7,
+    });
+
+    expect(result).toEqual({
+      ok: true,
+      message: "Actual score saved. User points refreshed automatically.",
+    });
+    expect(mocks.scoreAnswers).toHaveBeenCalledWith("match-1");
+  });
+
+  it("auto-scores users after saving a no-correct-option resolution when every active question is resolved", async () => {
+    mocks.questionFindUnique.mockResolvedValue({
+      id: "question-3",
+      kind: "standard",
+      matchId: "match-1",
+      options: [
+        { id: "opt-home", kind: "standard", isCorrect: false },
+        { id: "opt-away", kind: "standard", isCorrect: false },
+      ],
+    });
+    mocks.questionFindMany
+      .mockResolvedValueOnce([{ id: "question-3", kind: "standard" }])
+      .mockResolvedValueOnce([
+        {
+          kind: "standard",
+          scoreHomeResult: HALISAHA_NO_CORRECT_OPTION_SENTINEL,
+          scoreAwayResult: null,
+          options: [
+            {
+              kind: "standard",
+              isCorrect: false,
+              resolvedScoreHome: null,
+              resolvedScoreAway: null,
+            },
+            {
+              kind: "standard",
+              isCorrect: false,
+              resolvedScoreHome: null,
+              resolvedScoreAway: null,
+            },
+          ],
+        },
+      ]);
+
+    const result = await setHalisahaQuestionCorrectOptionAction("question-3", null, true);
+
+    expect(result).toEqual({
+      ok: true,
+      message: "Saved as no correct option. User points refreshed automatically.",
+    });
+    expect(mocks.questionUpdate).toHaveBeenCalledWith({
+      where: { id: "question-3" },
+      data: {
+        scoreHomeResult: HALISAHA_NO_CORRECT_OPTION_SENTINEL,
+        scoreAwayResult: null,
+      },
+    });
+    expect(mocks.scoreAnswers).toHaveBeenCalledWith("match-1");
   });
 
   it("clears every participant from the active match", async () => {

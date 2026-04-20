@@ -20,7 +20,9 @@ const ACTION_OPTIONS = [
   { value: "halisaha_answer_points_override", label: "Halisaha answer points override" },
   { value: "halisaha_answer_deleted", label: "Halisaha answer deleted" },
   { value: "halisaha_user_match_answers_reset", label: "Halisaha user match reset" },
+  { value: "halisaha_match_answers_reset_all", label: "Halisaha full match reset" },
   { value: "halisaha_mvp_vote_deleted", label: "Halisaha MVP vote deleted" },
+  { value: "halisaha_leaderboard_reset", label: "Halisaha leaderboard reset" },
   { value: "admin_set_halisaha_answer", label: "Admin set Halisaha answer" },
 ];
 
@@ -30,6 +32,7 @@ const TARGET_OPTIONS = [
   { value: "match", label: "Match" },
   { value: "prediction", label: "Prediction" },
   { value: "halisaha_match", label: "Halisaha match" },
+  { value: "halisaha_leaderboard", label: "Halisaha leaderboard" },
   { value: "halisaha_answer", label: "Halisaha answer" },
   { value: "halisaha_mvp_vote", label: "Halisaha MVP vote" },
 ];

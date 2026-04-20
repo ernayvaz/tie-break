@@ -34,6 +34,7 @@ import type {
   HalisahaAdminSnapshot,
 } from "@/lib/halisaha/server";
 import {
+  HALISAHA_NO_CORRECT_OPTION_SENTINEL,
   PLAYER_PICKER_OPTION_LABEL,
   collapseStoredHalisahaQuestionOptionsToDrafts,
   deriveManagedHalisahaQuestionKindFromDrafts,
@@ -64,6 +65,7 @@ const selectClassName =
 const textareaClassName =
   "w-full rounded-lg border border-nord-polarLighter bg-white px-3 py-2 text-sm text-nord-polar placeholder-nord-polarLighter focus:border-nord-frostDark focus:outline-none focus:ring-1 focus:ring-nord-frostDark";
 const DEFAULT_OPTION_COUNT = 4;
+const NO_CORRECT_OPTION_ID = "__halisaha-no-correct-option__";
 
 type EditableQuestionKind = ManagedHalisahaQuestionKind;
 type EditableQuestionOptionDraft = ManagedHalisahaQuestionOptionInput;
@@ -144,6 +146,22 @@ function buildNumericOptionValueDrafts(question: HalisahaAdminQuestionRow) {
         },
       ]),
   ) as Record<string, { home: string; away: string }>;
+}
+
+function getQuestionCorrectOptionSelection(question: HalisahaAdminQuestionRow) {
+  const selectedOptionId = question.options.find((option) => option.isCorrect)?.id;
+  if (selectedOptionId) {
+    return selectedOptionId;
+  }
+
+  if (
+    question.scoreHomeResult === HALISAHA_NO_CORRECT_OPTION_SENTINEL &&
+    question.scoreAwayResult === null
+  ) {
+    return NO_CORRECT_OPTION_ID;
+  }
+
+  return "";
 }
 
 function actionError(result: HalisahaAdminActionState) {
@@ -374,7 +392,7 @@ function QuestionEditorCard({
   );
   const [isActive, setIsActive] = useState(question.isActive);
   const [correctOptionId, setCorrectOptionId] = useState<string | "">(
-    question.options.find((option) => option.isCorrect)?.id ?? "",
+    getQuestionCorrectOptionSelection(question),
   );
   const [numericOptionDrafts, setNumericOptionDrafts] = useState(
     buildNumericOptionValueDrafts(question),
@@ -406,9 +424,7 @@ function QuestionEditorCard({
     setPoints(String(question.points));
     setOptionDrafts(nextOptionDrafts);
     setIsActive(question.isActive);
-    setCorrectOptionId(
-      question.options.find((option) => option.isCorrect)?.id ?? "",
-    );
+    setCorrectOptionId(getQuestionCorrectOptionSelection(question));
     setNumericOptionDrafts(buildNumericOptionValueDrafts(question));
   }, [question]);
 
@@ -495,10 +511,12 @@ function QuestionEditorCard({
   };
 
   const handleSetCorrectOption = async () => {
+    const resolveWithoutCorrectOption = correctOptionId === NO_CORRECT_OPTION_ID;
     setBusy(true);
     const result = await setHalisahaQuestionCorrectOptionAction(
       question.id,
-      correctOptionId || null,
+      resolveWithoutCorrectOption ? null : correctOptionId || null,
+      resolveWithoutCorrectOption,
     );
     setBusy(false);
 
@@ -861,12 +879,23 @@ function QuestionEditorCard({
                   <span>{option.label}</span>
                 </label>
               ))}
+              <label className="flex items-center gap-3 text-sm text-nord-polar">
+                <input
+                  type="radio"
+                  name={`correct-option-${question.id}`}
+                  value={NO_CORRECT_OPTION_ID}
+                  checked={correctOptionId === NO_CORRECT_OPTION_ID}
+                  onChange={(event) => setCorrectOptionId(event.target.value)}
+                  className="h-4 w-4 border-nord-polarLighter"
+                />
+                <span>No correct option for this question</span>
+              </label>
               <button
                 type="button"
                 className="text-xs text-nord-polarLight underline"
                 onClick={() => setCorrectOptionId("")}
               >
-                Clear correct option
+                Reset saved resolution
               </button>
             </div>
           </div>
@@ -1552,8 +1581,8 @@ export function HalisahaAdminClient({
           <CardContent className="space-y-4">
             <div className="rounded-lg border border-nord-polarLighter/30 bg-nord-snow/35 p-4">
               <div className="text-sm text-nord-polar">
-                After the match, mark one correct option for each active question and
-                then score all answers.
+                After the match, save the correct result for each active question. When every
+                active question has a saved result, user points refresh automatically.
               </div>
               <div className="mt-3 space-y-2 text-xs text-nord-polarLight">
                 <div>
@@ -1605,7 +1634,8 @@ export function HalisahaAdminClient({
               {snapshot.results.length === 0 ? (
                 <div className="px-4 py-8 text-center text-sm text-nord-polarLight">
                   No leaderboard activity yet. Saved answers will appear here before scoring,
-                  and points will update after scoring.
+                  and points will update automatically once every active question has a saved
+                  result.
                 </div>
               ) : (
                 <table className="w-full text-sm">

@@ -32,7 +32,9 @@ const ACTION_LABELS: Record<string, string> = {
   halisaha_answer_points_override: "Halisaha answer points override",
   halisaha_answer_deleted: "Halisaha answer deleted",
   halisaha_user_match_answers_reset: "Halisaha user match reset",
+  halisaha_match_answers_reset_all: "Halisaha full match reset",
   halisaha_mvp_vote_deleted: "Halisaha MVP vote deleted",
+  halisaha_leaderboard_reset: "Halisaha leaderboard reset",
   admin_set_halisaha_answer: "Admin set Halisaha answer",
   admin_set_prediction: "Admin set prediction",
 };

@@ -53,7 +53,7 @@ import { canAccessHalisahaMode } from "./public-access";
 import {
   PLAYER_PICKER_OPTION_LABEL,
   getHalisahaFixedChoiceOptions,
-  hasResolvedHalisahaQuestionResult,
+  hasResolvedHalisahaQuestionOutcome,
 } from "./question-option-utils";
 import { buildParticipantPickerLabelMap } from "./participant-picker-labels";
 
@@ -67,6 +67,10 @@ const HALISAHA_INTERACTIVE_TRANSACTION_OPTIONS = {
   maxWait: 10_000,
   timeout: 30_000,
 } as const;
+const HALISAHA_LEADERBOARD_RESET_ACTION_TYPE = "halisaha_leaderboard_reset";
+const HALISAHA_LEADERBOARD_RESET_TARGET_TYPE = "halisaha_leaderboard";
+const HALISAHA_LEADERBOARD_RESET_TARGET_ID = "global";
+const HALISAHA_LEADERBOARD_RESET_BASELINE_PREFIX = "baseline_round:";
 const LEGACY_WINNER_QUESTION_PROMPTS = new Set([
   "kim kazanir?",
   "kim kazanır?",
@@ -617,7 +621,7 @@ function toPublicParticipantRow(participant: {
 }
 
 function questionHasResolvedResult(question: PublicQuestionInput) {
-  return hasResolvedHalisahaQuestionResult(question.options);
+  return hasResolvedHalisahaQuestionOutcome(question);
 }
 
 function toPublicQuestionRow(
@@ -2718,6 +2722,45 @@ async function syncHalisahaLeaderboardRound(
   await syncHalisahaMvpRoundAward(tx, input);
 }
 
+function parseHalisahaLeaderboardResetBaselineRoundNumber(value: string | null | undefined) {
+  if (!value?.startsWith(HALISAHA_LEADERBOARD_RESET_BASELINE_PREFIX)) {
+    return null;
+  }
+
+  const parsedRoundNumber = Number(
+    value.slice(HALISAHA_LEADERBOARD_RESET_BASELINE_PREFIX.length),
+  );
+  if (!Number.isInteger(parsedRoundNumber) || parsedRoundNumber < 1) {
+    return null;
+  }
+
+  return parsedRoundNumber;
+}
+
+export function buildHalisahaLeaderboardResetLogValue(baselineRoundNumber: number) {
+  return `${HALISAHA_LEADERBOARD_RESET_BASELINE_PREFIX}${baselineRoundNumber}`;
+}
+
+export async function getHalisahaLeaderboardBaselineRoundNumber(
+  db: PrismaClient = prisma,
+) {
+  const latestReset = await db.adminLog.findFirst({
+    where: {
+      actionType: HALISAHA_LEADERBOARD_RESET_ACTION_TYPE,
+      targetType: HALISAHA_LEADERBOARD_RESET_TARGET_TYPE,
+      targetId: HALISAHA_LEADERBOARD_RESET_TARGET_ID,
+    },
+    orderBy: {
+      createdAt: "desc",
+    },
+    select: {
+      newValue: true,
+    },
+  });
+
+  return parseHalisahaLeaderboardResetBaselineRoundNumber(latestReset?.newValue) ?? 1;
+}
+
 /**
  * Rebuild cumulative Halisaha leaderboard rows for a match's round from finalized answers
  * (e.g. after admin prediction / points overrides).
@@ -2734,6 +2777,10 @@ export async function rebuildHalisahaLeaderboardForMatch(
   });
   if (!match) {
     return { ok: false, error: "Match not found." };
+  }
+  const baselineRoundNumber = await getHalisahaLeaderboardBaselineRoundNumber(db);
+  if (match.roundNumber < baselineRoundNumber) {
+    return { ok: true };
   }
   await db.$transaction(async (tx) => {
     await syncHalisahaLeaderboardRound(tx, {
@@ -2757,6 +2804,11 @@ async function ensureCurrentHalisahaLeaderboardRoundBackfill() {
   });
 
   if (!currentMatch?.answersResolvedAt) {
+    return;
+  }
+
+  const baselineRoundNumber = await getHalisahaLeaderboardBaselineRoundNumber();
+  if (currentMatch.roundNumber < baselineRoundNumber) {
     return;
   }
 
@@ -2839,6 +2891,7 @@ async function getHalisahaLeaderboardResults(input?: {
   includePendingAnswerCounts?: boolean;
 }): Promise<HalisahaResultRow[]> {
   await ensureCurrentHalisahaLeaderboardRoundBackfill();
+  const baselineRoundNumber = await getHalisahaLeaderboardBaselineRoundNumber();
 
   const activePendingMatch =
     input?.includePendingAnswerCounts && input.activeMatchId
@@ -2857,6 +2910,11 @@ async function getHalisahaLeaderboardResults(input?: {
 
   const mvpGroups = await prisma.halisahaMvpRoundAward.groupBy({
     by: ["userId"],
+    where: {
+      roundNumber: {
+        gte: baselineRoundNumber,
+      },
+    },
     _count: { _all: true },
   });
   const mvpCountByUser = new Map(
@@ -2864,6 +2922,11 @@ async function getHalisahaLeaderboardResults(input?: {
   );
 
   const rounds = await prisma.halisahaLeaderboardRound.findMany({
+    where: {
+      roundNumber: {
+        gte: baselineRoundNumber,
+      },
+    },
     orderBy: [{ roundNumber: "asc" }, { createdAt: "asc" }],
     include: {
       user: {
@@ -2986,7 +3049,7 @@ export async function scoreHalisahaAnswers(matchId: string) {
   );
 
   const unresolvedQuestions = scorableQuestions.filter(
-    (question) => !hasResolvedHalisahaQuestionResult(question.options),
+    (question) => !hasResolvedHalisahaQuestionOutcome(question),
   );
 
   if (unresolvedQuestions.length > 0) {

@@ -20,11 +20,13 @@ import {
 import { formatHalisahaDateTime } from "@/lib/halisaha/config";
 import { type HalisahaRecentAnswerRow } from "@/lib/halisaha/leaderboard";
 import {
+  adminResetMatchHalisahaAnswersAction,
   adminResetUserHalisahaMatchAnswersAction,
   adminSetHalisahaAnswerAction,
   deleteHalisahaAnswerAction,
   deleteHalisahaMvpVoteAction,
   purgeArchivedHalisahaMatchesAction,
+  resetHalisahaLeaderboardAction,
   setHalisahaAnswerPointsAction,
 } from "./actions";
 
@@ -272,6 +274,8 @@ export function HalisahaPredictionManagementClient({
   const [success, setSuccess] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [resettingUserId, setResettingUserId] = useState<string | null>(null);
+  const [resettingMatch, setResettingMatch] = useState(false);
+  const [resettingLeaderboard, setResettingLeaderboard] = useState(false);
   const [resetAlsoMvp, setResetAlsoMvp] = useState(false);
   const [purgeModalOpen, setPurgeModalOpen] = useState(false);
   const [purgeLoading, setPurgeLoading] = useState(false);
@@ -469,6 +473,10 @@ export function HalisahaPredictionManagementClient({
     () => matchOptions.find((match) => match.id === historyContext.activeMatchId) ?? null,
     [historyContext.activeMatchId, matchOptions],
   );
+  const selectedMatchOption = useMemo(
+    () => matchOptions.find((match) => match.id === matchFilter) ?? null,
+    [matchFilter, matchOptions],
+  );
 
   const purgePreview = useMemo(() => {
     if (!purgeCutoffDate) {
@@ -558,6 +566,39 @@ export function HalisahaPredictionManagementClient({
     setResettingUserId(null);
     if (result.ok) {
       setSuccess(result.message ?? "Reset.");
+      router.refresh();
+    } else {
+      setError(result.error);
+    }
+  };
+
+  const runResetMatch = async () => {
+    if (!matchFilter || !selectedMatchOption) return;
+    const message = `Reset every saved user answer and MVP vote for Round ${selectedMatchOption.roundNumber} (${selectedMatchOption.homeTeamName} vs ${selectedMatchOption.awayTeamName})? Saved answer keys stay in place, but match scoring will reopen.`;
+    if (!window.confirm(message)) return;
+    setResettingMatch(true);
+    clearFeedback();
+    const result = await adminResetMatchHalisahaAnswersAction(matchFilter);
+    setResettingMatch(false);
+    if (result.ok) {
+      setSuccess(result.message ?? "Match reset.");
+      router.refresh();
+    } else {
+      setError(result.error);
+    }
+  };
+
+  const runResetLeaderboard = async () => {
+    const message = historyContext.activeAnswersResolvedAt
+      ? "Reset the public Halisaha leaderboard now? Previous totals will stop counting, and the next Halisaha round will begin from zero."
+      : "Reset the public Halisaha leaderboard now? Previous totals will stop counting, and the active Halisaha round will become the first round of the new table.";
+    if (!window.confirm(message)) return;
+    setResettingLeaderboard(true);
+    clearFeedback();
+    const result = await resetHalisahaLeaderboardAction();
+    setResettingLeaderboard(false);
+    if (result.ok) {
+      setSuccess(result.message ?? "Leaderboard reset.");
       router.refresh();
     } else {
       setError(result.error);
@@ -866,29 +907,6 @@ export function HalisahaPredictionManagementClient({
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2 xl:justify-end">
-            {userFilter && matchFilter ? (
-              <div className="flex flex-wrap items-center gap-2">
-                <label className="flex cursor-pointer items-center gap-2 text-sm text-nord-polar">
-                  <input
-                    type="checkbox"
-                    checked={resetAlsoMvp}
-                    onChange={(event) => setResetAlsoMvp(event.target.checked)}
-                    className="h-4 w-4 rounded border-nord-polarLighter accent-nord-frostDark"
-                  />
-                  Also remove MVP votes
-                </label>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  disabled={resettingUserId === userFilter}
-                  onClick={() => void runResetUser()}
-                >
-                  {resettingUserId === userFilter
-                    ? "Resetting…"
-                    : "Reset this user on selected match"}
-                </Button>
-              </div>
-            ) : null}
             {hasActiveFilters ? (
               <Button variant="ghost" size="sm" onClick={clearFilters}>
                 Clear filters
@@ -1085,6 +1103,117 @@ export function HalisahaPredictionManagementClient({
               </select>
             </div>
           )}
+        </div>
+      </section>
+
+      <section className="rounded-2xl border border-amber-200/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(255,248,236,0.92))] p-4 shadow-[0_12px_28px_rgba(46,52,64,0.035)]">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <h2 className="text-sm font-semibold text-nord-polar">Bulk reset controls</h2>
+            <p className="mt-1 text-xs leading-relaxed text-nord-polarLight">
+              Reset one selected user, wipe every user input on a chosen match, or start a fresh
+              leaderboard season without deleting archived answer history.
+            </p>
+          </div>
+          <span className="text-xs text-nord-polarLight">
+            {selectedMatchOption
+              ? `Selected round: R${selectedMatchOption.roundNumber}`
+              : "Choose a match below to enable round-wide reset"}
+          </span>
+        </div>
+
+        <div className="mt-4 grid gap-4 lg:grid-cols-2">
+          <div className="rounded-xl border border-amber-100 bg-white/85 p-4">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <h3 className="text-sm font-semibold text-nord-polar">Selected match reset</h3>
+                <p className="mt-1 text-xs leading-relaxed text-nord-polarLight">
+                  Remove saved user answers and MVP votes for the currently selected round. Match
+                  questions and saved answer keys stay in place, but the round is reopened for
+                  scoring.
+                </p>
+              </div>
+              <div className="text-xs text-nord-polarLight sm:text-right">
+                {selectedMatchOption ? (
+                  <>
+                    <div className="font-medium text-nord-polar">
+                      {selectedMatchOption.homeTeamName} vs {selectedMatchOption.awayTeamName}
+                    </div>
+                    <div>Round {selectedMatchOption.roundNumber}</div>
+                  </>
+                ) : (
+                  <div>No round selected</div>
+                )}
+              </div>
+            </div>
+
+            <div className="mt-4 flex flex-col gap-3">
+              <label className="flex cursor-pointer items-center gap-2 text-sm text-nord-polar">
+                <input
+                  type="checkbox"
+                  checked={resetAlsoMvp}
+                  onChange={(event) => setResetAlsoMvp(event.target.checked)}
+                  className="h-4 w-4 rounded border-nord-polarLighter accent-nord-frostDark"
+                />
+                Also remove MVP votes when resetting one selected user
+              </label>
+              <div className="flex flex-wrap gap-2">
+                {userFilter ? (
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    disabled={!matchFilter || resettingUserId === userFilter}
+                    onClick={() => void runResetUser()}
+                  >
+                    {resettingUserId === userFilter
+                      ? "Resetting…"
+                      : "Reset this user on selected match"}
+                  </Button>
+                ) : null}
+                <Button
+                  variant="danger"
+                  size="sm"
+                  disabled={!selectedMatchOption || resettingMatch}
+                  onClick={() => void runResetMatch()}
+                >
+                  {resettingMatch ? "Resetting…" : "Reset all users on selected match"}
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-red-100 bg-white/85 p-4">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <h3 className="text-sm font-semibold text-nord-polar">Leaderboard season reset</h3>
+                <p className="mt-1 text-xs leading-relaxed text-nord-polarLight">
+                  Previous totals stop counting on the public leaderboard, while archived answers
+                  and round history remain available in admin screens.
+                </p>
+              </div>
+              <div className="text-xs text-nord-polarLight sm:text-right">
+                <div className="font-medium text-nord-polar">
+                  Active round {historyContext.activeRoundNumber}
+                </div>
+                <div>
+                  {historyContext.activeAnswersResolvedAt
+                    ? "Next round will become the new start"
+                    : "Active round becomes the new start"}
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-4 flex flex-wrap gap-2">
+              <Button
+                variant="danger"
+                size="sm"
+                disabled={resettingLeaderboard}
+                onClick={() => void runResetLeaderboard()}
+              >
+                {resettingLeaderboard ? "Resetting…" : "Reset leaderboard"}
+              </Button>
+            </div>
+          </div>
         </div>
       </section>
 
