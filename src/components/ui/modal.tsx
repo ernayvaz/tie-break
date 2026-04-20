@@ -13,6 +13,7 @@ export interface ModalProps {
   onConfirm?: () => void | Promise<void>;
   variant?: "primary" | "danger";
   loading?: boolean;
+  confirmDisabled?: boolean;
 }
 
 export function Modal({
@@ -25,6 +26,7 @@ export function Modal({
   onConfirm,
   variant = "primary",
   loading = false,
+  confirmDisabled = false,
 }: ModalProps) {
   const [busy, setBusy] = React.useState(false);
   const isBusy = loading || busy;
@@ -98,7 +100,7 @@ export function Modal({
               type="button"
               variant={variant}
               onClick={handleConfirm}
-              disabled={isBusy}
+              disabled={isBusy || confirmDisabled}
               className="w-full sm:w-auto"
             >
               {isBusy ? "…" : confirmLabel}

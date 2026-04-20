@@ -149,6 +149,14 @@ function formatLegacyLabel(answer: HalisahaRecentAnswerRow) {
   return answer.label;
 }
 
+function buildResetMatchConfirmPhrase(match: HalisahaHistoryMatchOption) {
+  return `RESET R${match.roundNumber}`;
+}
+
+function getMatchLifecycleLabel(match: HalisahaHistoryMatchOption) {
+  return match.archivedAt ? "Archived round" : "Active round";
+}
+
 function kindLabel(kind: string) {
   const map: Record<string, string> = {
     winner: "WHO WINS",
@@ -276,6 +284,9 @@ export function HalisahaPredictionManagementClient({
   const [resettingUserId, setResettingUserId] = useState<string | null>(null);
   const [resettingMatch, setResettingMatch] = useState(false);
   const [resettingLeaderboard, setResettingLeaderboard] = useState(false);
+  const [bulkResetMatchId, setBulkResetMatchId] = useState(historyContext.activeMatchId);
+  const [resetMatchConfirmOpen, setResetMatchConfirmOpen] = useState(false);
+  const [resetMatchConfirmText, setResetMatchConfirmText] = useState("");
   const [resetAlsoMvp, setResetAlsoMvp] = useState(false);
   const [purgeModalOpen, setPurgeModalOpen] = useState(false);
   const [purgeLoading, setPurgeLoading] = useState(false);
@@ -473,10 +484,16 @@ export function HalisahaPredictionManagementClient({
     () => matchOptions.find((match) => match.id === historyContext.activeMatchId) ?? null,
     [historyContext.activeMatchId, matchOptions],
   );
-  const selectedMatchOption = useMemo(
-    () => matchOptions.find((match) => match.id === matchFilter) ?? null,
-    [matchFilter, matchOptions],
+  const selectedResetMatchOption = useMemo(
+    () => matchOptions.find((match) => match.id === bulkResetMatchId) ?? null,
+    [bulkResetMatchId, matchOptions],
   );
+  const resetMatchConfirmPhrase = selectedResetMatchOption
+    ? buildResetMatchConfirmPhrase(selectedResetMatchOption)
+    : "";
+  const canConfirmResetMatch =
+    Boolean(selectedResetMatchOption) &&
+    resetMatchConfirmText.trim().toUpperCase() === resetMatchConfirmPhrase;
 
   const purgePreview = useMemo(() => {
     if (!purgeCutoffDate) {
@@ -500,12 +517,26 @@ export function HalisahaPredictionManagementClient({
   }, [archivedMatches, purgeCutoffDate]);
 
   useEffect(() => {
+    if (selectedResetMatchOption || matchOptions.length === 0) return;
+    const fallbackMatchId =
+      matchOptions.find((match) => match.id === historyContext.activeMatchId)?.id ??
+      matchOptions[0]!.id;
+    setBulkResetMatchId(fallbackMatchId);
+  }, [historyContext.activeMatchId, matchOptions, selectedResetMatchOption]);
+
+  useEffect(() => {
     window.history.replaceState(null, "", buildHalisahaHistoryHref(filters));
   }, [filters]);
 
   const clearFeedback = () => {
     setError(null);
     setSuccess(null);
+  };
+
+  const closeResetMatchModal = () => {
+    if (resettingMatch) return;
+    setResetMatchConfirmOpen(false);
+    setResetMatchConfirmText("");
   };
 
   const clearFilters = () => {
@@ -553,14 +584,15 @@ export function HalisahaPredictionManagementClient({
   };
 
   const runResetUser = async () => {
-    if (!userFilter || !matchFilter) return;
+    if (!userFilter || !bulkResetMatchId || !selectedResetMatchOption) return;
+    const targetLabel = `Round ${selectedResetMatchOption.roundNumber} (${selectedResetMatchOption.homeTeamName} vs ${selectedResetMatchOption.awayTeamName})`;
     const message = resetAlsoMvp
-      ? "Remove all answers and MVP votes for this user on the selected match?"
-      : "Remove all answers for this user on the selected match?";
+      ? `Remove all answers and MVP votes for this user on ${targetLabel}?`
+      : `Remove all answers for this user on ${targetLabel}?`;
     if (!window.confirm(message)) return;
     setResettingUserId(userFilter);
     clearFeedback();
-    const result = await adminResetUserHalisahaMatchAnswersAction(userFilter, matchFilter, {
+    const result = await adminResetUserHalisahaMatchAnswersAction(userFilter, bulkResetMatchId, {
       deleteMvpVotes: resetAlsoMvp,
     });
     setResettingUserId(null);
@@ -572,16 +604,23 @@ export function HalisahaPredictionManagementClient({
     }
   };
 
+  const openResetMatchConfirmation = () => {
+    if (!selectedResetMatchOption) return;
+    clearFeedback();
+    setResetMatchConfirmText("");
+    setResetMatchConfirmOpen(true);
+  };
+
   const runResetMatch = async () => {
-    if (!matchFilter || !selectedMatchOption) return;
-    const message = `Reset every saved user answer and MVP vote for Round ${selectedMatchOption.roundNumber} (${selectedMatchOption.homeTeamName} vs ${selectedMatchOption.awayTeamName})? Saved answer keys stay in place, but match scoring will reopen.`;
-    if (!window.confirm(message)) return;
+    if (!bulkResetMatchId || !selectedResetMatchOption) return;
     setResettingMatch(true);
     clearFeedback();
-    const result = await adminResetMatchHalisahaAnswersAction(matchFilter);
+    const result = await adminResetMatchHalisahaAnswersAction(bulkResetMatchId);
     setResettingMatch(false);
     if (result.ok) {
       setSuccess(result.message ?? "Match reset.");
+      setResetMatchConfirmOpen(false);
+      setResetMatchConfirmText("");
       router.refresh();
     } else {
       setError(result.error);
@@ -1111,14 +1150,15 @@ export function HalisahaPredictionManagementClient({
           <div>
             <h2 className="text-sm font-semibold text-nord-polar">Bulk reset controls</h2>
             <p className="mt-1 text-xs leading-relaxed text-nord-polarLight">
-              Reset one selected user, wipe every user input on a chosen match, or start a fresh
-              leaderboard season without deleting archived answer history.
+              Reset one selected user, wipe every user input on a chosen round, or start a fresh
+              leaderboard season without deleting archived answer history. The destructive match
+              target below is separate from the History filters selector.
             </p>
           </div>
           <span className="text-xs text-nord-polarLight">
-            {selectedMatchOption
-              ? `Selected round: R${selectedMatchOption.roundNumber}`
-              : "Choose a match below to enable round-wide reset"}
+            {selectedResetMatchOption
+              ? `Reset target: R${selectedResetMatchOption.roundNumber}`
+              : "Choose a round below to enable destructive reset"}
           </span>
         </div>
 
@@ -1134,12 +1174,14 @@ export function HalisahaPredictionManagementClient({
                 </p>
               </div>
               <div className="text-xs text-nord-polarLight sm:text-right">
-                {selectedMatchOption ? (
+                {selectedResetMatchOption ? (
                   <>
                     <div className="font-medium text-nord-polar">
-                      {selectedMatchOption.homeTeamName} vs {selectedMatchOption.awayTeamName}
+                      {selectedResetMatchOption.homeTeamName} vs{" "}
+                      {selectedResetMatchOption.awayTeamName}
                     </div>
-                    <div>Round {selectedMatchOption.roundNumber}</div>
+                    <div>Round {selectedResetMatchOption.roundNumber}</div>
+                    <div>{getMatchLifecycleLabel(selectedResetMatchOption)}</div>
                   </>
                 ) : (
                   <div>No round selected</div>
@@ -1148,6 +1190,24 @@ export function HalisahaPredictionManagementClient({
             </div>
 
             <div className="mt-4 flex flex-col gap-3">
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-medium text-nord-polar">Reset target round</label>
+                <select
+                  value={bulkResetMatchId}
+                  onChange={(event) => setBulkResetMatchId(event.target.value)}
+                  className="rounded-lg border border-nord-polarLighter bg-white px-3 py-2 text-sm text-nord-polar"
+                >
+                  {matchOptions.map((match) => (
+                    <option key={match.id} value={match.id}>
+                      {match.label}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-[11px] leading-relaxed text-nord-polarLight">
+                  This dropdown controls destructive resets directly, so browsing old rounds in the
+                  History filters can no longer silently change the target.
+                </p>
+              </div>
               <label className="flex cursor-pointer items-center gap-2 text-sm text-nord-polar">
                 <input
                   type="checkbox"
@@ -1162,7 +1222,7 @@ export function HalisahaPredictionManagementClient({
                   <Button
                     variant="secondary"
                     size="sm"
-                    disabled={!matchFilter || resettingUserId === userFilter}
+                    disabled={!bulkResetMatchId || resettingUserId === userFilter}
                     onClick={() => void runResetUser()}
                   >
                     {resettingUserId === userFilter
@@ -1173,8 +1233,8 @@ export function HalisahaPredictionManagementClient({
                 <Button
                   variant="danger"
                   size="sm"
-                  disabled={!selectedMatchOption || resettingMatch}
-                  onClick={() => void runResetMatch()}
+                  disabled={!selectedResetMatchOption || resettingMatch}
+                  onClick={openResetMatchConfirmation}
                 >
                   {resettingMatch ? "Resetting…" : "Reset all users on selected match"}
                 </Button>
@@ -1779,6 +1839,45 @@ export function HalisahaPredictionManagementClient({
           )}
         </div>
       </section>
+
+      <Modal
+        open={resetMatchConfirmOpen}
+        onClose={closeResetMatchModal}
+        title="Reset selected Halisaha round?"
+        confirmLabel="Yes, reset this round"
+        cancelLabel="Cancel"
+        variant="danger"
+        onConfirm={() => void runResetMatch()}
+        loading={resettingMatch}
+        confirmDisabled={!canConfirmResetMatch}
+      >
+        {selectedResetMatchOption ? (
+          <>
+            <p>
+              This will remove every saved answer row and MVP vote for{" "}
+              <strong>
+                Round {selectedResetMatchOption.roundNumber} (
+                {selectedResetMatchOption.homeTeamName} vs{" "}
+                {selectedResetMatchOption.awayTeamName})
+              </strong>
+              . Question setup and saved answer keys stay in place, but the round will reopen for
+              scoring.
+            </p>
+            <p className="mt-3">
+              Type <strong>{resetMatchConfirmPhrase}</strong> to confirm.
+            </p>
+            <input
+              type="text"
+              value={resetMatchConfirmText}
+              onChange={(event) => setResetMatchConfirmText(event.target.value)}
+              placeholder={resetMatchConfirmPhrase}
+              className="mt-3 w-full rounded-lg border border-nord-polarLighter bg-white px-3 py-2 text-sm text-nord-polar"
+            />
+          </>
+        ) : (
+          <p>Select a round first.</p>
+        )}
+      </Modal>
 
       <Modal
         open={purgeModalOpen}
