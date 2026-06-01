@@ -29,6 +29,58 @@ export type FetchMatchesResult =
   | { ok: true; matches: ApiMatch[] }
   | { ok: false; error: string };
 
+type FootballDataErrorResponse = ApiMatchesResponse & {
+  error?: number | string;
+  message?: string;
+};
+
+function compactProviderMessage(value: string) {
+  const compacted = value.replace(/\s+/g, " ").trim();
+  return compacted.length > 220 ? `${compacted.slice(0, 217)}...` : compacted;
+}
+
+function formatFootballDataNonJsonError(response: Response, body: string) {
+  const providerMessage = compactProviderMessage(body);
+  const statusLabel = `HTTP ${response.status}${response.statusText ? ` ${response.statusText}` : ""}`;
+
+  return providerMessage
+    ? `football-data.org returned a non-JSON response (${statusLabel}): "${providerMessage}". Check FOOTBALL_DATA_ORG_API_KEY account access, subscription limits, or competition/season permissions.`
+    : `football-data.org returned an empty non-JSON response (${statusLabel}). Check FOOTBALL_DATA_ORG_API_KEY account access, subscription limits, or competition/season permissions.`;
+}
+
+async function readFootballDataResponse(response: Response): Promise<
+  | { ok: true; data: FootballDataErrorResponse }
+  | { ok: false; error: string }
+> {
+  const body = await response.text();
+  if (!body.trim()) {
+    return { ok: true, data: {} };
+  }
+
+  try {
+    return { ok: true, data: JSON.parse(body) as FootballDataErrorResponse };
+  } catch {
+    return { ok: false, error: formatFootballDataNonJsonError(response, body) };
+  }
+}
+
+function getFootballDataErrorMessage(response: Response, data: FootballDataErrorResponse) {
+  return data.message || data.error?.toString() || `HTTP ${response.status}`;
+}
+
+function shouldRetryMatchesWithoutSeason(response: Response, errorMessage: string | undefined) {
+  const normalizedMessage = errorMessage?.toLowerCase() ?? "";
+
+  return (
+    (response.status === 404 && normalizedMessage.includes("does not exist")) ||
+    (response.status === 403 &&
+      (normalizedMessage.includes("season") ||
+        normalizedMessage.includes("restricted") ||
+        normalizedMessage.includes("permission") ||
+        normalizedMessage.includes("subscription")))
+  );
+}
+
 /**
  * Fetch UEFA Champions League matches from football-data.org.
  * Result is based on 90 min + extra time only; penalties are ignored for 1/X/2.
@@ -47,19 +99,40 @@ export async function fetchUclMatches(
 
   // Try with season first; if 404, try without season (some plans return current season by default)
   const urlWithSeason = `${BASE_URL}/competitions/${competitionId}/matches?season=${season}`;
+  const urlNoSeason = `${BASE_URL}/competitions/${competitionId}/matches`;
   try {
     let res = await fetch(urlWithSeason, { headers, next: { revalidate: 0 } });
-    let data = (await res.json()) as ApiMatchesResponse & { error?: number; message?: string };
+    let parsed = await readFootballDataResponse(res);
+    if (!parsed.ok) {
+      if (shouldRetryMatchesWithoutSeason(res, parsed.error)) {
+        res = await fetch(urlNoSeason, { headers, next: { revalidate: 0 } });
+        parsed = await readFootballDataResponse(res);
+        if (!parsed.ok) {
+          return { ok: false, error: parsed.error };
+        }
+        const fallbackData = parsed.data;
+        if (!res.ok) {
+          return { ok: false, error: getFootballDataErrorMessage(res, fallbackData) };
+        }
 
-    if (res.status === 404 && data.message?.toLowerCase().includes("does not exist")) {
-      const urlNoSeason = `${BASE_URL}/competitions/${competitionId}/matches`;
+        return { ok: true, matches: fallbackData.matches ?? [] };
+      }
+
+      return { ok: false, error: parsed.error };
+    }
+    let data = parsed.data;
+
+    if (shouldRetryMatchesWithoutSeason(res, getFootballDataErrorMessage(res, data))) {
       res = await fetch(urlNoSeason, { headers, next: { revalidate: 0 } });
-      data = (await res.json()) as ApiMatchesResponse & { error?: number; message?: string };
+      parsed = await readFootballDataResponse(res);
+      if (!parsed.ok) {
+        return { ok: false, error: parsed.error };
+      }
+      data = parsed.data;
     }
 
     if (!res.ok) {
-      const msg = data.message || data.error?.toString() || `HTTP ${res.status}`;
-      return { ok: false, error: msg };
+      return { ok: false, error: getFootballDataErrorMessage(res, data) };
     }
 
     const matches = data.matches ?? [];
@@ -73,8 +146,9 @@ export async function fetchUclMatches(
 /** Read home/away from API score node (supports homeTeam/awayTeam and legacy home/away) */
 function readHomeAway(obj: { homeTeam?: number | null; awayTeam?: number | null; home?: number | null; away?: number | null } | undefined): { home: number; away: number } | null {
   if (!obj) return null;
-  const home = obj.homeTeam ?? (obj as { home?: number | null }).home ?? 0;
-  const away = obj.awayTeam ?? (obj as { away?: number | null }).away ?? 0;
+  const home = obj.homeTeam ?? obj.home;
+  const away = obj.awayTeam ?? obj.away;
+  if (typeof home !== "number" || typeof away !== "number") return null;
   return { home, away };
 }
 

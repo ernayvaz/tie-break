@@ -213,6 +213,47 @@ function parseRateLimitDelayMs(message: string | undefined): number | null {
   return seconds * 1000 + 1000;
 }
 
+function compactProviderMessage(value: string) {
+  const compacted = value.replace(/\s+/g, " ").trim();
+  return compacted.length > 220 ? `${compacted.slice(0, 217)}...` : compacted;
+}
+
+function formatFootballDataNonJsonError(response: Response, body: string) {
+  const providerMessage = compactProviderMessage(body);
+  const statusLabel = `HTTP ${response.status}${response.statusText ? ` ${response.statusText}` : ""}`;
+
+  return providerMessage
+    ? `football-data.org returned a non-JSON response (${statusLabel}): "${providerMessage}". Check FOOTBALL_DATA_ORG_API_KEY account access, subscription limits, or competition/season permissions.`
+    : `football-data.org returned an empty non-JSON response (${statusLabel}). Check FOOTBALL_DATA_ORG_API_KEY account access, subscription limits, or competition/season permissions.`;
+}
+
+function shouldRetryWithoutSeason(errorMessage: string) {
+  const normalizedMessage = errorMessage.toLowerCase();
+
+  return (
+    normalizedMessage.includes("does not exist") ||
+    normalizedMessage.includes("season") ||
+    normalizedMessage.includes("restricted") ||
+    normalizedMessage.includes("permission") ||
+    normalizedMessage.includes("subscription")
+  );
+}
+
+async function readFootballDataResponse<T extends FootballDataErrorResponse>(
+  response: Response
+): Promise<FootballDataResult<T>> {
+  const body = await response.text();
+  if (!body.trim()) {
+    return { ok: true, data: {} as T };
+  }
+
+  try {
+    return { ok: true, data: JSON.parse(body) as T };
+  } catch {
+    return { ok: false, error: formatFootballDataNonJsonError(response, body) };
+  }
+}
+
 function buildUrl(
   path: string,
   params: Record<string, string | number | undefined>
@@ -252,7 +293,12 @@ async function footballDataRequest<T extends FootballDataErrorResponse>(
       next: { revalidate: 0 },
     });
 
-    const data = (await response.json()) as T;
+    const parsed = await readFootballDataResponse<T>(response);
+    if (!parsed.ok) {
+      return parsed;
+    }
+
+    const data = parsed.data;
     if (!response.ok) {
       const errorMessage =
         data.message || data.error?.toString() || `HTTP ${response.status}`;
@@ -279,7 +325,7 @@ async function footballDataRequest<T extends FootballDataErrorResponse>(
       !firstAttempt.ok &&
       options.fallbackWithoutSeason &&
       params.season !== undefined &&
-      firstAttempt.error.toLowerCase().includes("does not exist")
+      shouldRetryWithoutSeason(firstAttempt.error)
     ) {
       const fallbackParams = { ...params };
       delete fallbackParams.season;

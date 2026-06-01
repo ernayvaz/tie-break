@@ -14,6 +14,7 @@ import {
 } from "@/lib/live-match";
 import { Button, Modal } from "@/components/ui";
 import { PredictionPickDisplay } from "@/components/prediction-pick-display";
+import { WorldCup2026Content } from "@/components/competition-tabs";
 import { MatchCenter, type CenterTab } from "./match-center";
 import { LiveMatchSheet } from "./live-match-sheet";
 import {
@@ -1235,14 +1236,7 @@ export function ScheduleTabs({
               : "text-nord-polarLight hover:text-nord-polar sm:border-transparent"
           }`}
         >
-          <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-nord-polarLighter/60" aria-hidden>
-            <svg className="h-3.5 w-3.5 text-nord-polar" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="12" cy="12" r="10" />
-              <path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
-            </svg>
-          </span>
-          <span className="sm:hidden">Other</span>
-          <span className="hidden sm:inline">Other competitions</span>
+          <WorldCup2026Content />
         </button>
       </div>
       <div className="mt-3 mb-0 grid grid-cols-2 gap-1 rounded-xl border border-nord-polarLighter/30 bg-nord-snow/40 p-1 sm:mt-0 sm:flex sm:gap-0 sm:rounded-none sm:border-0 sm:bg-transparent sm:p-0 sm:border-b sm:border-nord-polarLighter/50">

@@ -10,8 +10,13 @@ import { revalidatePath } from "next/cache";
 export type SyncState = { message?: string; error?: string } | null;
 
 export async function syncMatchesAction(): Promise<SyncState> {
+  await requireAdmin();
+
   const result = await syncMatchesFromApi();
-  if (!result.ok) return { error: result.error };
+  if (!result.ok) {
+    revalidatePath("/admin/api");
+    return { error: result.error };
+  }
 
   const stats = await syncMatchStatisticsCache();
   const recalc = await recalculateAll();
@@ -20,6 +25,10 @@ export async function syncMatchesAction(): Promise<SyncState> {
     : `Match Center cache refresh failed: ${stats.error}.`;
   revalidatePath("/schedule");
   revalidatePath("/admin/matches");
+  revalidatePath("/admin/api");
+  revalidatePath("/admin/predictions");
+  revalidatePath("/leaderboard");
+  revalidatePath("/predictions");
   if (recalc.ok) {
     return {
       message: `Matches synced. ${result.count} match(es) processed. Scores and leaderboard updated (${recalc.leaderboardCount} users). ${statsSummary}`,
@@ -49,7 +58,15 @@ export async function syncHighlightsAction(): Promise<SyncState> {
 export type ScoringState = { message?: string; error?: string } | null;
 
 export async function recalculateScoresAction(): Promise<ScoringState> {
+  await requireAdmin();
+
   const result = await recalculateAll();
+  revalidatePath("/schedule");
+  revalidatePath("/leaderboard");
+  revalidatePath("/predictions");
+  revalidatePath("/admin/predictions");
+  revalidatePath("/admin/scoring");
+
   if (result.ok) {
     return {
       message: `Scores recalculated. ${result.matchesScored} match(es) scored, leaderboard updated (${result.leaderboardCount} users).`,

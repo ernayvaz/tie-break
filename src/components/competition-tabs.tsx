@@ -21,16 +21,33 @@ const UclContent = () => (
   </>
 );
 
-const OtherContent = () => (
-  <>
-    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-nord-polarLighter/60" aria-hidden>
-      <svg className="h-3.5 w-3.5 text-nord-polar" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <circle cx="12" cy="12" r="10" />
-        <path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
-      </svg>
+export const WorldCup2026Logo = () => (
+  <span
+    className="relative flex h-6 w-6 shrink-0 items-center justify-center overflow-hidden rounded-full border border-[#d9c08a]/65 bg-[radial-gradient(circle_at_35%_25%,#fff8dc_0%,#d9c08a_30%,#173f35_64%,#102b27_100%)] shadow-[inset_0_1px_0_rgba(255,255,255,0.45),0_4px_10px_rgba(16,43,39,0.16)]"
+    aria-hidden
+  >
+    <svg
+      className="absolute inset-[0.18rem] text-white/88"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.25"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <circle cx="12" cy="12" r="8.2" />
+      <path d="M4 12h16M12 4a11.2 11.2 0 0 1 2.7 8A11.2 11.2 0 0 1 12 20a11.2 11.2 0 0 1-2.7-8A11.2 11.2 0 0 1 12 4z" />
+    </svg>
+    <span className="relative z-[1] mt-[0.05rem] text-[0.48rem] font-black leading-none tracking-[-0.08em] text-white [text-shadow:0_1px_4px_rgba(0,0,0,0.38)]">
+      26
     </span>
-    <span className="sm:hidden">Other</span>
-    <span className="hidden sm:inline">Diğer</span>
+  </span>
+);
+
+export const WorldCup2026Content = () => (
+  <>
+    <WorldCup2026Logo />
+    <span>World Cup 2026</span>
   </>
 );
 
@@ -64,7 +81,7 @@ export function CompetitionTabs({ currentCompetitionId, basePath }: Props) {
             : "text-nord-polarLight hover:text-nord-polar sm:border-transparent"
         }`}
       >
-        <OtherContent />
+        <WorldCup2026Content />
       </Link>
     </div>
   );
@@ -102,7 +119,7 @@ export function CompetitionTabsClient({ currentCompetitionId, onSelect }: Client
             : "text-nord-polarLight hover:text-nord-polar sm:border-transparent"
         }`}
       >
-        <OtherContent />
+        <WorldCup2026Content />
       </button>
     </div>
   );

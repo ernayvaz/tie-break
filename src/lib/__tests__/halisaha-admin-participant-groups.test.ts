@@ -5,20 +5,22 @@ import { groupHalisahaAdminParticipantsByTeam } from "@/lib/halisaha/admin-parti
 function createParticipant(
   overrides: Partial<HalisahaAdminParticipantRow> & Pick<HalisahaAdminParticipantRow, "id" | "displayName">,
 ): HalisahaAdminParticipantRow {
+  const { id, displayName, ...rest } = overrides;
+
   return {
-    id: overrides.id,
+    id,
     userId: null,
     guestId: null,
     guestName: null,
-    defaultDisplayName: overrides.displayName,
+    defaultDisplayName: displayName,
     displayNameOverride: null,
-    displayName: overrides.displayName,
+    displayName,
     isGuest: false,
     teamSide: null,
     positionKey: null,
     positionLabel: null,
     displayOrder: 0,
-    ...overrides,
+    ...rest,
   };
 }
 
