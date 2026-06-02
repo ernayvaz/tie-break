@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/db";
 import type { AuthUser } from "@/lib/auth/get-user";
 import { getLeaderboardStatsForUser } from "@/lib/scoring";
-import { UCL_COMPETITION_ID, OTHER_COMPETITION_ID } from "@/lib/config";
+import { normalizeCompetitionId, UCL_COMPETITION_ID } from "@/lib/config";
 import { toDisplay } from "@/lib/prediction-values";
 
 export type RecentPredictionStatus = "correct" | "incorrect" | "pending";
@@ -231,5 +231,5 @@ export async function getLeaderboardBoardData(
 }
 
 export function normalizeLeaderboardCompetitionId(input?: string) {
-  return input === OTHER_COMPETITION_ID ? OTHER_COMPETITION_ID : UCL_COMPETITION_ID;
+  return normalizeCompetitionId(input);
 }

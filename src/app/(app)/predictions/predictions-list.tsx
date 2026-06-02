@@ -4,7 +4,8 @@ import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button, Modal } from "@/components/ui";
-import { CompetitionTabsClient, UCL_ID } from "@/components/competition-tabs";
+import { CompetitionTabsClient } from "@/components/competition-tabs";
+import { DEFAULT_COMPETITION_ID, UCL_COMPETITION_ID } from "@/lib/config";
 import { PredictionPickDisplay } from "@/components/prediction-pick-display";
 import { unfinalizePredictionAction, resetAllPredictionsAction } from "./actions";
 
@@ -57,7 +58,7 @@ export function PredictionsList({
   isAdmin?: boolean;
 }) {
   const router = useRouter();
-  const [competitionId, setCompetitionId] = useState<string>(UCL_ID);
+  const [competitionId, setCompetitionId] = useState<string>(DEFAULT_COMPETITION_ID);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [outcomeFilter, setOutcomeFilter] = useState<OutcomeFilter>("all");
   const [actionError, setActionError] = useState<string | null>(null);
@@ -66,10 +67,12 @@ export function PredictionsList({
   const [resetting, setResetting] = useState(false);
 
   const predictionsByCompetition = useMemo(() => {
-    if (competitionId === UCL_ID) {
-      return predictions.filter((p) => p.match.competitionId === UCL_ID || p.match.competitionId == null);
+    if (competitionId === UCL_COMPETITION_ID) {
+      return predictions.filter(
+        (p) => p.match.competitionId === UCL_COMPETITION_ID || p.match.competitionId == null,
+      );
     }
-    return predictions.filter((p) => p.match.competitionId != null && p.match.competitionId !== UCL_ID);
+    return predictions.filter((p) => p.match.competitionId === competitionId);
   }, [predictions, competitionId]);
 
   const filteredPredictions = useMemo(() => {

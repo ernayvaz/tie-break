@@ -6,6 +6,10 @@ import { requireAdmin } from "@/lib/auth/get-user";
 import { syncMatchStatisticsCache } from "@/lib/api/sync-match-stats";
 import { resolveUclFixtureLink } from "@/lib/api/ucl-match-linking";
 import { scoreMatch, rebuildLeaderboard } from "@/lib/scoring";
+import {
+  DEFAULT_COMPETITION_ID,
+  normalizeCompetitionId,
+} from "@/lib/config";
 import { fromDisplay, isValidDisplay } from "@/lib/prediction-values";
 import type { PredictionDisplay } from "@/lib/prediction-values";
 import { revalidatePath } from "next/cache";
@@ -92,6 +96,7 @@ export async function setMatchResultAction(
 }
 
 export async function createMatchAction(data: {
+  competitionId?: string | null;
   stage: string;
   matchDatetime: string;
   homeTeamName: string;
@@ -99,6 +104,7 @@ export async function createMatchAction(data: {
   lockAt?: string | null;
 }): Promise<MatchActionState> {
   const admin = await requireAdmin();
+  const competitionId = normalizeCompetitionId(data.competitionId ?? DEFAULT_COMPETITION_ID);
   const stage = data.stage.trim();
   const homeTeamName = data.homeTeamName.trim();
   const awayTeamName = data.awayTeamName.trim();
@@ -112,7 +118,7 @@ export async function createMatchAction(data: {
 
   const match = await prisma.match.create({
     data: {
-      competitionId: "CL",
+      competitionId,
       stage,
       matchDatetime,
       homeTeamName,

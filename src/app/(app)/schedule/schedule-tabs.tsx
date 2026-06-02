@@ -14,7 +14,11 @@ import {
 } from "@/lib/live-match";
 import { Button, Modal } from "@/components/ui";
 import { PredictionPickDisplay } from "@/components/prediction-pick-display";
-import { WorldCup2026Content } from "@/components/competition-tabs";
+import { CompetitionTabsClient } from "@/components/competition-tabs";
+import {
+  DEFAULT_COMPETITION_ID,
+  UCL_COMPETITION_ID,
+} from "@/lib/config";
 import { MatchCenter, type CenterTab } from "./match-center";
 import { LiveMatchSheet } from "./live-match-sheet";
 import {
@@ -27,7 +31,6 @@ import {
   resetPastPredictionsAction,
 } from "./actions";
 
-const UCL_ID = "CL";
 const MATCH_CENTER_TAB_STORAGE_KEY = "tie-break-match-center-tabs";
 const SCHEDULE_DISPLAY_TIME_ZONE = "Europe/Istanbul";
 
@@ -177,7 +180,7 @@ export function ScheduleTabs({
   liveByMatchId = {},
   isAdmin = false,
 }: Props) {
-  const [competitionTab, setCompetitionTab] = useState<"ucl" | "other">("ucl");
+  const [competitionId, setCompetitionId] = useState<string>(DEFAULT_COMPETITION_ID);
   const [activeTab, setActiveTab] = useState<"upcoming" | "past">("upcoming");
   const [filterStage, setFilterStage] = useState<string>("");
   const [filterTeam, setFilterTeam] = useState<string>("");
@@ -269,11 +272,13 @@ export function ScheduleTabs({
   const userPredictionByMatch = localPredictions;
 
   const matchesByCompetition = useMemo(() => {
-    if (competitionTab === "ucl") {
-      return matches.filter((m) => m.competitionId === UCL_ID);
+    if (competitionId === UCL_COMPETITION_ID) {
+      return matches.filter(
+        (m) => m.competitionId === UCL_COMPETITION_ID || m.competitionId == null,
+      );
     }
-    return matches.filter((m) => m.competitionId !== UCL_ID);
-  }, [matches, competitionTab]);
+    return matches.filter((m) => m.competitionId === competitionId);
+  }, [matches, competitionId]);
 
   /** Aynı tarihli maçlarda sıra sabit kalsın diye önce matchDatetime sonra id ile sırala. */
   const sortByDatetimeAsc = useCallback((a: ScheduleMatch, b: ScheduleMatch) => {
@@ -1207,38 +1212,14 @@ export function ScheduleTabs({
           {actionError}
         </div>
       )}
-      {/* Competition / league tabs */}
-      <div className="mb-0 grid grid-cols-2 gap-1 rounded-xl border border-nord-polarLighter/30 bg-nord-snow/60 p-1 sm:flex sm:gap-0 sm:rounded-none sm:border-0 sm:bg-transparent sm:p-0 sm:border-b sm:border-nord-polarLighter/50">
-        <button
-          type="button"
-          onClick={() => { setCompetitionTab("ucl"); setActiveTab("upcoming"); resetFilters(); }}
-          className={`flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors sm:rounded-none sm:px-4 sm:py-3 sm:border-b-2 sm:-mb-px ${
-            competitionTab === "ucl"
-              ? "bg-white text-nord-polar shadow-sm sm:bg-transparent sm:shadow-none sm:border-nord-frostDark"
-              : "text-nord-polarLight hover:text-nord-polar sm:border-transparent"
-          }`}
-        >
-          {/* eslint-disable-next-line @next/next/no-img-element -- external league logo */}
-          <img
-            src="https://upload.wikimedia.org/wikipedia/en/f/f5/UEFA_Champions_League.svg"
-            alt=""
-            className="h-6 w-6 shrink-0 object-contain"
-          />
-          <span className="sm:hidden">UCL</span>
-          <span className="hidden sm:inline">UEFA Champions League</span>
-        </button>
-        <button
-          type="button"
-          onClick={() => { setCompetitionTab("other"); setActiveTab("upcoming"); resetFilters(); }}
-          className={`flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors sm:rounded-none sm:px-4 sm:py-3 sm:border-b-2 sm:-mb-px ${
-            competitionTab === "other"
-              ? "bg-white text-nord-polar shadow-sm sm:bg-transparent sm:shadow-none sm:border-nord-frostDark"
-              : "text-nord-polarLight hover:text-nord-polar sm:border-transparent"
-          }`}
-        >
-          <WorldCup2026Content />
-        </button>
-      </div>
+      <CompetitionTabsClient
+        currentCompetitionId={competitionId}
+        onSelect={(nextCompetitionId) => {
+          setCompetitionId(nextCompetitionId);
+          setActiveTab("upcoming");
+          resetFilters();
+        }}
+      />
       <div className="mt-3 mb-0 grid grid-cols-2 gap-1 rounded-xl border border-nord-polarLighter/30 bg-nord-snow/40 p-1 sm:mt-0 sm:flex sm:gap-0 sm:rounded-none sm:border-0 sm:bg-transparent sm:p-0 sm:border-b sm:border-nord-polarLighter/50">
         <button
           type="button"

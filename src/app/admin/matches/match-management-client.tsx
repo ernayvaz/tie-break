@@ -5,6 +5,11 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button, Modal, Input } from "@/components/ui";
 import {
+  COMPETITIONS,
+  DEFAULT_COMPETITION_ID,
+  UCL_COMPETITION_ID,
+} from "@/lib/config";
+import {
   setMatchResultAction,
   createMatchAction,
   updateMatchAction,
@@ -61,7 +66,7 @@ function displayResult(v: string | null): string {
 export function MatchManagementClient({ matches }: { matches: MatchRow[] }) {
   const router = useRouter();
   const now = useMemo(() => new Date(), []);
-  const [leagueFilter, setLeagueFilter] = useState<string>(""); // "" = all, "CL" = UCL, "other" = Other competitions
+  const [leagueFilter, setLeagueFilter] = useState<string>("");
   const [stageFilter, setStageFilter] = useState<string>("");
   const [timeFilter, setTimeFilter] = useState<"all" | "upcoming" | "past">("all");
   const [error, setError] = useState<string | null>(null);
@@ -77,8 +82,20 @@ export function MatchManagementClient({ matches }: { matches: MatchRow[] }) {
 
   const filteredMatches = useMemo(() => {
     return matches.filter((m) => {
-      if (leagueFilter === "CL" && m.competitionId !== "CL" && m.competitionId != null) return false;
-      if (leagueFilter === "other" && (m.competitionId === "CL" || m.competitionId == null)) return false;
+      if (
+        leagueFilter === UCL_COMPETITION_ID &&
+        m.competitionId !== UCL_COMPETITION_ID &&
+        m.competitionId != null
+      ) {
+        return false;
+      }
+      if (
+        leagueFilter &&
+        leagueFilter !== UCL_COMPETITION_ID &&
+        m.competitionId !== leagueFilter
+      ) {
+        return false;
+      }
       if (stageFilter && m.stage !== stageFilter) return false;
       const dt = new Date(m.matchDatetime).getTime();
       if (timeFilter === "upcoming" && dt < now.getTime()) return false;
@@ -138,6 +155,8 @@ export function MatchManagementClient({ matches }: { matches: MatchRow[] }) {
   };
 
   const handleCreate = (form: FormData) => {
+    const competitionId =
+      (form.get("competitionId") as string)?.trim() || DEFAULT_COMPETITION_ID;
     const stage = (form.get("stage") as string)?.trim();
     const matchDatetime = form.get("matchDatetime") as string;
     const homeTeamName = (form.get("homeTeamName") as string)?.trim();
@@ -148,7 +167,15 @@ export function MatchManagementClient({ matches }: { matches: MatchRow[] }) {
       return;
     }
     runAction(
-      () => createMatchAction({ stage, matchDatetime, homeTeamName, awayTeamName, lockAt: lockAt || null }),
+      () =>
+        createMatchAction({
+          competitionId,
+          stage,
+          matchDatetime,
+          homeTeamName,
+          awayTeamName,
+          lockAt: lockAt || null,
+        }),
       () => setCreateModal(false)
     );
   };
@@ -214,15 +241,18 @@ export function MatchManagementClient({ matches }: { matches: MatchRow[] }) {
           Create match
         </Button>
         <div className="flex items-center gap-2">
-          <label className="text-sm font-medium text-nord-polar">League:</label>
+          <label className="text-sm font-medium text-nord-polar">Tournament:</label>
           <select
             value={leagueFilter}
             onChange={(e) => setLeagueFilter(e.target.value)}
             className="rounded-lg border border-nord-polarLighter bg-white px-3 py-2 text-sm text-nord-polar"
           >
-            <option value="">All leagues</option>
-            <option value="CL">UEFA Champions League</option>
-            <option value="other">Other competitions</option>
+            <option value="">All tournaments</option>
+            {COMPETITIONS.map((competition) => (
+              <option key={competition.id} value={competition.id}>
+                {competition.label}
+              </option>
+            ))}
           </select>
         </div>
         <div className="flex items-center gap-2">
@@ -405,6 +435,20 @@ export function MatchManagementClient({ matches }: { matches: MatchRow[] }) {
         loading={busy}
       >
         <form id="create-match-form" className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-nord-polar mb-1">Tournament</label>
+            <select
+              name="competitionId"
+              defaultValue={DEFAULT_COMPETITION_ID}
+              className="w-full rounded-lg border border-nord-polarLighter bg-white px-3 py-2 text-sm text-nord-polar"
+            >
+              {COMPETITIONS.map((competition) => (
+                <option key={competition.id} value={competition.id}>
+                  {competition.label}
+                </option>
+              ))}
+            </select>
+          </div>
           <div>
             <label className="block text-sm font-medium text-nord-polar mb-1">Stage</label>
             <select name="stage" required className="w-full rounded-lg border border-nord-polarLighter bg-white px-3 py-2 text-sm text-nord-polar">

@@ -4,7 +4,11 @@ import { prisma } from "@/lib/db";
 import { requireAuth } from "@/lib/auth/get-user";
 import { PageHeroBand } from "@/components/page-hero-band";
 import { HighlightMediaShell } from "@/components/highlights/highlight-media-shell";
-import { OTHER_COMPETITION_ID, UCL_COMPETITION_ID } from "@/lib/config";
+import {
+  getCompetitionLabel,
+  normalizeCompetitionId,
+  UCL_COMPETITION_ID,
+} from "@/lib/config";
 import {
   formatHighlightSeason,
   formatHighlightStage,
@@ -27,24 +31,23 @@ function getCompetitionBucket(
   competitionId: string | null,
   competition?: string
 ) {
-  if (competition === OTHER_COMPETITION_ID) {
-    return OTHER_COMPETITION_ID;
-  }
-
-  return competitionId != null && competitionId !== UCL_COMPETITION_ID
-    ? OTHER_COMPETITION_ID
-    : UCL_COMPETITION_ID;
+  return normalizeCompetitionId(competition ?? competitionId ?? UCL_COMPETITION_ID);
 }
 
 function normalizeCompetitionLabel(
   competitionLabel: string,
   competitionId: string | null
 ) {
+  const configuredLabel = getCompetitionLabel(competitionId);
+  if (competitionId && configuredLabel !== competitionId) {
+    return configuredLabel;
+  }
+
   if (
     competitionId === UCL_COMPETITION_ID ||
     competitionLabel.toLowerCase().includes("champions league")
   ) {
-    return "Champions League";
+    return getCompetitionLabel(UCL_COMPETITION_ID);
   }
 
   const beforeStage = competitionLabel.split(",")[0] ?? competitionLabel;
@@ -110,11 +113,11 @@ export default async function HighlightDetailPage({
             "A focused screening room for a single Champions League recap, with the player, fixture note and archive details kept on one premium surface.",
         }
       : {
-          eyebrow: "Open Archive",
-          backLabel: "Back to Other competitions",
-          backHref: `/highlights?competition=${OTHER_COMPETITION_ID}`,
+          eyebrow: "Tournament Archive",
+          backLabel: `Back to ${competitionLabel} highlights`,
+          backHref: `/highlights?competition=${competitionBucket}`,
           description:
-            "A focused screening room for a non-Champions-League replay, kept inside the wider archive lane so every future tournament can feel editorial rather than generic.",
+            "A focused screening room for this tournament replay, kept inside its own archive lane so competitions do not mix.",
         };
   const activeClipId =
     highlight.clips.find((clip) => clip.id === clipId)?.id ??

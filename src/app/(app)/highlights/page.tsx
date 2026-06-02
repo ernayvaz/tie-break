@@ -12,7 +12,11 @@ import {
   formatHighlightStage,
   getStageSortValue,
 } from "@/lib/highlights/presentation";
-import { OTHER_COMPETITION_ID, UCL_COMPETITION_ID } from "@/lib/config";
+import {
+  getCompetitionLabel,
+  normalizeCompetitionId,
+  UCL_COMPETITION_ID,
+} from "@/lib/config";
 
 const STAGE_ROOM_ORDER = [
   "FINAL",
@@ -63,11 +67,16 @@ function normalizeCompetitionLabel(
   competitionLabel: string,
   competitionId: string | null
 ) {
+  const configuredLabel = getCompetitionLabel(competitionId);
+  if (competitionId && configuredLabel !== competitionId) {
+    return configuredLabel;
+  }
+
   if (
     competitionId === UCL_COMPETITION_ID ||
     competitionLabel.toLowerCase().includes("champions league")
   ) {
-    return "Champions League";
+    return getCompetitionLabel(UCL_COMPETITION_ID);
   }
 
   const beforeStage = competitionLabel.split(",")[0] ?? competitionLabel;
@@ -79,9 +88,7 @@ function normalizeCompetitionLabel(
 }
 
 function getCompetitionBucket(competition?: string) {
-  return competition === OTHER_COMPETITION_ID
-    ? OTHER_COMPETITION_ID
-    : UCL_COMPETITION_ID;
+  return normalizeCompetitionId(competition);
 }
 
 function belongsToCompetitionBucket(
@@ -92,15 +99,13 @@ function belongsToCompetitionBucket(
     return competitionId === UCL_COMPETITION_ID || competitionId == null;
   }
 
-  return competitionId != null && competitionId !== UCL_COMPETITION_ID;
+  return competitionId === currentCompetitionId;
 }
 
 function buildHighlightHref(matchId: string, competitionId: string | null) {
-  const bucket = belongsToCompetitionBucket(competitionId, OTHER_COMPETITION_ID)
-    ? OTHER_COMPETITION_ID
-    : UCL_COMPETITION_ID;
-
-  return `/highlights/${matchId}?competition=${bucket}`;
+  return `/highlights/${matchId}?competition=${normalizeCompetitionId(
+    competitionId ?? UCL_COMPETITION_ID,
+  )}`;
 }
 
 function toHighlightCardModel(input: Awaited<ReturnType<typeof fetchHighlights>>[number]): HubHighlightModel {
@@ -230,6 +235,7 @@ export default async function HighlightsPage({ searchParams }: Props) {
     }
   }
   const isUclView = currentCompetitionId === UCL_COMPETITION_ID;
+  const currentCompetitionLabel = getCompetitionLabel(currentCompetitionId);
   const archive = remaining.filter((item) =>
     isUclView
       ? !stageArchiveIds.has(item.matchId)
@@ -253,13 +259,13 @@ export default async function HighlightsPage({ searchParams }: Props) {
         ],
       }
     : {
-        eyebrow: "Open Archive",
-        title: "Other competition highlights",
+        eyebrow: "Tournament Archive",
+        title: `${currentCompetitionLabel} highlights`,
         description:
-          "A second premium lane reserved for every non-Champions-League tournament, organized into competition salons so new tournaments can slot in without breaking the editorial rhythm.",
+          "A dedicated premium lane for this tournament, organized so new competitions can slot in without mixing archives.",
         highlightCards: [
           {
-            label: "Competition salons",
+            label: "Tournament sections",
             value: `${competitionSections.length} tournament group${competitionSections.length === 1 ? "" : "s"}`,
           },
           {
@@ -288,12 +294,12 @@ export default async function HighlightsPage({ searchParams }: Props) {
           title={
             isUclView
               ? "No highlights have been synced yet"
-              : "The second lane is ready for new tournaments"
+              : `${currentCompetitionLabel} highlights are ready for sync`
           }
           description={
             isUclView
               ? "Run the Champions League highlights sync from the admin API page. Once recaps are stored, European Nights will surface them here automatically."
-              : "As soon as another competition is synced, it will open here inside its own competition salon. Champions League remains curated separately in European Nights."
+              : "As soon as highlights for this tournament are synced, they will appear here without mixing with other competitions."
           }
         />
       ) : (
@@ -311,7 +317,7 @@ export default async function HighlightsPage({ searchParams }: Props) {
             : competitionSections.map((section) => (
                 <StageSection
                   key={section.key}
-                  eyebrowLabel="Competition salon"
+                  eyebrowLabel="Tournament section"
                   title={section.title}
                   description={section.description}
                   items={section.items}
@@ -322,16 +328,16 @@ export default async function HighlightsPage({ searchParams }: Props) {
               <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
                 <div>
                   <span className="inline-flex rounded-full border border-nord-frostDark/12 bg-white/75 px-3 py-1 text-[10px] font-medium uppercase tracking-[0.18em] text-nord-frostDark">
-                    {isUclView ? "Archive" : "Mixed archive"}
+                    {isUclView ? "Archive" : "Archive"}
                   </span>
                   <h2 className="mt-3 text-2xl font-semibold tracking-tight text-nord-polar">
-                    {isUclView ? "Historical screenings" : "Extended competition library"}
+                    {isUclView ? "Historical screenings" : `${currentCompetitionLabel} archive`}
                   </h2>
                 </div>
                 {!isUclView ? (
                   <p className="max-w-2xl text-sm leading-6 text-nord-polarLight">
-                    Everything that sits outside the lead salons still remains accessible here, so
-                    the Others lane can grow without becoming noisy.
+                    Everything that sits outside the lead sections remains accessible here, so
+                    this tournament archive can grow without becoming noisy.
                   </p>
                 ) : null}
               </div>

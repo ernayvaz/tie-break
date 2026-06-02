@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { PredictionPickDisplay } from "@/components/prediction-pick-display";
 import { Button, Card, CardContent } from "@/components/ui";
+import { COMPETITIONS, UCL_COMPETITION_ID } from "@/lib/config";
 import {
   applyAdminPredictionHistoryFilters,
   buildAdminPredictionHistorySummary,
@@ -200,8 +201,12 @@ export function PredictionManagementClient({
 
   const matchOptionsFilteredByLeague = useMemo(() => {
     if (!leagueFilter) return matchOptions;
-    if (leagueFilter === "CL") return matchOptions.filter((m) => m.competitionId === "CL" || m.competitionId == null);
-    return matchOptions.filter((m) => m.competitionId != null && m.competitionId !== "CL");
+    if (leagueFilter === UCL_COMPETITION_ID) {
+      return matchOptions.filter(
+        (m) => m.competitionId === UCL_COMPETITION_ID || m.competitionId == null,
+      );
+    }
+    return matchOptions.filter((m) => m.competitionId === leagueFilter);
   }, [matchOptions, leagueFilter]);
 
   const selectedUser = useMemo(
@@ -474,7 +479,7 @@ export function PredictionManagementClient({
 
         <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-nord-polar">League</label>
+            <label className="text-xs font-medium text-nord-polar">Tournament</label>
             <select
               value={leagueFilter}
               onChange={(e) =>
@@ -482,9 +487,12 @@ export function PredictionManagementClient({
               }
               className="rounded-lg border border-nord-polarLighter bg-white px-3 py-2 text-sm text-nord-polar"
             >
-              <option value="">All leagues</option>
-              <option value="CL">UEFA Champions League</option>
-              <option value="other">Other competitions</option>
+              <option value="">All tournaments</option>
+              {COMPETITIONS.map((competition) => (
+                <option key={competition.id} value={competition.id}>
+                  {competition.label}
+                </option>
+              ))}
             </select>
           </div>
 

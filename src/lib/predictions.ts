@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { UCL_COMPETITION_ID } from "@/lib/config";
 import { fromDisplay, toDisplay, type PredictionDisplay } from "@/lib/prediction-values";
 import type { Match } from "@prisma/client";
 
@@ -166,7 +167,9 @@ export async function resetAllPredictions(
     ok: true,
     count: toUnfinalize.length,
     matchIds: toUnfinalize.map((p) => p.matchId),
-    competitionIds: [...new Set(toUnfinalize.map((p) => p.match.competitionId ?? "CL"))],
+    competitionIds: [
+      ...new Set(toUnfinalize.map((p) => p.match.competitionId ?? UCL_COMPETITION_ID)),
+    ],
   };
 }
 
@@ -205,7 +208,9 @@ export async function resetAllPredictionsUpcoming(
     ok: true,
     count: predictions.length,
     matchIds: predictions.map((p) => p.matchId),
-    competitionIds: [...new Set(predictions.map((p) => p.match.competitionId ?? "CL"))],
+    competitionIds: [
+      ...new Set(predictions.map((p) => p.match.competitionId ?? UCL_COMPETITION_ID)),
+    ],
   };
 }
 
@@ -244,7 +249,9 @@ export async function resetAllPredictionsPast(
     ok: true,
     count: predictions.length,
     matchIds: predictions.map((p) => p.matchId),
-    competitionIds: [...new Set(predictions.map((p) => p.match.competitionId ?? "CL"))],
+    competitionIds: [
+      ...new Set(predictions.map((p) => p.match.competitionId ?? UCL_COMPETITION_ID)),
+    ],
   };
 }
 

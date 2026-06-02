@@ -3,6 +3,7 @@
 import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { Button, Modal, Input } from "@/components/ui";
+import { COMPETITIONS, getCompetitionLabel } from "@/lib/config";
 import {
   createPrizeAction,
   updatePrizeAction,
@@ -17,14 +18,14 @@ export type PrizeRow = {
   description: string | null;
 };
 
-const LEAGUE_OPTIONS = [
-  { value: "CL", label: "UEFA Champions League" },
-  { value: "OTHER", label: "Diğer" },
-] as const;
+const LEAGUE_OPTIONS = COMPETITIONS.map((competition) => ({
+  value: competition.id,
+  label: competition.label,
+}));
 
 export function PrizeManagementClient({ prizes }: { prizes: PrizeRow[] }) {
   const router = useRouter();
-  const [leagueFilter, setLeagueFilter] = useState<string>(""); // "" = all, "CL", "OTHER"
+  const [leagueFilter, setLeagueFilter] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -53,7 +54,7 @@ export function PrizeManagementClient({ prizes }: { prizes: PrizeRow[] }) {
     } else setError(result.error);
   };
 
-  const leagueLabel = (id: string) => LEAGUE_OPTIONS.find((o) => o.value === id)?.label ?? id;
+  const leagueLabel = (id: string) => getCompetitionLabel(id);
 
   return (
     <div className="mt-6">
@@ -156,7 +157,7 @@ export function PrizeManagementClient({ prizes }: { prizes: PrizeRow[] }) {
           const form = document.getElementById("create-prize-form");
           if (form && form instanceof HTMLFormElement) {
             const fd = new FormData(form);
-            const competitionId = (fd.get("competitionId") as string) || "CL";
+            const competitionId = (fd.get("competitionId") as string) || COMPETITIONS[0].id;
             const place = parseInt(String(fd.get("place")), 10);
             const title = (fd.get("title") as string)?.trim();
             const description = (fd.get("description") as string)?.trim() || null;

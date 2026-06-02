@@ -1,14 +1,19 @@
 "use client";
 
 import Link from "next/link";
+import {
+  COMPETITIONS,
+  UCL_COMPETITION_ID,
+  WORLD_CUP_2026_COMPETITION_ID,
+} from "@/lib/config";
 
-export const UCL_ID = "CL";
-export const OTHER_ID = "OTHER";
+export const UCL_ID = UCL_COMPETITION_ID;
+export const WORLD_CUP_2026_ID = WORLD_CUP_2026_COMPETITION_ID;
 
 const tabClass =
   "flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors sm:rounded-none sm:px-4 sm:py-3 sm:border-b-2 sm:-mb-px";
 
-const UclContent = () => (
+const UclContent = ({ label }: { label: string }) => (
   <>
     {/* eslint-disable-next-line @next/next/no-img-element -- external league logo */}
     <img
@@ -17,7 +22,7 @@ const UclContent = () => (
       className="h-6 w-6 shrink-0 object-contain"
     />
     <span className="sm:hidden">UCL</span>
-    <span className="hidden sm:inline">UEFA Champions League</span>
+    <span className="hidden sm:inline">{label}</span>
   </>
 );
 
@@ -51,6 +56,22 @@ export const WorldCup2026Content = () => (
   </>
 );
 
+function CompetitionTabContent({
+  competition,
+}: {
+  competition: { id: string; label: string };
+}) {
+  if (competition.id === UCL_COMPETITION_ID) {
+    return <UclContent label={competition.label} />;
+  }
+
+  if (competition.id === WORLD_CUP_2026_COMPETITION_ID) {
+    return <WorldCup2026Content />;
+  }
+
+  return <span>{competition.label}</span>;
+}
+
 /** Link-based tabs for Leaderboard (URL-driven). */
 type Props = {
   currentCompetitionId: string;
@@ -58,31 +79,24 @@ type Props = {
 };
 
 export function CompetitionTabs({ currentCompetitionId, basePath }: Props) {
-  const isUcl = currentCompetitionId === UCL_ID;
-  const isOther = currentCompetitionId === OTHER_ID;
-
   return (
     <div className="mb-0 grid grid-cols-2 gap-1 rounded-xl border border-nord-polarLighter/30 bg-nord-snow/60 p-1 sm:flex sm:gap-0 sm:rounded-none sm:border-0 sm:bg-transparent sm:p-0 sm:border-b sm:border-nord-polarLighter/50">
-      <Link
-        href={`${basePath}?competition=${UCL_ID}`}
-        className={`${tabClass} ${
-          isUcl
-            ? "bg-white text-nord-polar shadow-sm sm:bg-transparent sm:shadow-none sm:border-nord-frostDark"
-            : "text-nord-polarLight hover:text-nord-polar sm:border-transparent"
-        }`}
-      >
-        <UclContent />
-      </Link>
-      <Link
-        href={`${basePath}?competition=${OTHER_ID}`}
-        className={`${tabClass} ${
-          isOther
-            ? "bg-white text-nord-polar shadow-sm sm:bg-transparent sm:shadow-none sm:border-nord-frostDark"
-            : "text-nord-polarLight hover:text-nord-polar sm:border-transparent"
-        }`}
-      >
-        <WorldCup2026Content />
-      </Link>
+      {COMPETITIONS.map((competition) => {
+        const isActive = currentCompetitionId === competition.id;
+        return (
+          <Link
+            key={competition.id}
+            href={`${basePath}?competition=${competition.id}`}
+            className={`${tabClass} ${
+              isActive
+                ? "bg-white text-nord-polar shadow-sm sm:bg-transparent sm:shadow-none sm:border-nord-frostDark"
+                : "text-nord-polarLight hover:text-nord-polar sm:border-transparent"
+            }`}
+          >
+            <CompetitionTabContent competition={competition} />
+          </Link>
+        );
+      })}
     </div>
   );
 }
@@ -94,33 +108,25 @@ type ClientProps = {
 };
 
 export function CompetitionTabsClient({ currentCompetitionId, onSelect }: ClientProps) {
-  const isUcl = currentCompetitionId === UCL_ID;
-  const isOther = currentCompetitionId === OTHER_ID;
-
   return (
     <div className="mb-0 grid grid-cols-2 gap-1 rounded-xl border border-nord-polarLighter/30 bg-nord-snow/60 p-1 sm:flex sm:gap-0 sm:rounded-none sm:border-0 sm:bg-transparent sm:p-0 sm:border-b sm:border-nord-polarLighter/50">
-      <button
-        type="button"
-        onClick={() => onSelect(UCL_ID)}
-        className={`${tabClass} ${
-          isUcl
-            ? "bg-white text-nord-polar shadow-sm sm:bg-transparent sm:shadow-none sm:border-nord-frostDark"
-            : "text-nord-polarLight hover:text-nord-polar sm:border-transparent"
-        }`}
-      >
-        <UclContent />
-      </button>
-      <button
-        type="button"
-        onClick={() => onSelect(OTHER_ID)}
-        className={`${tabClass} ${
-          isOther
-            ? "bg-white text-nord-polar shadow-sm sm:bg-transparent sm:shadow-none sm:border-nord-frostDark"
-            : "text-nord-polarLight hover:text-nord-polar sm:border-transparent"
-        }`}
-      >
-        <WorldCup2026Content />
-      </button>
+      {COMPETITIONS.map((competition) => {
+        const isActive = currentCompetitionId === competition.id;
+        return (
+          <button
+            key={competition.id}
+            type="button"
+            onClick={() => onSelect(competition.id)}
+            className={`${tabClass} ${
+              isActive
+                ? "bg-white text-nord-polar shadow-sm sm:bg-transparent sm:shadow-none sm:border-nord-frostDark"
+                : "text-nord-polarLight hover:text-nord-polar sm:border-transparent"
+            }`}
+          >
+            <CompetitionTabContent competition={competition} />
+          </button>
+        );
+      })}
     </div>
   );
 }

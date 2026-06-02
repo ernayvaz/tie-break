@@ -29,7 +29,7 @@ export default async function AdminPrizesPage() {
     <div>
       <h1 className="text-xl font-semibold text-nord-polar">Prize Management</h1>
       <p className="mt-2 text-sm text-nord-polarLight">
-        Set prizes per league (UEFA Champions League / Diğer). These are shown on the Leaderboard and Rules & prizes pages. Each league can have its own place 1, 2, 3, etc.
+        Set prizes per tournament. These are shown on the Leaderboard and Rules & prizes pages. Each tournament can have its own place 1, 2, 3, etc.
       </p>
       <PrizeManagementClient prizes={rows} />
     </div>

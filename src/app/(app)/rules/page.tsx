@@ -1,14 +1,10 @@
 import { prisma } from "@/lib/db";
-import { UCL_COMPETITION_ID, OTHER_COMPETITION_ID } from "@/lib/config";
+import { COMPETITIONS, getCompetitionLabel } from "@/lib/config";
 import { RulesPremiumDocument } from "./rules-premium-document";
 
 /** Bust any static caching of this page in edge/CDN during deploys. */
 export const dynamic = "force-dynamic";
 
-const LEAGUE_LABELS: Record<string, string> = {
-  [UCL_COMPETITION_ID]: "UEFA Champions League",
-  [OTHER_COMPETITION_ID]: "Diğer",
-};
 export default async function RulesPage() {
   const prizes = await prisma.prize.findMany({ orderBy: [{ competitionId: "asc" }, { place: "asc" }] });
   const prizesByLeague = prizes.reduce<Record<string, typeof prizes>>((acc, p) => {
@@ -101,14 +97,14 @@ export default async function RulesPage() {
           <h2 className={sectionTitle}>Prizes</h2>
           {prizes.length > 0 ? (
             <div className="space-y-5">
-              {([UCL_COMPETITION_ID, OTHER_COMPETITION_ID] as const).map((compId) => {
+              {COMPETITIONS.map((competition) => {
+                const compId = competition.id;
                 const list = prizesByLeague[compId];
                 if (!list?.length) return null;
-                const label = LEAGUE_LABELS[compId] ?? compId;
                 return (
                   <div key={compId}>
                     <h3 className="mb-2 text-xs font-semibold uppercase tracking-[0.12em] text-nord-polar">
-                      {label}
+                      {getCompetitionLabel(compId)}
                     </h3>
                     <ul className="list-disc space-y-1.5 pl-5 text-nord-polarLight">
                       {list.map((p) => (

@@ -1,3 +1,5 @@
+import { COMPETITION_IDS, UCL_COMPETITION_ID } from "@/lib/config";
+
 export type AdminPredictionHistoryRow = {
   id: string;
   userId: string;
@@ -29,7 +31,7 @@ export type AdminPredictionHistoryRow = {
 };
 
 export type AdminPredictionHistoryFilters = {
-  leagueFilter: "" | "CL" | "other";
+  leagueFilter: string;
   matchFilter: string;
   userFilter: string;
   statusFilter: "all" | "finalized" | "draft";
@@ -76,8 +78,7 @@ export const DEFAULT_ADMIN_PREDICTION_HISTORY_FILTERS: AdminPredictionHistoryFil
 
 const VALID_LEAGUE_FILTERS = new Set<AdminPredictionHistoryFilters["leagueFilter"]>([
   "",
-  "CL",
-  "other",
+  ...COMPETITION_IDS,
 ]);
 const VALID_STATUS_FILTERS = new Set<AdminPredictionHistoryFilters["statusFilter"]>([
   "all",
@@ -172,16 +173,17 @@ export function applyAdminPredictionHistoryFilters(
 ): AdminPredictionHistoryRow[] {
   return rows.filter((row) => {
     if (
-      filters.leagueFilter === "CL" &&
-      row.match.competitionId !== "CL" &&
+      filters.leagueFilter === UCL_COMPETITION_ID &&
+      row.match.competitionId !== UCL_COMPETITION_ID &&
       row.match.competitionId != null
     ) {
       return false;
     }
 
     if (
-      filters.leagueFilter === "other" &&
-      (row.match.competitionId === "CL" || row.match.competitionId == null)
+      filters.leagueFilter &&
+      filters.leagueFilter !== UCL_COMPETITION_ID &&
+      row.match.competitionId !== filters.leagueFilter
     ) {
       return false;
     }

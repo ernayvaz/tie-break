@@ -4,6 +4,7 @@
  */
 import { PrismaClient, UserRole, UserStatus } from "@prisma/client";
 import { hashPin } from "../src/lib/auth/pin";
+import { COMPETITION_IDS } from "../src/lib/config";
 
 const prisma = new PrismaClient();
 
@@ -33,7 +34,7 @@ async function main() {
     { place: 3, title: "3rd prize", description: "Prize for the third-placed user" },
   ];
 
-  for (const compId of ["CL", "OTHER"]) {
+  for (const compId of COMPETITION_IDS) {
     for (const p of prizeData) {
       await prisma.prize.upsert({
         where: { competitionId_place: { competitionId: compId, place: p.place } },
@@ -42,7 +43,7 @@ async function main() {
       });
     }
   }
-  console.log("Prizes created: 6 (3 per league)");
+  console.log(`Prizes created: ${COMPETITION_IDS.length * prizeData.length} (${prizeData.length} per tournament)`);
 
   const token = "invite-" + Math.random().toString(36).slice(2, 12);
   await prisma.inviteLink.upsert({

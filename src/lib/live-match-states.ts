@@ -2,7 +2,7 @@ import {
   fetchFootballDataCompetitionMatches,
   getFootballDataScore,
 } from "@/lib/api/football-data-stats";
-import { UCL_COMPETITION_ID, UCL_SEASON } from "@/lib/config";
+import { COMPETITIONS, normalizeCompetitionId } from "@/lib/config";
 import {
   getLiveMatchStatusLabel,
   isLiveMatchStatus,
@@ -15,16 +15,9 @@ export type LiveMatchCandidate = {
   externalApiId?: string | null;
 };
 
-function normalizeCompetitionId(competitionId?: string | null): string | null {
-  if (!competitionId) return null;
-  const normalized = competitionId.trim().toUpperCase();
-  if (!normalized || normalized === "OTHER") return null;
-  return normalized;
-}
-
 async function fetchCompetitionSnapshot(competitionId: string) {
-  const season =
-    competitionId === UCL_COMPETITION_ID ? Number(UCL_SEASON) : undefined;
+  const competition = COMPETITIONS.find((item) => item.id === competitionId);
+  const season = competition?.season ? Number(competition.season) : undefined;
 
   return fetchFootballDataCompetitionMatches(competitionId, { season });
 }
@@ -40,7 +33,6 @@ export async function getLiveMatchStates(
   const byCompetition = new Map<string, LiveMatchCandidate[]>();
   for (const candidate of normalizedCandidates) {
     const competitionId = normalizeCompetitionId(candidate.competitionId);
-    if (!competitionId) continue;
 
     const list = byCompetition.get(competitionId) ?? [];
     list.push(candidate);

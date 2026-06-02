@@ -76,6 +76,14 @@ describe("sanitizeAdminPredictionHistoryFilters", () => {
       userFilter: "user-9",
     });
   });
+
+  it("accepts configured World Cup filters", () => {
+    expect(
+      sanitizeAdminPredictionHistoryFilters({
+        league: "WC",
+      }).leagueFilter
+    ).toBe("WC");
+  });
 });
 
 describe("getAdminPredictionOutcome", () => {
@@ -125,11 +133,11 @@ describe("applyAdminPredictionHistoryFilters", () => {
       isFinal: false,
       awardedPoints: 0,
     }),
-    makeRow("other-league", {
-      matchId: "match-other",
+    makeRow("world-cup", {
+      matchId: "match-wc",
       match: {
-        id: "match-other",
-        competitionId: "UEL",
+        id: "match-wc",
+        competitionId: "WC",
       },
     }),
   ];
@@ -168,6 +176,24 @@ describe("applyAdminPredictionHistoryFilters", () => {
     );
 
     expect(filtered.map((row) => row.id)).toEqual(["pending"]);
+  });
+
+  it("filters World Cup rows by dedicated competition id", () => {
+    const filtered = applyAdminPredictionHistoryFilters(
+      rows,
+      {
+        leagueFilter: "WC",
+        matchFilter: "",
+        userFilter: "",
+        statusFilter: "all",
+        timelineFilter: "all",
+        resultFilter: "all",
+        outcomeFilter: "all",
+      },
+      NOW
+    );
+
+    expect(filtered.map((row) => row.id)).toEqual(["world-cup"]);
   });
 });
 

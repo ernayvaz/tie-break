@@ -3,6 +3,7 @@ import { requireAuth } from "@/lib/auth/get-user";
 import { getOthersPredictionsBatch } from "@/lib/predictions";
 import { toDisplay } from "@/lib/prediction-values";
 import { getMatchStatisticsByMatchIds } from "@/lib/match-stats/cache";
+import { UCL_COMPETITION_ID } from "@/lib/config";
 import { PageHeroBand } from "@/components/page-hero-band";
 import { ScheduleTabs } from "./schedule-tabs";
 
@@ -86,11 +87,7 @@ export default async function SchedulePage() {
       m.highlight &&
       (m.officialResultType != null ||
         (m.homeScore != null && m.awayScore != null))
-        ? `/highlights/${m.id}${
-            m.competitionId != null && m.competitionId !== "CL"
-              ? "?competition=OTHER"
-              : "?competition=CL"
-          }`
+        ? `/highlights/${m.id}?competition=${m.competitionId ?? UCL_COMPETITION_ID}`
         : null,
   }));
 
