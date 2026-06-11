@@ -433,12 +433,14 @@ export async function fetchFootballDataCompetitionScorers(
   competitionCode: string,
   options: {
     limit?: number;
+    season?: string | number;
   } = {}
 ): Promise<FootballDataResult<FootballDataScorersResponse>> {
   return footballDataRequest<FootballDataScorersResponse>(
     `/competitions/${competitionCode}/scorers`,
     {
       limit: options.limit,
+      season: options.season,
     }
   );
 }

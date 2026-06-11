@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { ScoreAxisWidget } from "@/components/scoreaxis-widget";
+import { getCompetitionLabel, UCL_COMPETITION_ID } from "@/lib/config";
 import type {
   MatchStatisticsPayload,
   StatsLeagueTableRow,
@@ -193,7 +194,7 @@ function EmptySection({
     : normalizedMessage.includes("recent domestic")
       ? "Recent domestic match data for this club is coming soon."
       : normalizedMessage.includes("champions league")
-        ? "Recent Champions League data for this club is coming soon."
+        ? "Recent current competition data for this team is coming soon."
         : normalizedMessage.includes("domestic league table")
           ? "The domestic league table for this club is coming soon."
           : normalizedMessage.includes("competition leaders")
@@ -828,7 +829,13 @@ function TeamNativePanels({
   );
 }
 
-function TeamInsightPanel({ team }: { team: StatsTeamSection }) {
+function TeamInsightPanel({
+  team,
+  competitionLabel,
+}: {
+  team: StatsTeamSection;
+  competitionLabel: string;
+}) {
   const hasRecentDomesticMatches = team.recentDomesticMatches.matches.length > 0;
   const preferredSnapshotKey =
     team.currentCompetition.standing || team.recentUclMatches.matches.length > 0
@@ -1000,7 +1007,7 @@ function TeamInsightPanel({ team }: { team: StatsTeamSection }) {
           )}
 
           <section className="rounded-[1.45rem] border border-nord-polarLighter/12 bg-white/88 p-3.5 shadow-[0_18px_48px_rgba(46,52,64,0.05)]">
-            <SectionHeading title="Recent Champions League matches" />
+            <SectionHeading title={`Recent ${competitionLabel} matches`} />
             <div className="mt-2.5">
               <FixtureList
                 matches={team.recentUclMatches.matches}
@@ -1018,29 +1025,18 @@ function TeamInsightPanel({ team }: { team: StatsTeamSection }) {
   );
 }
 
-function UclLeadersPanel({
-  competitionId,
+function CompetitionLeadersPanel({
+  competitionLabel,
   stats,
 }: {
-  competitionId?: string | null;
+  competitionLabel: string;
   stats: MatchStatisticsPayload;
 }) {
-  if (competitionId !== "CL") {
-    return (
-      <section className="rounded-[1.5rem] border border-nord-polarLighter/12 bg-white/88 p-4 shadow-[0_18px_50px_rgba(46,52,64,0.08)]">
-        <SectionHeading
-          title="UCL Leaders"
-          subtitle="Competition-wide player leaders are shown on Champions League fixtures."
-        />
-      </section>
-    );
-  }
-
   return (
     <section className="rounded-[1.5rem] border border-nord-polarLighter/12 bg-white/88 p-4 shadow-[0_18px_50px_rgba(46,52,64,0.08)]">
       <SectionHeading
-        title="UCL Leaders"
-        subtitle="Premium native Champions League top-player view."
+        title={`${competitionLabel} Leaders`}
+        subtitle={`Premium native top-player view for ${competitionLabel}.`}
       />
       {stats.competitionLeaders.players.length > 0 ? (
         <div className="mt-4 space-y-2">
@@ -1094,15 +1090,9 @@ export function MatchCenter({
   onActiveTabChange,
 }: Props) {
   const [localActiveTab, setLocalActiveTab] = useState<CenterTab>("overview");
-  const showUclLeaders = competitionId === "CL";
+  const competitionLabel = getCompetitionLabel(competitionId ?? UCL_COMPETITION_ID);
   const activeTab = controlledActiveTab ?? localActiveTab;
   const setActiveTab = onActiveTabChange ?? setLocalActiveTab;
-
-  useEffect(() => {
-    if (!showUclLeaders && activeTab === "leaders") {
-      setActiveTab("overview");
-    }
-  }, [activeTab, setActiveTab, showUclLeaders]);
 
   const displayedMeetings = useMemo(() => {
     return [...stats.h2h.matches]
@@ -1116,13 +1106,11 @@ export function MatchCenter({
   const content = useMemo(() => {
     switch (activeTab) {
       case "home":
-        return <TeamInsightPanel team={stats.homeTeam} />;
+        return <TeamInsightPanel team={stats.homeTeam} competitionLabel={competitionLabel} />;
       case "away":
-        return <TeamInsightPanel team={stats.awayTeam} />;
+        return <TeamInsightPanel team={stats.awayTeam} competitionLabel={competitionLabel} />;
       case "leaders":
-        return showUclLeaders ? (
-          <UclLeadersPanel competitionId={competitionId} stats={stats} />
-        ) : null;
+        return <CompetitionLeadersPanel competitionLabel={competitionLabel} stats={stats} />;
       default:
         return (
           <div className="space-y-4">
@@ -1141,7 +1129,7 @@ export function MatchCenter({
 
             <div className="grid gap-4 xl:grid-cols-2">
               <section className="rounded-[1.45rem] border border-nord-polarLighter/12 bg-white/88 p-4 shadow-[0_18px_48px_rgba(46,52,64,0.05)]">
-                <SectionHeading title={`${homeTeamName} recent UCL matches`} />
+                <SectionHeading title={`${homeTeamName} recent ${competitionLabel} matches`} />
                 <div className="mt-4">
                   <FixtureList
                     matches={stats.homeTeam.recentUclMatches.matches.slice(0, 5)}
@@ -1150,7 +1138,7 @@ export function MatchCenter({
                 </div>
               </section>
               <section className="rounded-[1.45rem] border border-nord-polarLighter/12 bg-white/88 p-4 shadow-[0_18px_48px_rgba(46,52,64,0.05)]">
-                <SectionHeading title={`${awayTeamName} recent UCL matches`} />
+                <SectionHeading title={`${awayTeamName} recent ${competitionLabel} matches`} />
                 <div className="mt-4">
                   <FixtureList
                     matches={stats.awayTeam.recentUclMatches.matches.slice(0, 5)}
@@ -1210,11 +1198,10 @@ export function MatchCenter({
     activeTab,
     awayTeamLogo,
     awayTeamName,
-    competitionId,
+    competitionLabel,
     displayedMeetings,
     homeTeamLogo,
     homeTeamName,
-    showUclLeaders,
     stats,
   ]);
 
@@ -1243,7 +1230,7 @@ export function MatchCenter({
             </span>
           ) : null}
           <span className="hidden rounded-full border border-nord-frostDark/10 bg-white/72 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-nord-frostDark sm:inline-flex">
-            H2H • League • UCL
+            H2H • League • Competition
           </span>
           <span className="shrink-0 text-nord-polarLight">
             <ChevronIcon open={open} />
@@ -1274,15 +1261,17 @@ export function MatchCenter({
                   logoSrc={awayTeamLogo}
                   onClick={() => setActiveTab("away")}
                 />
-                {showUclLeaders ? (
-                  <MatchCenterTabButton
-                    active={activeTab === "leaders"}
-                    label="UCL Leaders"
-                    logoSrc="https://upload.wikimedia.org/wikipedia/en/f/f5/UEFA_Champions_League.svg"
-                    icon={<TrophyIcon />}
-                    onClick={() => setActiveTab("leaders")}
-                  />
-                ) : null}
+                <MatchCenterTabButton
+                  active={activeTab === "leaders"}
+                  label="Leaders"
+                  logoSrc={
+                    competitionId === UCL_COMPETITION_ID
+                      ? "https://upload.wikimedia.org/wikipedia/en/f/f5/UEFA_Champions_League.svg"
+                      : undefined
+                  }
+                  icon={<TrophyIcon />}
+                  onClick={() => setActiveTab("leaders")}
+                />
               </div>
             </div>
           </section>

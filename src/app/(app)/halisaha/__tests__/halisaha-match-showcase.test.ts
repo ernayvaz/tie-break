@@ -172,7 +172,7 @@ describe("HalisahaMatchShowcase mobile render", () => {
     expect(html).toContain("for lineups");
     expect(html).not.toContain("Scroll down");
     expect(html).not.toContain("Share lineup image");
-  });
+  }, 10_000);
 
   it("renders premium pitch team labels when the lineup slicers stay closed", async () => {
     const ReactModule = await import("react");

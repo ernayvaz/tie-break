@@ -271,7 +271,7 @@ export function createUnavailableTeamSection(
       "No recent domestic matches available."
     ),
     recentUclMatches: createUnavailableFixtureSection(
-      "No recent Champions League matches available."
+      "No recent current competition matches available."
     ),
   };
 }

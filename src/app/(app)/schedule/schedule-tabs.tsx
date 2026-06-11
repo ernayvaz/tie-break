@@ -15,9 +15,11 @@ import {
 import { Button, Modal } from "@/components/ui";
 import { PredictionPickDisplay } from "@/components/prediction-pick-display";
 import { CompetitionTabsClient } from "@/components/competition-tabs";
+import { ScoreAxisWidget } from "@/components/scoreaxis-widget";
 import {
   DEFAULT_COMPETITION_ID,
   UCL_COMPETITION_ID,
+  WORLD_CUP_2026_COMPETITION_ID,
 } from "@/lib/config";
 import { MatchCenter, type CenterTab } from "./match-center";
 import { LiveMatchSheet } from "./live-match-sheet";
@@ -33,6 +35,13 @@ import {
 
 const MATCH_CENTER_TAB_STORAGE_KEY = "tie-break-match-center-tabs";
 const SCHEDULE_DISPLAY_TIME_ZONE = "Europe/Istanbul";
+const WORLD_CUP_STANDINGS_WIDGET_SRC =
+  "https://widgets.scoreaxis.com/api/football/league-table/62322bfa75414360044d5ca4?widgetId=k3demq9fp7jc&lang=en&teamLogo=1&tableLines=0&homeAway=1&header=1&position=1&goals=1&gamesCount=1&diff=1&winCount=1&drawCount=1&loseCount=1&lastGames=1&points=1&teamsLimit=all&links=1&font=heebo&fontSize=14&rowDensity=100&widgetWidth=auto&widgetHeight=auto&bodyColor=%23ffffff&textColor=%23141416&linkColor=%23141416&borderColor=%23ecf1f7&tabColor=%23f3f8fd";
+const WORLD_CUP_STANDINGS_WIDGET_ID = "k3demq9fp7jc";
+const WORLD_CUP_KNOCKOUT_WIDGET_SRC =
+  "https://widgets.sofascore.com/embed/unique-tournament/16/season/58210/cuptree/10560975?widgetTitle=Knockout%20stage&showCompetitionLogo=true&widgetTheme=light";
+
+type ScheduleTab = "upcoming" | "past" | "standings" | "knockout";
 
 const scheduleDateFormatter = new Intl.DateTimeFormat("en-GB", {
   day: "2-digit",
@@ -161,14 +170,22 @@ function shouldRefreshMatchStats(stats?: MatchStatisticsPayload): boolean {
 function hasVisibleMatchCenterDataGap(stats?: MatchStatisticsPayload): boolean {
   if (!stats) return true;
 
+  const hasTeamContextGap = (team: MatchStatisticsPayload["homeTeam"]) => {
+    const hasDomesticContext =
+      team.domesticLeague.status !== "unavailable" ||
+      team.domesticLeagueTable.rows.length > 0 ||
+      team.recentDomesticMatches.status !== "unavailable";
+    const hasCurrentCompetitionContext =
+      team.currentCompetition.status !== "unavailable" ||
+      team.recentUclMatches.status !== "unavailable";
+
+    return !hasDomesticContext && !hasCurrentCompetitionContext;
+  };
+
   return (
-    stats.h2h.matches.length === 0 ||
-    stats.homeTeam.domesticLeague.status !== "available" ||
-    stats.awayTeam.domesticLeague.status !== "available" ||
-    stats.homeTeam.domesticLeagueTable.rows.length === 0 ||
-    stats.awayTeam.domesticLeagueTable.rows.length === 0 ||
-    stats.homeTeam.recentDomesticMatches.status !== "available" ||
-    stats.awayTeam.recentDomesticMatches.status !== "available"
+    stats.providerMatchLinkMode === "none" ||
+    hasTeamContextGap(stats.homeTeam) ||
+    hasTeamContextGap(stats.awayTeam)
   );
 }
 
@@ -181,7 +198,7 @@ export function ScheduleTabs({
   isAdmin = false,
 }: Props) {
   const [competitionId, setCompetitionId] = useState<string>(DEFAULT_COMPETITION_ID);
-  const [activeTab, setActiveTab] = useState<"upcoming" | "past">("upcoming");
+  const [activeTab, setActiveTab] = useState<ScheduleTab>("upcoming");
   const [filterStage, setFilterStage] = useState<string>("");
   const [filterTeam, setFilterTeam] = useState<string>("");
   const [now, setNow] = useState(() => new Date());
@@ -301,7 +318,15 @@ export function ScheduleTabs({
     return { upcoming: upcomingList, past: pastList };
   }, [matchesByCompetition, now, sortByDatetimeAsc, sortByDatetimeDesc]);
 
-  const currentList = activeTab === "upcoming" ? upcoming : past;
+  const isWorldCupTab = competitionId === WORLD_CUP_2026_COMPETITION_ID;
+  const isMatchTab = activeTab === "upcoming" || activeTab === "past";
+  const currentList = activeTab === "past" ? past : upcoming;
+
+  useEffect(() => {
+    if (!isWorldCupTab && (activeTab === "standings" || activeTab === "knockout")) {
+      setActiveTab("upcoming");
+    }
+  }, [activeTab, isWorldCupTab]);
 
   const stageOptions = useMemo(() => {
     const stages = new Set(currentList.map((m) => m.stage));
@@ -1202,6 +1227,66 @@ export function ScheduleTabs({
     );
   }
 
+  function WorldCupStandingsPanel() {
+    return (
+      <div className="border border-nord-polarLighter/50 border-t-0 rounded-b-lg bg-gradient-to-b from-white to-nord-snow/35 p-3 sm:p-4">
+        <ScoreAxisWidget
+          src={WORLD_CUP_STANDINGS_WIDGET_SRC}
+          widgetId={WORLD_CUP_STANDINGS_WIDGET_ID}
+          preserveQueryWidgetId
+          title="World Cup 2026 standings"
+          description="Official ScoreAxis league table widget for the World Cup group standings."
+          minHeight={620}
+          fallbackMessage="World Cup 2026 standings are blocked by the provider right now. The table will load automatically when ScoreAxis is reachable."
+        />
+      </div>
+    );
+  }
+
+  function WorldCupKnockoutPanel() {
+    return (
+      <div className="border border-nord-polarLighter/50 border-t-0 rounded-b-lg bg-gradient-to-b from-white to-nord-snow/35 p-3 sm:p-4">
+        <section className="rounded-[1.5rem] border border-nord-polarLighter/12 bg-white/88 p-4 shadow-[0_18px_50px_rgba(46,52,64,0.08)]">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h4 className="text-sm font-semibold text-nord-polar">
+                World Cup 2026 knockout bracket
+              </h4>
+              <p className="mt-1 text-xs leading-5 text-nord-polarLight">
+                Official Sofascore cup tree for the World Cup knockout stage.
+              </p>
+            </div>
+            <span className="rounded-full border border-nord-frostDark/15 bg-nord-frostDark/8 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-nord-frostDark">
+              Official
+            </span>
+          </div>
+          <div className="mt-4 overflow-hidden rounded-[1.2rem] border border-nord-polarLighter/10 bg-white shadow-inner">
+            <iframe
+              id="sofa-cupTree-embed-16-58210-10560975"
+              src={WORLD_CUP_KNOCKOUT_WIDGET_SRC}
+              title="World Cup 2026 knockout stage"
+              className="h-[872px] w-full max-w-[700px]"
+              style={{ height: "872px" }}
+              frameBorder="0"
+              scrolling="yes"
+            />
+          </div>
+          <div className="mt-3 text-left font-sans text-xs text-nord-polarLight">
+            Cup tree provided by{" "}
+            <a
+              target="_blank"
+              rel="noreferrer"
+              href="https://www.sofascore.com/football/tournament/world/world-championship/16#id:58210"
+              className="font-medium text-nord-frostDark hover:underline"
+            >
+              Sofascore
+            </a>
+          </div>
+        </section>
+      </div>
+    );
+  }
+
   return (
     <div className="mt-6">
       {actionError && (
@@ -1243,6 +1328,38 @@ export function ScheduleTabs({
         >
           Past matches
         </button>
+        {isWorldCupTab ? (
+          <>
+            <button
+              type="button"
+              onClick={() => {
+                setActiveTab("standings");
+                resetFilters();
+              }}
+              className={`rounded-lg px-3 py-2 text-sm font-medium transition-colors sm:rounded-none sm:px-4 sm:py-3 sm:border-b-2 sm:-mb-px ${
+                activeTab === "standings"
+                  ? "bg-white text-nord-polar shadow-sm sm:bg-transparent sm:shadow-none sm:border-nord-frostDark"
+                  : "text-nord-polarLight hover:text-nord-polar sm:border-transparent"
+              }`}
+            >
+              Standings
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setActiveTab("knockout");
+                resetFilters();
+              }}
+              className={`rounded-lg px-3 py-2 text-sm font-medium transition-colors sm:rounded-none sm:px-4 sm:py-3 sm:border-b-2 sm:-mb-px ${
+                activeTab === "knockout"
+                  ? "bg-white text-nord-polar shadow-sm sm:bg-transparent sm:shadow-none sm:border-nord-frostDark"
+                  : "text-nord-polarLight hover:text-nord-polar sm:border-transparent"
+              }`}
+            >
+              Knockout
+            </button>
+          </>
+        ) : null}
       </div>
 
       {isAdmin && (
@@ -1306,7 +1423,7 @@ export function ScheduleTabs({
         </div>
       )}
 
-      {currentList.length > 0 && (
+      {isMatchTab && currentList.length > 0 && (
         <div className="flex flex-col gap-2 border border-nord-polarLighter/50 border-t-0 bg-nord-snow/50 px-3 py-2.5 text-sm sm:flex-row sm:flex-wrap sm:items-end sm:gap-x-4 sm:gap-y-2 sm:px-4 sm:py-3">
           <span className="shrink-0 text-xs font-semibold uppercase tracking-[0.12em] text-nord-polar sm:text-sm sm:normal-case sm:tracking-normal">
             Filters
@@ -1359,6 +1476,11 @@ export function ScheduleTabs({
         </div>
       )}
 
+      {activeTab === "standings" && isWorldCupTab ? (
+        <WorldCupStandingsPanel />
+      ) : activeTab === "knockout" && isWorldCupTab ? (
+        <WorldCupKnockoutPanel />
+      ) : (
       <div className="border border-nord-polarLighter/50 border-t-0 rounded-b-lg overflow-hidden">
         {currentList.length === 0 ? (
           <div className="px-4 py-8 text-center text-nord-polarLight text-sm">
@@ -1372,6 +1494,7 @@ export function ScheduleTabs({
           <MatchList list={sortedList} />
         )}
       </div>
+      )}
 
       <Modal
         open={!!finalizeModal}

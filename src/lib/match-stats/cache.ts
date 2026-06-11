@@ -74,7 +74,7 @@ function normalizeMatchCenterMessage(message: string | null | undefined): string
     normalized.includes("recent champions league") ||
     normalized.includes("champions league matches")
   ) {
-    return "Recent Champions League match data is coming soon.";
+    return "Recent current competition match data is coming soon.";
   }
 
   if (normalized.includes("previous meetings")) {

@@ -240,7 +240,7 @@ function resolveTeamSection(team: StatsTeamSection): {
   );
   const recentUclMatches = resolveFixtureSection(
     team.recentUclMatches,
-    "Recent Champions League matches"
+    "Recent current competition matches"
   );
 
   return {

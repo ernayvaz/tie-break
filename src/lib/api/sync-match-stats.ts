@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/db";
 import { getScoreAxisDomesticLeagueInfo } from "@/lib/scoreaxis";
 import {
+  COMPETITIONS,
   STATS_H2H_MATCH_LIMIT,
   STATS_RECENT_MATCH_LIMIT,
   STATS_SYNC_LOOKAHEAD_DAYS,
@@ -791,7 +792,7 @@ function buildTeamSection(input: {
   );
   const recentUclMatches = buildFixtureSection(
     input.recentUcl,
-    "No recent Champions League matches available."
+    "No recent current competition matches available."
   );
 
   return {
@@ -925,6 +926,15 @@ function getRecentCompetitionWindow(now: Date) {
 
 function getSeasonYear(): number {
   return Number(UCL_SEASON);
+}
+
+function getCompetitionSeasonYear(competitionCode: string | null | undefined): number {
+  const normalizedCode = normalizeCompetitionCode(competitionCode);
+  const configuredCompetition = COMPETITIONS.find(
+    (competition) => competition.id === normalizedCode
+  );
+  const season = Number(configuredCompetition?.season ?? UCL_SEASON);
+  return Number.isFinite(season) ? season : getSeasonYear();
 }
 
 function getSeasonStartYear(startDate: string | undefined): number {
@@ -1306,7 +1316,7 @@ export async function syncMatchStatisticsCache(options?: {
   for (const competitionCode of requestedCompetitionCodes) {
     const fixturesResult = await rateLimitedApiCall(() =>
       fetchFootballDataCompetitionMatches(competitionCode, {
-        season: seasonYear,
+        season: getCompetitionSeasonYear(competitionCode),
       })
     );
     if (fixturesResult.ok) {
@@ -1391,7 +1401,10 @@ export async function syncMatchStatisticsCache(options?: {
   >();
   for (const competitionCode of usedCurrentCompetitionCodes) {
     const standingsResult = await rateLimitedApiCall(() =>
-      fetchFootballDataCompetitionStandings(competitionCode, seasonYear)
+      fetchFootballDataCompetitionStandings(
+        competitionCode,
+        getCompetitionSeasonYear(competitionCode)
+      )
     );
     if (standingsResult.ok) {
       currentCompetitionStandingsByCode.set(competitionCode, standingsResult.data);
@@ -1476,7 +1489,7 @@ export async function syncMatchStatisticsCache(options?: {
       const standingsResult = await rateLimitedApiCall(() =>
         fetchFootballDataCompetitionStandings(
           inferredLeague.competitionCode,
-          seasonYear
+          inferredLeague.season
         )
       );
       if (standingsResult.ok) {
@@ -1504,7 +1517,10 @@ export async function syncMatchStatisticsCache(options?: {
     ...usedCurrentCompetitionCodes,
   ])) {
     const scorersResult = await rateLimitedApiCall(() =>
-      fetchFootballDataCompetitionScorers(competitionCode, { limit: 40 })
+      fetchFootballDataCompetitionScorers(competitionCode, {
+        limit: 40,
+        season: getCompetitionSeasonYear(competitionCode),
+      })
     );
     if (scorersResult.ok) {
       competitionScorersByCode.set(
@@ -1514,11 +1530,21 @@ export async function syncMatchStatisticsCache(options?: {
     }
   }
 
+  const domesticSeasonByCompetitionCode = new Map<string, number>();
+  for (const league of [
+    ...domesticLeagueByTeamId.values(),
+    ...inferredDomesticLeagueByTeamId.values(),
+  ]) {
+    if (!domesticSeasonByCompetitionCode.has(league.competitionCode)) {
+      domesticSeasonByCompetitionCode.set(league.competitionCode, league.season);
+    }
+  }
+
   const domesticFixturesByCompetitionCode = new Map<string, FootballDataMatch[]>();
   for (const competitionCode of usedDomesticCompetitionCodes) {
     const fixturesResult = await rateLimitedApiCall(() =>
       fetchFootballDataCompetitionMatches(competitionCode, {
-        season: seasonYear,
+        season: domesticSeasonByCompetitionCode.get(competitionCode) ?? seasonYear,
         status: "FINISHED",
         ...(targetMatchIds.length > 0 && targetMatchIds.length <= 2
           ? {}
@@ -1543,7 +1569,7 @@ export async function syncMatchStatisticsCache(options?: {
 
     const fixturesResult = await rateLimitedApiCall(() =>
       fetchFootballDataCompetitionMatches(competitionCode, {
-        season: seasonYear,
+        season: getCompetitionSeasonYear(competitionCode),
       })
     );
     if (fixturesResult.ok) {
@@ -1652,7 +1678,7 @@ export async function syncMatchStatisticsCache(options?: {
       const standingsResult = await rateLimitedApiCall(() =>
         fetchFootballDataCompetitionStandings(
           inferredLeague.competitionCode,
-          seasonYear
+          inferredLeague.season
         )
       );
       if (standingsResult.ok) {
@@ -1822,11 +1848,11 @@ export async function syncMatchStatisticsCache(options?: {
       }
     }
 
-    const homeUclMatches = homeResolution
-      ? findRecentUclMatches(uclFixtures, homeResolution.teamId)
+    const homeCurrentCompetitionMatches = homeResolution
+      ? findRecentUclMatches(currentCompetitionFixtures, homeResolution.teamId)
       : [];
-    const awayUclMatches = awayResolution
-      ? findRecentUclMatches(uclFixtures, awayResolution.teamId)
+    const awayCurrentCompetitionMatches = awayResolution
+      ? findRecentUclMatches(currentCompetitionFixtures, awayResolution.teamId)
       : [];
 
     const providerMatchLinkMode = buildProviderLinkMode(
@@ -1907,7 +1933,7 @@ export async function syncMatchStatisticsCache(options?: {
       teamDetails: homeTeamDetails,
       topPlayers: homeTopPlayersScorers,
       recentDomestic: homeDomesticMatches,
-      recentUcl: homeUclMatches,
+      recentUcl: homeCurrentCompetitionMatches,
     });
 
     const awayTeam = buildTeamSection({
@@ -1926,7 +1952,7 @@ export async function syncMatchStatisticsCache(options?: {
       teamDetails: awayTeamDetails,
       topPlayers: awayTopPlayersScorers,
       recentDomestic: awayDomesticMatches,
-      recentUcl: awayUclMatches,
+      recentUcl: awayCurrentCompetitionMatches,
     });
 
     const payload = applyMatchCenterProviderFallbacks({
