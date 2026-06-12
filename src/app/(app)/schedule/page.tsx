@@ -116,8 +116,8 @@ export default async function SchedulePage() {
             value: "Only the latest 5 meetings are shown for faster scanning.",
           },
           {
-            label: "Live Match",
-            value: "A dedicated live sheet keeps score and match flow separate from Match Center.",
+            label: "Power Pick x3",
+            value: "Feeling confident? Arm Power Pick x3 on a match and a correct call is worth triple the points. Choose your moments — your picks are limited.",
           },
         ]}
       />

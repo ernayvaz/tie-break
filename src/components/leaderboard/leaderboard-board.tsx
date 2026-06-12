@@ -229,6 +229,18 @@ function RecentPredictionsStrip({
   );
 }
 
+function ordinalPrizeLabel(place: number): string {
+  const suffix =
+    place % 10 === 1 && place % 100 !== 11
+      ? "st"
+      : place % 10 === 2 && place % 100 !== 12
+        ? "nd"
+        : place % 10 === 3 && place % 100 !== 13
+          ? "rd"
+          : "th";
+  return `${place}${suffix} Prize`;
+}
+
 function PrizeGrid({ data }: { data: LeaderboardBoardData }) {
   if (data.prizes.length === 0) return null;
 
@@ -258,20 +270,19 @@ function PrizeGrid({ data }: { data: LeaderboardBoardData }) {
               className="pointer-events-none absolute inset-0 opacity-50 bg-[radial-gradient(ellipse_at_35%_-10%,rgba(255,255,255,0.95),transparent_58%)]"
               aria-hidden
             />
-            <div className="relative flex min-h-[4.5rem] flex-col justify-between px-2 py-2 sm:min-h-0 sm:px-4 sm:py-3.5">
-              <div>
-                <div className="text-[7.5px] font-semibold uppercase tracking-[0.14em] text-nord-frostDark sm:text-[10px] sm:tracking-[0.18em]">
-                  Place {prize.place}
-                </div>
-                <h3 className="mt-1 line-clamp-3 text-[10.5px] font-semibold leading-[1.3] tracking-tight text-nord-polar sm:mt-1.5 sm:line-clamp-none sm:text-base sm:leading-snug">
-                  {prize.title}
-                </h3>
+            <div className="relative flex min-h-[4.5rem] flex-col justify-between px-2 py-2 sm:min-h-0 sm:px-4 sm:py-4">
+              <div className="text-[8px] font-semibold uppercase tracking-[0.14em] text-nord-frostDark sm:text-[11px] sm:tracking-[0.18em]">
+                {ordinalPrizeLabel(prize.place)}
               </div>
-              {prize.description ? (
-                <p className="mt-1 line-clamp-2 text-[8.5px] leading-[1.35] text-nord-polarLight sm:mt-2 sm:line-clamp-4 sm:text-[13px] sm:leading-relaxed">
+              {prize.description?.trim() ? (
+                <p className="mt-1.5 line-clamp-2 text-lg font-extrabold leading-none tracking-tight text-nord-polar sm:mt-3 sm:text-3xl">
                   {prize.description}
                 </p>
-              ) : null}
+              ) : (
+                <p className="mt-1.5 line-clamp-2 text-sm font-bold leading-tight tracking-tight text-nord-polar sm:mt-3 sm:text-xl">
+                  {prize.title}
+                </p>
+              )}
             </div>
           </article>
         );

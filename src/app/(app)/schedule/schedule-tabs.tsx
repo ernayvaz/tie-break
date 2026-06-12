@@ -20,7 +20,6 @@ import type {
   PowerPickBalanceSummary,
   PowerPickMatchState,
 } from "@/lib/power-pick";
-import { ScoreAxisWidget } from "@/components/scoreaxis-widget";
 import type { WorldCupStandingsGroup } from "@/lib/standings/world-cup";
 import {
   DEFAULT_COMPETITION_ID,
@@ -50,9 +49,6 @@ const EMPTY_POWER_PICK_BALANCE: PowerPickBalanceSummary = {
 
 const MATCH_CENTER_TAB_STORAGE_KEY = "tie-break-match-center-tabs";
 const SCHEDULE_DISPLAY_TIME_ZONE = "Europe/Istanbul";
-const WORLD_CUP_STANDINGS_WIDGET_SRC =
-  "https://widgets.scoreaxis.com/api/football/league-table/62322bfa75414360044d5ca4?widgetId=k3demq9fp7jc&lang=en&teamLogo=1&tableLines=0&homeAway=1&header=1&position=1&goals=1&gamesCount=1&diff=1&winCount=1&drawCount=1&loseCount=1&lastGames=1&points=1&teamsLimit=all&links=1&font=heebo&fontSize=14&rowDensity=100&widgetWidth=auto&widgetHeight=auto&bodyColor=%23ffffff&textColor=%23141416&linkColor=%23141416&borderColor=%23ecf1f7&tabColor=%23f3f8fd";
-const WORLD_CUP_STANDINGS_WIDGET_ID = "k3demq9fp7jc";
 const WORLD_CUP_KNOCKOUT_WIDGET_SRC =
   "https://widgets.sofascore.com/embed/unique-tournament/16/season/58210/cuptree/10560975?widgetTitle=Knockout%20stage&showCompetitionLogo=true&widgetTheme=light";
 
@@ -272,6 +268,67 @@ function WorldCupStandingsTable({ group }: { group: WorldCupStandingsGroup }) {
   );
 }
 
+// Sofascore standings embeds for the World Cup group stage. Used when native
+// football-data.org group tables are not yet populated. Defined at module scope
+// (stable identity) so live polling re-renders never remount the iframes.
+const WORLD_CUP_SOFASCORE_GROUPS = [
+  {
+    name: "Group A",
+    tournamentId: 3954,
+    href: "https://www.sofascore.com/football/tournament/world/world-championship-gr-a/16#id:58210",
+  },
+  {
+    name: "Group B",
+    tournamentId: 3955,
+    href: "https://www.sofascore.com/football/tournament/world/world-championship-gr-b/16#id:58210",
+  },
+  {
+    name: "Group C",
+    tournamentId: 3956,
+    href: "https://www.sofascore.com/football/tournament/world/world-championship-gr-c/16#id:58210",
+  },
+] as const;
+
+const WORLD_CUP_SOFASCORE_SEASON_ID = 58210;
+
+function WorldCupSofascoreStandings() {
+  return (
+    <div className="grid gap-3 lg:grid-cols-2">
+      {WORLD_CUP_SOFASCORE_GROUPS.map((group) => {
+        const encodedName = encodeURIComponent(group.name);
+        const src = `https://widgets.sofascore.com/embed/tournament/${group.tournamentId}/season/${WORLD_CUP_SOFASCORE_SEASON_ID}/standings/${encodedName}?widgetTitle=${encodedName}&showCompetitionLogo=true`;
+        return (
+          <section
+            key={group.name}
+            className="overflow-hidden rounded-[1.45rem] border border-nord-polarLighter/12 bg-white/92 p-3 shadow-[0_14px_40px_rgba(46,52,64,0.05)]"
+          >
+            <iframe
+              id={`sofa-standings-embed-${group.tournamentId}-${WORLD_CUP_SOFASCORE_SEASON_ID}`}
+              title={`${group.name} standings`}
+              src={src}
+              className="block w-full rounded-xl"
+              style={{ height: "431px", maxWidth: "768px", width: "100%" }}
+              frameBorder={0}
+              scrolling="no"
+            />
+            <div className="mt-1.5 text-[11px] text-nord-polarLight">
+              Standings provided by{" "}
+              <a
+                target="_blank"
+                rel="noreferrer noopener"
+                href={group.href}
+                className="font-medium text-nord-frostDark hover:underline"
+              >
+                Sofascore
+              </a>
+            </div>
+          </section>
+        );
+      })}
+    </div>
+  );
+}
+
 function WorldCupStandingsPanel({
   groups = [],
 }: {
@@ -308,15 +365,20 @@ function WorldCupStandingsPanel({
 
   return (
     <div className="border border-nord-polarLighter/50 border-t-0 rounded-b-lg bg-gradient-to-b from-white to-nord-snow/35 p-3 sm:p-4">
-      <ScoreAxisWidget
-        src={WORLD_CUP_STANDINGS_WIDGET_SRC}
-        widgetId={WORLD_CUP_STANDINGS_WIDGET_ID}
-        preserveQueryWidgetId
-        title="World Cup 2026 standings"
-        description="Group standings are unavailable from football-data.org right now, so the official ScoreAxis table is shown as the fallback."
-        minHeight={620}
-        fallbackMessage="World Cup 2026 standings are not available from football-data.org or ScoreAxis right now. The table will appear automatically once a provider returns the group tables."
-      />
+      <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h4 className="text-sm font-semibold text-nord-polar">
+            World Cup 2026 standings
+          </h4>
+          <p className="mt-1 text-xs leading-5 text-nord-polarLight">
+            Group tables for Groups A, B and C, provided by Sofascore.
+          </p>
+        </div>
+        <span className="rounded-full border border-nord-frostDark/15 bg-nord-frostDark/8 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-nord-frostDark">
+          Sofascore
+        </span>
+      </div>
+      <WorldCupSofascoreStandings />
     </div>
   );
 }
