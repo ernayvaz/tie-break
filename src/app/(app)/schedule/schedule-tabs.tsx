@@ -20,7 +20,6 @@ import type {
   PowerPickBalanceSummary,
   PowerPickMatchState,
 } from "@/lib/power-pick";
-import type { WorldCupStandingsGroup } from "@/lib/standings/world-cup";
 import {
   DEFAULT_COMPETITION_ID,
   UCL_COMPETITION_ID,
@@ -152,7 +151,6 @@ type Props = {
   othersByMatchId: Record<string, OtherPrediction[]>;
   statsByMatchId?: Record<string, MatchStatisticsPayload>;
   liveByMatchId?: Record<string, LiveMatchState>;
-  worldCupStandings?: WorldCupStandingsGroup[];
   powerPickBalance?: PowerPickBalanceSummary;
   powerPickByMatchId?: Record<string, PowerPickMatchState>;
   isAdmin?: boolean;
@@ -203,124 +201,55 @@ function hasVisibleMatchCenterDataGap(stats?: MatchStatisticsPayload): boolean {
   );
 }
 
+// Sofascore standings embeds for the World Cup group stage (Groups A–L) plus the
+// third-placed teams ranking. Standings are sourced exclusively from Sofascore.
 // Defined at module scope (stable identity) so live polling / clock re-renders of
-// ScheduleTabs do not remount the embedded widgets. Inline component definitions
-// would create a new function reference each render, forcing React to unmount and
-// remount the ScoreAxis script + Sofascore iframe (causing the empty standings table
-// and the knockout bracket flicker).
-function WorldCupStandingsTable({ group }: { group: WorldCupStandingsGroup }) {
-  return (
-    <section className="rounded-[1.45rem] border border-nord-polarLighter/12 bg-white/92 p-4 shadow-[0_14px_40px_rgba(46,52,64,0.05)]">
-      <h5 className="mb-3 text-sm font-semibold text-nord-polar">{group.name}</h5>
-      <div className="overflow-x-auto">
-        <table className="w-full border-collapse text-left text-xs sm:text-sm">
-          <thead>
-            <tr className="text-[10px] uppercase tracking-[0.12em] text-nord-polarLight sm:text-[11px]">
-              <th className="px-1.5 py-2 font-semibold">#</th>
-              <th className="px-1.5 py-2 font-semibold">Team</th>
-              <th className="px-1.5 py-2 text-center font-semibold">P</th>
-              <th className="px-1.5 py-2 text-center font-semibold">W</th>
-              <th className="px-1.5 py-2 text-center font-semibold">D</th>
-              <th className="px-1.5 py-2 text-center font-semibold">L</th>
-              <th className="hidden px-1.5 py-2 text-center font-semibold sm:table-cell">GF</th>
-              <th className="hidden px-1.5 py-2 text-center font-semibold sm:table-cell">GA</th>
-              <th className="px-1.5 py-2 text-center font-semibold">GD</th>
-              <th className="px-1.5 py-2 text-center font-semibold">Pts</th>
-            </tr>
-          </thead>
-          <tbody>
-            {group.rows.map((row) => (
-              <tr
-                key={`${group.name}-${row.rank}-${row.teamName}`}
-                className="border-t border-nord-polarLighter/12 text-nord-polar"
-              >
-                <td className="px-1.5 py-2 text-nord-polarLight">{row.rank}</td>
-                <td className="px-1.5 py-2">
-                  <span className="flex items-center gap-2">
-                    {row.teamCrest ? (
-                      // eslint-disable-next-line @next/next/no-img-element -- provider crest URLs are external
-                      <img
-                        src={row.teamCrest}
-                        alt=""
-                        className="h-4 w-4 shrink-0 object-contain"
-                        loading="lazy"
-                      />
-                    ) : null}
-                    <span className="font-medium">{row.teamName}</span>
-                  </span>
-                </td>
-                <td className="px-1.5 py-2 text-center">{row.played}</td>
-                <td className="px-1.5 py-2 text-center">{row.won}</td>
-                <td className="px-1.5 py-2 text-center">{row.draw}</td>
-                <td className="px-1.5 py-2 text-center">{row.lost}</td>
-                <td className="hidden px-1.5 py-2 text-center sm:table-cell">{row.goalsFor}</td>
-                <td className="hidden px-1.5 py-2 text-center sm:table-cell">{row.goalsAgainst}</td>
-                <td className="px-1.5 py-2 text-center">
-                  {row.goalDifference > 0 ? `+${row.goalDifference}` : row.goalDifference}
-                </td>
-                <td className="px-1.5 py-2 text-center font-semibold">{row.points}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </section>
-  );
-}
-
-// Sofascore standings embeds for the World Cup group stage. Used when native
-// football-data.org group tables are not yet populated. Defined at module scope
-// (stable identity) so live polling re-renders never remount the iframes.
-const WORLD_CUP_SOFASCORE_GROUPS = [
-  {
-    name: "Group A",
-    tournamentId: 3954,
-    href: "https://www.sofascore.com/football/tournament/world/world-championship-gr-a/16#id:58210",
-  },
-  {
-    name: "Group B",
-    tournamentId: 3955,
-    href: "https://www.sofascore.com/football/tournament/world/world-championship-gr-b/16#id:58210",
-  },
-  {
-    name: "Group C",
-    tournamentId: 3956,
-    href: "https://www.sofascore.com/football/tournament/world/world-championship-gr-c/16#id:58210",
-  },
-] as const;
-
+// ScheduleTabs never remount the iframes (which would blank the tables).
 const WORLD_CUP_SOFASCORE_SEASON_ID = 58210;
+// Each Sofascore embed pins its promo footer ("Never miss / See much more") to the
+// bottom of the widget; we clip that band off via an overflow-hidden wrapper.
+const WORLD_CUP_SOFASCORE_FOOTER_CLIP = 92;
+
+const WORLD_CUP_SOFASCORE_STANDINGS = [
+  { name: "Group A", tournamentId: 3954, height: 431 },
+  { name: "Group B", tournamentId: 3955, height: 431 },
+  { name: "Group C", tournamentId: 3956, height: 431 },
+  { name: "Group D", tournamentId: 3957, height: 431 },
+  { name: "Group E", tournamentId: 3958, height: 431 },
+  { name: "Group F", tournamentId: 3959, height: 431 },
+  { name: "Group G", tournamentId: 3960, height: 431 },
+  { name: "Group H", tournamentId: 3961, height: 431 },
+  { name: "Group I", tournamentId: 139403, height: 431 },
+  { name: "Group J", tournamentId: 139404, height: 431 },
+  { name: "Group K", tournamentId: 139405, height: 431 },
+  { name: "Group L", tournamentId: 139406, height: 431 },
+  { name: "Third-placed teams", tournamentId: 182545, height: 751 },
+] as const;
 
 function WorldCupSofascoreStandings() {
   return (
     <div className="grid gap-3 lg:grid-cols-2">
-      {WORLD_CUP_SOFASCORE_GROUPS.map((group) => {
+      {WORLD_CUP_SOFASCORE_STANDINGS.map((group) => {
         const encodedName = encodeURIComponent(group.name);
         const src = `https://widgets.sofascore.com/embed/tournament/${group.tournamentId}/season/${WORLD_CUP_SOFASCORE_SEASON_ID}/standings/${encodedName}?widgetTitle=${encodedName}&showCompetitionLogo=true`;
+        const visibleHeight = Math.max(group.height - WORLD_CUP_SOFASCORE_FOOTER_CLIP, 160);
+        const spanFull = group.name === "Third-placed teams";
         return (
           <section
             key={group.name}
-            className="overflow-hidden rounded-[1.45rem] border border-nord-polarLighter/12 bg-white/92 p-3 shadow-[0_14px_40px_rgba(46,52,64,0.05)]"
+            className={`overflow-hidden rounded-[1.45rem] border border-nord-polarLighter/12 bg-white/92 p-3 shadow-[0_14px_40px_rgba(46,52,64,0.05)]${
+              spanFull ? " lg:col-span-2" : ""
+            }`}
           >
-            <iframe
-              id={`sofa-standings-embed-${group.tournamentId}-${WORLD_CUP_SOFASCORE_SEASON_ID}`}
-              title={`${group.name} standings`}
-              src={src}
-              className="block w-full rounded-xl"
-              style={{ height: "431px", maxWidth: "768px", width: "100%" }}
-              frameBorder={0}
-              scrolling="no"
-            />
-            <div className="mt-1.5 text-[11px] text-nord-polarLight">
-              Standings provided by{" "}
-              <a
-                target="_blank"
-                rel="noreferrer noopener"
-                href={group.href}
-                className="font-medium text-nord-frostDark hover:underline"
-              >
-                Sofascore
-              </a>
+            <div className="overflow-hidden rounded-xl" style={{ height: `${visibleHeight}px` }}>
+              <iframe
+                id={`sofa-standings-embed-${group.tournamentId}-${WORLD_CUP_SOFASCORE_SEASON_ID}`}
+                title={`${group.name} standings`}
+                src={src}
+                className="block w-full"
+                style={{ height: `${group.height}px`, maxWidth: "768px", width: "100%", border: 0 }}
+                scrolling="no"
+              />
             </div>
           </section>
         );
@@ -329,40 +258,7 @@ function WorldCupSofascoreStandings() {
   );
 }
 
-function WorldCupStandingsPanel({
-  groups = [],
-}: {
-  groups?: WorldCupStandingsGroup[];
-}) {
-  const hasNativeStandings = groups.some((group) => group.rows.length > 0);
-
-  if (hasNativeStandings) {
-    return (
-      <div className="border border-nord-polarLighter/50 border-t-0 rounded-b-lg bg-gradient-to-b from-white to-nord-snow/35 p-3 sm:p-4">
-        <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <h4 className="text-sm font-semibold text-nord-polar">
-              World Cup 2026 standings
-            </h4>
-            <p className="mt-1 text-xs leading-5 text-nord-polarLight">
-              Live group standings from football-data.org.
-            </p>
-          </div>
-          <span className="rounded-full border border-nord-frostDark/15 bg-nord-frostDark/8 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-nord-frostDark">
-            Official
-          </span>
-        </div>
-        <div className="grid gap-3 lg:grid-cols-2">
-          {groups
-            .filter((group) => group.rows.length > 0)
-            .map((group) => (
-              <WorldCupStandingsTable key={group.name} group={group} />
-            ))}
-        </div>
-      </div>
-    );
-  }
-
+function WorldCupStandingsPanel() {
   return (
     <div className="border border-nord-polarLighter/50 border-t-0 rounded-b-lg bg-gradient-to-b from-white to-nord-snow/35 p-3 sm:p-4">
       <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
@@ -371,7 +267,7 @@ function WorldCupStandingsPanel({
             World Cup 2026 standings
           </h4>
           <p className="mt-1 text-xs leading-5 text-nord-polarLight">
-            Group tables for Groups A, B and C, provided by Sofascore.
+            Group tables (A–L) and the third-placed teams ranking, provided by Sofascore.
           </p>
         </div>
         <span className="rounded-full border border-nord-frostDark/15 bg-nord-frostDark/8 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-nord-frostDark">
@@ -433,7 +329,6 @@ export function ScheduleTabs({
   othersByMatchId,
   statsByMatchId = {},
   liveByMatchId = {},
-  worldCupStandings = [],
   powerPickBalance,
   powerPickByMatchId = {},
   isAdmin = false,
@@ -1806,7 +1701,7 @@ export function ScheduleTabs({
       )}
 
       {activeTab === "standings" && isWorldCupTab ? (
-        <WorldCupStandingsPanel groups={worldCupStandings} />
+        <WorldCupStandingsPanel />
       ) : activeTab === "knockout" && isWorldCupTab ? (
         <WorldCupKnockoutPanel />
       ) : (
