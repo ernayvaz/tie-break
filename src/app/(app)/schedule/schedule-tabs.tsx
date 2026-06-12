@@ -16,6 +16,7 @@ import { Button, Modal } from "@/components/ui";
 import { PredictionPickDisplay } from "@/components/prediction-pick-display";
 import { CompetitionTabsClient } from "@/components/competition-tabs";
 import { ScoreAxisWidget } from "@/components/scoreaxis-widget";
+import type { WorldCupStandingsGroup } from "@/lib/standings/world-cup";
 import {
   DEFAULT_COMPETITION_ID,
   UCL_COMPETITION_ID,
@@ -141,6 +142,7 @@ type Props = {
   othersByMatchId: Record<string, OtherPrediction[]>;
   statsByMatchId?: Record<string, MatchStatisticsPayload>;
   liveByMatchId?: Record<string, LiveMatchState>;
+  worldCupStandings?: WorldCupStandingsGroup[];
   isAdmin?: boolean;
 };
 
@@ -194,7 +196,100 @@ function hasVisibleMatchCenterDataGap(stats?: MatchStatisticsPayload): boolean {
 // would create a new function reference each render, forcing React to unmount and
 // remount the ScoreAxis script + Sofascore iframe (causing the empty standings table
 // and the knockout bracket flicker).
-function WorldCupStandingsPanel() {
+function WorldCupStandingsTable({ group }: { group: WorldCupStandingsGroup }) {
+  return (
+    <section className="rounded-[1.45rem] border border-nord-polarLighter/12 bg-white/92 p-4 shadow-[0_14px_40px_rgba(46,52,64,0.05)]">
+      <h5 className="mb-3 text-sm font-semibold text-nord-polar">{group.name}</h5>
+      <div className="overflow-x-auto">
+        <table className="w-full border-collapse text-left text-xs sm:text-sm">
+          <thead>
+            <tr className="text-[10px] uppercase tracking-[0.12em] text-nord-polarLight sm:text-[11px]">
+              <th className="px-1.5 py-2 font-semibold">#</th>
+              <th className="px-1.5 py-2 font-semibold">Team</th>
+              <th className="px-1.5 py-2 text-center font-semibold">P</th>
+              <th className="px-1.5 py-2 text-center font-semibold">W</th>
+              <th className="px-1.5 py-2 text-center font-semibold">D</th>
+              <th className="px-1.5 py-2 text-center font-semibold">L</th>
+              <th className="hidden px-1.5 py-2 text-center font-semibold sm:table-cell">GF</th>
+              <th className="hidden px-1.5 py-2 text-center font-semibold sm:table-cell">GA</th>
+              <th className="px-1.5 py-2 text-center font-semibold">GD</th>
+              <th className="px-1.5 py-2 text-center font-semibold">Pts</th>
+            </tr>
+          </thead>
+          <tbody>
+            {group.rows.map((row) => (
+              <tr
+                key={`${group.name}-${row.rank}-${row.teamName}`}
+                className="border-t border-nord-polarLighter/12 text-nord-polar"
+              >
+                <td className="px-1.5 py-2 text-nord-polarLight">{row.rank}</td>
+                <td className="px-1.5 py-2">
+                  <span className="flex items-center gap-2">
+                    {row.teamCrest ? (
+                      // eslint-disable-next-line @next/next/no-img-element -- provider crest URLs are external
+                      <img
+                        src={row.teamCrest}
+                        alt=""
+                        className="h-4 w-4 shrink-0 object-contain"
+                        loading="lazy"
+                      />
+                    ) : null}
+                    <span className="font-medium">{row.teamName}</span>
+                  </span>
+                </td>
+                <td className="px-1.5 py-2 text-center">{row.played}</td>
+                <td className="px-1.5 py-2 text-center">{row.won}</td>
+                <td className="px-1.5 py-2 text-center">{row.draw}</td>
+                <td className="px-1.5 py-2 text-center">{row.lost}</td>
+                <td className="hidden px-1.5 py-2 text-center sm:table-cell">{row.goalsFor}</td>
+                <td className="hidden px-1.5 py-2 text-center sm:table-cell">{row.goalsAgainst}</td>
+                <td className="px-1.5 py-2 text-center">
+                  {row.goalDifference > 0 ? `+${row.goalDifference}` : row.goalDifference}
+                </td>
+                <td className="px-1.5 py-2 text-center font-semibold">{row.points}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
+function WorldCupStandingsPanel({
+  groups = [],
+}: {
+  groups?: WorldCupStandingsGroup[];
+}) {
+  const hasNativeStandings = groups.some((group) => group.rows.length > 0);
+
+  if (hasNativeStandings) {
+    return (
+      <div className="border border-nord-polarLighter/50 border-t-0 rounded-b-lg bg-gradient-to-b from-white to-nord-snow/35 p-3 sm:p-4">
+        <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h4 className="text-sm font-semibold text-nord-polar">
+              World Cup 2026 standings
+            </h4>
+            <p className="mt-1 text-xs leading-5 text-nord-polarLight">
+              Live group standings from football-data.org.
+            </p>
+          </div>
+          <span className="rounded-full border border-nord-frostDark/15 bg-nord-frostDark/8 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-nord-frostDark">
+            Official
+          </span>
+        </div>
+        <div className="grid gap-3 lg:grid-cols-2">
+          {groups
+            .filter((group) => group.rows.length > 0)
+            .map((group) => (
+              <WorldCupStandingsTable key={group.name} group={group} />
+            ))}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="border border-nord-polarLighter/50 border-t-0 rounded-b-lg bg-gradient-to-b from-white to-nord-snow/35 p-3 sm:p-4">
       <ScoreAxisWidget
@@ -202,9 +297,9 @@ function WorldCupStandingsPanel() {
         widgetId={WORLD_CUP_STANDINGS_WIDGET_ID}
         preserveQueryWidgetId
         title="World Cup 2026 standings"
-        description="Official ScoreAxis league table widget for the World Cup group standings."
+        description="Group standings are unavailable from football-data.org right now, so the official ScoreAxis table is shown as the fallback."
         minHeight={620}
-        fallbackMessage="World Cup 2026 standings are blocked by the provider right now. The table will load automatically when ScoreAxis is reachable."
+        fallbackMessage="World Cup 2026 standings are not available from football-data.org or ScoreAxis right now. The table will appear automatically once a provider returns the group tables."
       />
     </div>
   );
@@ -260,6 +355,7 @@ export function ScheduleTabs({
   othersByMatchId,
   statsByMatchId = {},
   liveByMatchId = {},
+  worldCupStandings = [],
   isAdmin = false,
 }: Props) {
   const [competitionId, setCompetitionId] = useState<string>(DEFAULT_COMPETITION_ID);
@@ -1482,7 +1578,7 @@ export function ScheduleTabs({
       )}
 
       {activeTab === "standings" && isWorldCupTab ? (
-        <WorldCupStandingsPanel />
+        <WorldCupStandingsPanel groups={worldCupStandings} />
       ) : activeTab === "knockout" && isWorldCupTab ? (
         <WorldCupKnockoutPanel />
       ) : (
