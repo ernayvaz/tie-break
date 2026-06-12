@@ -90,7 +90,7 @@ describe("highlights/match-resolution", () => {
     expect(resolution?.candidate.id).toBe("correct");
   });
 
-  it("ignores non-Champions-League competitions", () => {
+  it("ignores non-tracked competitions", () => {
     const resolution = resolveHighlightMatch({
       title: "Liverpool - Chelsea",
       competition: "ENGLAND: Premier League",
@@ -102,6 +102,70 @@ describe("highlights/match-resolution", () => {
           matchDatetime: "2026-03-01T15:00:00.000Z",
           homeTeamName: "Liverpool",
           awayTeamName: "Chelsea",
+          stage: "GROUP_STAGE",
+        },
+      ],
+    });
+
+    expect(resolution).toBeNull();
+  });
+
+  it("matches a World Cup clip to a World Cup fixture", () => {
+    const resolution = resolveHighlightMatch({
+      title: "Mexico 2-0 South Africa",
+      competition: "WORLD: World Cup",
+      publishedAt: "2026-06-11T22:00:00.000Z",
+      matches: [
+        {
+          id: "wc-match",
+          competitionId: "WC",
+          matchDatetime: "2026-06-11T22:00:00.000Z",
+          homeTeamName: "Mexico",
+          awayTeamName: "South Africa",
+          homeScore: 2,
+          awayScore: 0,
+          stage: "GROUP_STAGE",
+        },
+      ],
+    });
+
+    expect(resolution?.candidate.id).toBe("wc-match");
+  });
+
+  it("does not bind a Premier League clip to a same-day Champions League fixture", () => {
+    const resolution = resolveHighlightMatch({
+      title: "Liverpool 1-0 Chelsea",
+      competition: "ENGLAND: Premier League",
+      publishedAt: "2026-03-01T15:00:00.000Z",
+      matches: [
+        {
+          id: "cl-same-teams",
+          competitionId: "CL",
+          matchDatetime: "2026-03-01T15:00:00.000Z",
+          homeTeamName: "Liverpool",
+          awayTeamName: "Chelsea",
+          homeScore: 1,
+          awayScore: 0,
+          stage: "GROUP_STAGE",
+        },
+      ],
+    });
+
+    expect(resolution).toBeNull();
+  });
+
+  it("does not bind a World Cup clip to a Champions League fixture", () => {
+    const resolution = resolveHighlightMatch({
+      title: "Mexico - South Africa",
+      competition: "WORLD: World Cup",
+      publishedAt: "2026-06-11T22:00:00.000Z",
+      matches: [
+        {
+          id: "cl-only",
+          competitionId: "CL",
+          matchDatetime: "2026-06-11T22:00:00.000Z",
+          homeTeamName: "Mexico",
+          awayTeamName: "South Africa",
           stage: "GROUP_STAGE",
         },
       ],

@@ -5,6 +5,8 @@ import type {
   MatchStatisticsPayload,
   StatsMatchSummary,
   StatsRecordKey,
+  StatsSquadPlayer,
+  StatsSquadSection,
   StatsTeamRecord,
   StatsTeamSection,
 } from "@/lib/match-stats/types";
@@ -125,6 +127,123 @@ function EmptySection({ message }: { message: string | null }) {
     <div className="rounded-2xl border border-dashed border-nord-polarLighter/20 bg-white/60 px-4 py-4 text-sm text-nord-polarLight">
       {message}
     </div>
+  );
+}
+
+const SQUAD_GROUPS: { key: string; label: string; match: (position: string) => boolean }[] = [
+  { key: "GK", label: "Goalkeepers", match: (p) => p.includes("keeper") },
+  {
+    key: "DEF",
+    label: "Defenders",
+    match: (p) => p.includes("back") || p.includes("defen"),
+  },
+  {
+    key: "MID",
+    label: "Midfielders",
+    match: (p) => p.includes("midfield"),
+  },
+  {
+    key: "FWD",
+    label: "Forwards",
+    match: (p) =>
+      p.includes("forward") ||
+      p.includes("striker") ||
+      p.includes("wing") ||
+      p.includes("offence") ||
+      p.includes("attack"),
+  },
+];
+
+function getSquadGroupLabel(position: string | null): string {
+  if (!position) return "Other";
+  const normalized = position.toLowerCase();
+  const group = SQUAD_GROUPS.find((item) => item.match(normalized));
+  return group ? group.label : "Other";
+}
+
+function computeAge(dateOfBirth: string | null): number | null {
+  if (!dateOfBirth) return null;
+  const dob = new Date(dateOfBirth);
+  if (Number.isNaN(dob.getTime())) return null;
+  const now = new Date();
+  let age = now.getFullYear() - dob.getFullYear();
+  const monthDiff = now.getMonth() - dob.getMonth();
+  if (monthDiff < 0 || (monthDiff === 0 && now.getDate() < dob.getDate())) {
+    age -= 1;
+  }
+  return age >= 0 && age < 120 ? age : null;
+}
+
+function SquadSection({ squad }: { squad: StatsSquadSection }) {
+  if (!squad || squad.players.length === 0) {
+    return (
+      <section className="rounded-[1.4rem] border border-nord-polarLighter/12 bg-white/85 px-4 py-4 shadow-sm">
+        <SectionHeading
+          title="Squad"
+          subtitle={squad?.coachName ? `Coach: ${squad.coachName}` : null}
+        />
+        <div className="mt-4">
+          <EmptySection
+            message={squad?.message ?? "Squad data is not available for this team."}
+          />
+        </div>
+      </section>
+    );
+  }
+
+  const groupOrder = [...SQUAD_GROUPS.map((g) => g.label), "Other"];
+  const grouped = new Map<string, StatsSquadPlayer[]>();
+  for (const player of squad.players) {
+    const label = getSquadGroupLabel(player.position);
+    const list = grouped.get(label) ?? [];
+    list.push(player);
+    grouped.set(label, list);
+  }
+
+  return (
+    <section className="rounded-[1.4rem] border border-nord-polarLighter/12 bg-white/85 px-4 py-4 shadow-sm">
+      <SectionHeading
+        title={`Squad (${squad.players.length})`}
+        subtitle={squad.coachName ? `Coach: ${squad.coachName}` : null}
+      />
+      <div className="mt-4 space-y-4">
+        {groupOrder
+          .filter((label) => (grouped.get(label)?.length ?? 0) > 0)
+          .map((label) => {
+            const players = grouped.get(label) ?? [];
+            return (
+              <div key={label}>
+                <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-nord-polarLight">
+                  {label}
+                </div>
+                <ul className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+                  {players.map((player, index) => {
+                    const age = computeAge(player.dateOfBirth);
+                    const meta = [player.position, player.nationality, age != null ? `${age}y` : null]
+                      .filter(Boolean)
+                      .join(" · ");
+                    return (
+                      <li
+                        key={`${player.playerId ?? player.name}-${index}`}
+                        className="flex items-center justify-between gap-2 rounded-xl border border-nord-polarLighter/12 bg-nord-snow/55 px-3 py-2"
+                      >
+                        <span className="min-w-0 truncate text-sm font-medium text-nord-polar">
+                          {player.name}
+                        </span>
+                        {meta ? (
+                          <span className="shrink-0 text-[11px] text-nord-polarLight">
+                            {meta}
+                          </span>
+                        ) : null}
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            );
+          })}
+      </div>
+    </section>
   );
 }
 
@@ -420,6 +539,8 @@ function TeamInsightPanel({
           </div>
         )}
       </section>
+
+      <SquadSection squad={team.squad} />
 
       <section className="rounded-[1.4rem] border border-nord-polarLighter/12 bg-white/85 px-4 py-4 shadow-sm">
         <SectionHeading title="Recent domestic matches" />

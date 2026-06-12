@@ -185,6 +185,10 @@ function hydratePayload(
         ...(payload.homeTeam?.teamInfo ?? fallbackPayload.homeTeam.teamInfo),
         message: normalizeMatchCenterMessage(payload.homeTeam?.teamInfo?.message),
       },
+      squad: {
+        ...(payload.homeTeam?.squad ?? fallbackPayload.homeTeam.squad),
+        message: normalizeMatchCenterMessage(payload.homeTeam?.squad?.message),
+      },
       recentDomesticMatches: {
         ...(payload.homeTeam?.recentDomesticMatches ??
           fallbackPayload.homeTeam.recentDomesticMatches),
@@ -226,6 +230,10 @@ function hydratePayload(
       teamInfo: {
         ...(payload.awayTeam?.teamInfo ?? fallbackPayload.awayTeam.teamInfo),
         message: normalizeMatchCenterMessage(payload.awayTeam?.teamInfo?.message),
+      },
+      squad: {
+        ...(payload.awayTeam?.squad ?? fallbackPayload.awayTeam.squad),
+        message: normalizeMatchCenterMessage(payload.awayTeam?.squad?.message),
       },
       recentDomesticMatches: {
         ...(payload.awayTeam?.recentDomesticMatches ??

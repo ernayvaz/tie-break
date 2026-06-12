@@ -1,6 +1,6 @@
 import { SCOREBAT_HIGHLIGHTS_API_URL } from "@/lib/config";
 import {
-  isChampionsLeagueCompetitionLabel,
+  isHighlightLabelTrackable,
   parseScoreBatTitle,
 } from "@/lib/highlights/match-resolution";
 
@@ -492,7 +492,9 @@ function normalizeEntry(value: unknown): ScoreBatHighlightEntry | null {
     return null;
   }
 
-  if (!isChampionsLeagueCompetitionLabel(competition)) {
+  // Keep Champions League and World Cup entries; drop unrelated competitions so
+  // we never pay hydration cost for clips that cannot bind to a tracked fixture.
+  if (!isHighlightLabelTrackable(competition)) {
     return null;
   }
 

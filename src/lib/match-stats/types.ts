@@ -147,6 +147,21 @@ export type StatsFixtureSection = {
   message: string | null;
 };
 
+export type StatsSquadPlayer = {
+  playerId: number | null;
+  name: string;
+  position: string | null;
+  dateOfBirth: string | null;
+  nationality: string | null;
+};
+
+export type StatsSquadSection = {
+  status: StatsSectionState;
+  coachName: string | null;
+  players: StatsSquadPlayer[];
+  message: string | null;
+};
+
 export type StatsTeamSection = {
   status: StatsSectionState;
   teamName: string;
@@ -157,6 +172,7 @@ export type StatsTeamSection = {
   currentCompetition: StatsLeagueSnapshot;
   topPlayers: StatsPlayerLeadersSection;
   teamInfo: StatsTeamInfoSection;
+  squad: StatsSquadSection;
   recentDomesticMatches: StatsFixtureSection;
   recentUclMatches: StatsFixtureSection;
 };
@@ -266,6 +282,12 @@ export function createUnavailableTeamSection(
       squadSize: null,
       areaName: null,
       message: "Team profile data is not available for this club.",
+    },
+    squad: {
+      status: "unavailable",
+      coachName: null,
+      players: [],
+      message: "Squad data is not available for this team.",
     },
     recentDomesticMatches: createUnavailableFixtureSection(
       "No recent domestic matches available."

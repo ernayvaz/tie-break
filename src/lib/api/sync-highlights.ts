@@ -1,6 +1,11 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
-import { UCL_COMPETITION_ID, UCL_SEASON } from "@/lib/config";
+import {
+  UCL_COMPETITION_ID,
+  UCL_SEASON,
+  WORLD_CUP_2026_COMPETITION_ID,
+  WORLD_CUP_2026_SEASON,
+} from "@/lib/config";
 import {
   buildProgramNote,
   formatHighlightSeason,
@@ -15,6 +20,18 @@ import {
 
 const SCOREBAT_PROVIDER = "scorebat.com";
 const STALE_LOOKBACK_DAYS = 21;
+/** Competitions we keep highlights for. Highlights are bound to local fixtures
+ *  in these competitions; CL also absorbs legacy rows stored with a null id. */
+const TRACKED_HIGHLIGHT_COMPETITION_IDS = [
+  WORLD_CUP_2026_COMPETITION_ID,
+  UCL_COMPETITION_ID,
+];
+
+function seasonLabelForCompetition(competitionId: string | null): string {
+  return competitionId === WORLD_CUP_2026_COMPETITION_ID
+    ? formatHighlightSeason(WORLD_CUP_2026_SEASON)
+    : formatHighlightSeason(UCL_SEASON);
+}
 
 export type SyncHighlightsResult =
   | {
@@ -93,7 +110,10 @@ export async function syncHighlightsFromApi(options?: {
   try {
     const matches = await prisma.match.findMany({
       where: {
-        competitionId: UCL_COMPETITION_ID,
+        OR: [
+          { competitionId: { in: TRACKED_HIGHLIGHT_COMPETITION_IDS } },
+          { competitionId: null },
+        ],
       },
       select: {
         id: true,
@@ -105,15 +125,21 @@ export async function syncHighlightsFromApi(options?: {
         awayScore: true,
         stage: true,
       },
-      take: 500,
+      take: 1000,
     });
 
-    const hydratedEntries = await Promise.all(
-      providerResult.entries.map(hydratePlayableVideos)
-    );
-    const bestByMatchId = new Map<string, MatchedHighlight>();
+    // Resolve against the raw (non-hydrated) provider entries first so we only
+    // pay the per-video hydration cost for entries that actually bind to a
+    // tracked local fixture (World Cup / Champions League).
+    const bestRawByMatchId = new Map<
+      string,
+      {
+        entry: ScoreBatHighlightEntry;
+        resolution: NonNullable<ReturnType<typeof resolveHighlightMatch>>;
+      }
+    >();
 
-    for (const entry of hydratedEntries) {
+    for (const entry of providerResult.entries) {
       const resolution = resolveHighlightMatch({
         title: entry.title,
         competition: entry.competition,
@@ -124,15 +150,20 @@ export async function syncHighlightsFromApi(options?: {
         continue;
       }
 
-      const current = bestByMatchId.get(resolution.candidate.id);
+      const current = bestRawByMatchId.get(resolution.candidate.id);
       const candidate = { entry, resolution };
-      bestByMatchId.set(
+      bestRawByMatchId.set(
         resolution.candidate.id,
         current ? chooseBetterMatch(current, candidate) : candidate
       );
     }
 
-    const matchedHighlights = [...bestByMatchId.values()];
+    const matchedHighlights: MatchedHighlight[] = await Promise.all(
+      [...bestRawByMatchId.values()].map(async ({ entry, resolution }) => ({
+        entry: await hydratePlayableVideos(entry),
+        resolution,
+      }))
+    );
     const touchedMatchIds = matchedHighlights.map(
       ({ resolution }) => resolution.candidate.id
     );
@@ -147,9 +178,10 @@ export async function syncHighlightsFromApi(options?: {
         const localMatch = resolution.candidate;
         const syncStatus =
           entry.videos.some((video) => video.embedUrl) ? "available" : "unavailable";
-        const seasonLabel = formatHighlightSeason(UCL_SEASON);
+        const competitionId = localMatch.competitionId ?? UCL_COMPETITION_ID;
+        const seasonLabel = seasonLabelForCompetition(competitionId);
         const baseData = {
-          competitionId: localMatch.competitionId ?? UCL_COMPETITION_ID,
+          competitionId,
           provider: entry.provider,
           providerMatchId: entry.providerMatchId,
           title: entry.title,
@@ -211,7 +243,6 @@ export async function syncHighlightsFromApi(options?: {
       if ((options?.markUnmatchedAsStale ?? true) && touchedMatchIds.length > 0) {
         await tx.matchHighlight.updateMany({
           where: {
-            competitionId: UCL_COMPETITION_ID,
             publishedAt: { gte: recentWindowStart },
             matchId: { notIn: touchedMatchIds },
             syncStatus: { not: "unavailable" },
@@ -222,36 +253,41 @@ export async function syncHighlightsFromApi(options?: {
         });
       }
 
-      const featureCandidates = await tx.matchHighlight.findMany({
-        where: {
-          competitionId: UCL_COMPETITION_ID,
-          syncStatus: { in: ["available", "stale"] },
-        },
-        select: {
-          id: true,
-          stage: true,
-          publishedAt: true,
-        },
-        take: 200,
-      });
-
-      await tx.matchHighlight.updateMany({
-        where: { competitionId: UCL_COMPETITION_ID, isFeatured: true },
-        data: { isFeatured: false },
-      });
-
-      const featured = [...featureCandidates].sort((a, b) => {
-        if (b.publishedAt.getTime() !== a.publishedAt.getTime()) {
-          return b.publishedAt.getTime() - a.publishedAt.getTime();
-        }
-        return getStageSortValue(a.stage) - getStageSortValue(b.stage);
-      })[0];
-
-      if (featured) {
-        await tx.matchHighlight.update({
-          where: { id: featured.id },
-          data: { isFeatured: true },
+      // Feature one highlight per tracked competition so each tab (World Cup,
+      // Champions League) gets its own hero card. MatchHighlight.competitionId is
+      // always stored non-null (legacy null rows only live on Match itself).
+      for (const competitionId of TRACKED_HIGHLIGHT_COMPETITION_IDS) {
+        const featureCandidates = await tx.matchHighlight.findMany({
+          where: {
+            competitionId,
+            syncStatus: { in: ["available", "stale"] },
+          },
+          select: {
+            id: true,
+            stage: true,
+            publishedAt: true,
+          },
+          take: 200,
         });
+
+        await tx.matchHighlight.updateMany({
+          where: { competitionId, isFeatured: true },
+          data: { isFeatured: false },
+        });
+
+        const featured = [...featureCandidates].sort((a, b) => {
+          if (b.publishedAt.getTime() !== a.publishedAt.getTime()) {
+            return b.publishedAt.getTime() - a.publishedAt.getTime();
+          }
+          return getStageSortValue(a.stage) - getStageSortValue(b.stage);
+        })[0];
+
+        if (featured) {
+          await tx.matchHighlight.update({
+            where: { id: featured.id },
+            data: { isFeatured: true },
+          });
+        }
       }
 
       return writeCount;
@@ -261,7 +297,6 @@ export async function syncHighlightsFromApi(options?: {
       touchedMatchIds.length > 0
         ? await prisma.matchHighlight.count({
             where: {
-              competitionId: UCL_COMPETITION_ID,
               publishedAt: { gte: recentWindowStart },
               matchId: { notIn: touchedMatchIds },
               syncStatus: "stale",
@@ -271,7 +306,7 @@ export async function syncHighlightsFromApi(options?: {
 
     const unmatchedCount = Math.max(
       0,
-      hydratedEntries.length - matchedHighlights.length
+      providerResult.entries.length - matchedHighlights.length
     );
 
     await prisma.apiSyncLog.create({
@@ -285,7 +320,7 @@ export async function syncHighlightsFromApi(options?: {
 
     return {
       ok: true,
-      fetchedCount: hydratedEntries.length,
+      fetchedCount: providerResult.entries.length,
       matchedCount: matchedHighlights.length,
       storedCount,
       staleCount,

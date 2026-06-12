@@ -105,6 +105,43 @@ export function isChampionsLeagueCompetitionLabel(label: string): boolean {
   return normalized.includes("champions league") && !normalized.includes("women");
 }
 
+export function isWorldCupCompetitionLabel(label: string): boolean {
+  const normalized = label.trim().toLowerCase();
+  return (
+    normalized.includes("world cup") &&
+    !normalized.includes("women") &&
+    !normalized.includes("qualif") &&
+    !normalized.includes("u-") &&
+    !normalized.includes("u17") &&
+    !normalized.includes("u20") &&
+    !normalized.includes("u21") &&
+    !normalized.includes("u23")
+  );
+}
+
+/**
+ * A ScoreBat competition label is only allowed to bind to a local fixture when
+ * the label is consistent with that fixture's competition. This keeps the old
+ * Champions League guard intact (domestic leagues are rejected) while also
+ * letting genuine World Cup clips attach to World Cup fixtures.
+ */
+export function isHighlightLabelTrackable(label: string): boolean {
+  return (
+    isChampionsLeagueCompetitionLabel(label) || isWorldCupCompetitionLabel(label)
+  );
+}
+
+function isLabelCompatibleWithCompetition(
+  label: string,
+  competitionId: string | null | undefined
+): boolean {
+  if (competitionId === "WC") {
+    return isWorldCupCompetitionLabel(label);
+  }
+  // CL bucket (and legacy null rows) require a Champions League label.
+  return isChampionsLeagueCompetitionLabel(label);
+}
+
 export function resolveHighlightMatch(input: {
   title: string;
   competition: string;
@@ -112,7 +149,11 @@ export function resolveHighlightMatch(input: {
   matches: HighlightMatchCandidate[];
   maxWindowHours?: number;
 }): HighlightMatchResolution | null {
-  if (!isChampionsLeagueCompetitionLabel(input.competition)) {
+  // Only Champions League and World Cup labels are trackable. Each entry is then
+  // bound to a local fixture whose competition is consistent with the label, so
+  // a Premier League clip never attaches to a same-day Champions League fixture
+  // while genuine World Cup clips attach to World Cup fixtures.
+  if (!isHighlightLabelTrackable(input.competition)) {
     return null;
   }
 
@@ -136,7 +177,7 @@ export function resolveHighlightMatch(input: {
   let best: HighlightMatchResolution | null = null;
 
   for (const candidate of input.matches) {
-    if (candidate.competitionId && candidate.competitionId !== "CL") {
+    if (!isLabelCompatibleWithCompetition(input.competition, candidate.competitionId)) {
       continue;
     }
 

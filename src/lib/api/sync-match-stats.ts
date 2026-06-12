@@ -35,6 +35,7 @@ import type {
   StatsPlayerLeadersSection,
   StatsProviderLinkMode,
   StatsSectionState,
+  StatsSquadSection,
   StatsTeamInfoSection,
   StatsTeamRecord,
   StatsTeamSection,
@@ -581,6 +582,38 @@ function buildTeamInfoSection(
   };
 }
 
+function buildSquadSection(
+  team: FootballDataTeamResponse | undefined
+): StatsSquadSection {
+  const players =
+    team?.squad
+      ?.filter((player) => Boolean(player.name))
+      .map((player) => ({
+        playerId: player.id ?? null,
+        name: player.name ?? "Player",
+        position: player.position ?? null,
+        dateOfBirth: player.dateOfBirth ?? null,
+        nationality: player.nationality ?? null,
+      })) ?? [];
+
+  if (players.length === 0) {
+    return {
+      status: "unavailable",
+      coachName: team?.coach?.name ?? null,
+      players: [],
+      message:
+        "Squad list is not available for this team from football-data.org right now.",
+    };
+  }
+
+  return {
+    status: "available",
+    coachName: team?.coach?.name ?? null,
+    players,
+    message: null,
+  };
+}
+
 function buildSquadFallbackLeaders(
   team: FootballDataTeamResponse | undefined,
   competitionName: string | null
@@ -786,6 +819,8 @@ function buildTeamSection(input: {
       null,
   });
 
+  const squad = buildSquadSection(input.teamDetails);
+
   const recentDomesticMatches = buildFixtureSection(
     input.recentDomestic,
     "No recent domestic matches available."
@@ -813,6 +848,7 @@ function buildTeamSection(input: {
     currentCompetition,
     topPlayers,
     teamInfo,
+    squad,
     recentDomesticMatches,
     recentUclMatches,
   };
