@@ -1,5 +1,10 @@
 import { prisma } from "@/lib/db";
 import { UCL_COMPETITION_ID } from "@/lib/config";
+import {
+  pointsForPrediction,
+  getPowerPickUserIdsByMatch,
+  lockPowerPickSelectionsForMatch,
+} from "@/lib/power-pick";
 
 const KNOCKOUT_STAGES = ["ROUND_16", "QUARTER_FINAL", "SEMI_FINAL", "FINAL"];
 const SEMI_FINAL_STAGES = ["SEMI_FINAL", "FINAL"];
@@ -14,7 +19,7 @@ function matchCompetitionFilter(competitionId: string) {
 
 /**
  * Score all finalized predictions for a finished match.
- * Sets awardedPoints = 1 if prediction matches official result, else 0.
+ * Normal correct = 1 point, Power Pick x3 correct = exactly 3 points, incorrect = 0.
  */
 export async function scoreMatch(matchId: string): Promise<{ ok: true } | { ok: false; error: string }> {
   const match = await prisma.match.findUnique({
@@ -25,14 +30,13 @@ export async function scoreMatch(matchId: string): Promise<{ ok: true } | { ok: 
   if (!match) return { ok: false, error: "Match not found" };
   if (match.officialResultType === null) return { ok: false, error: "Match has no result yet" };
 
-  await prisma.prediction.updateMany({
-    where: {
-      matchId,
-      isFinal: true,
-      selectedPrediction: match.officialResultType,
-    },
-    data: { awardedPoints: 1 },
-  });
+  // A finished match has necessarily passed its lock time: consume any active boosters.
+  await lockPowerPickSelectionsForMatch(matchId);
+
+  const boostedByMatch = await getPowerPickUserIdsByMatch([matchId]);
+  const boostedUserIds = [...(boostedByMatch.get(matchId) ?? new Set<string>())];
+
+  // Incorrect predictions always score 0 (normal and boosted alike).
   await prisma.prediction.updateMany({
     where: {
       matchId,
@@ -41,6 +45,38 @@ export async function scoreMatch(matchId: string): Promise<{ ok: true } | { ok: 
     },
     data: { awardedPoints: 0 },
   });
+
+  if (boostedUserIds.length > 0) {
+    // Boosted correct → exactly 3 points (never 1 + 3).
+    await prisma.prediction.updateMany({
+      where: {
+        matchId,
+        isFinal: true,
+        selectedPrediction: match.officialResultType,
+        userId: { in: boostedUserIds },
+      },
+      data: { awardedPoints: pointsForPrediction(true, true) },
+    });
+    // Everyone else correct → normal 1 point.
+    await prisma.prediction.updateMany({
+      where: {
+        matchId,
+        isFinal: true,
+        selectedPrediction: match.officialResultType,
+        userId: { notIn: boostedUserIds },
+      },
+      data: { awardedPoints: pointsForPrediction(true, false) },
+    });
+  } else {
+    await prisma.prediction.updateMany({
+      where: {
+        matchId,
+        isFinal: true,
+        selectedPrediction: match.officialResultType,
+      },
+      data: { awardedPoints: pointsForPrediction(true, false) },
+    });
+  }
   return { ok: true };
 }
 
@@ -64,6 +100,12 @@ export async function getLeaderboardStatsForUser(
   });
   if (predictions.length === 0) return null;
 
+  const boostedSelections = await prisma.powerPickSelection.findMany({
+    where: { userId, status: { not: "revoked" } },
+    select: { matchId: true },
+  });
+  const boostedMatchIds = new Set(boostedSelections.map((s) => s.matchId));
+
   let totalPoints = 0;
   let correctCount = 0;
   let completedMatchCount = 0;
@@ -71,9 +113,10 @@ export async function getLeaderboardStatsForUser(
   for (const p of predictions) {
     if (p.match.officialResultType !== null) {
       completedMatchCount++;
-      const points = p.selectedPrediction === p.match.officialResultType ? 1 : 0;
+      const isCorrect = p.selectedPrediction === p.match.officialResultType;
+      const points = pointsForPrediction(isCorrect, boostedMatchIds.has(p.matchId));
       totalPoints += points;
-      if (points === 1) correctCount++;
+      if (isCorrect) correctCount++;
     }
   }
 
@@ -146,7 +189,8 @@ export async function rebuildLeaderboardForCompetition(
     existing.finalizedCount += 1;
     existing.totalPoints += p.awardedPoints ?? 0;
     if (p.match.officialResultType !== null) existing.completedMatchCount += 1;
-    if (p.awardedPoints === 1) {
+    // awardedPoints > 0 covers both normal (1) and Power Pick x3 (3) correct calls.
+    if ((p.awardedPoints ?? 0) > 0) {
       existing.correctCount += 1;
       if (KNOCKOUT_STAGES.includes(p.match.stage)) existing.knockoutPoints += 1;
       if (SEMI_FINAL_STAGES.includes(p.match.stage)) existing.semifinalFinalPoints += 1;

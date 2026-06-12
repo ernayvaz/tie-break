@@ -126,14 +126,28 @@ function TopPlacementBadge({ place }: { place?: 1 | 2 | 3 }) {
 function RecentPredictionMarker({
   status,
   label,
+  isPowerPick = false,
 }: {
   status: LeaderboardRecentPredictionItem["status"] | "empty";
   label: string;
+  isPowerPick?: boolean;
 }) {
   const sharedClassName =
     "inline-flex h-6 w-6 items-center justify-center rounded-full ring-1";
 
   if (status === "correct") {
+    if (isPowerPick) {
+      // Gold marker highlights a correct Power Pick x3 (worth 3 points).
+      return (
+        <span
+          className={`${sharedClassName} bg-[linear-gradient(135deg,#f7c948,#e08a1e)] text-[10px] font-bold text-white ring-amber-300/60`}
+          title={label}
+          aria-label={label}
+        >
+          ×3
+        </span>
+      );
+    }
     return (
       <span
         className={`${sharedClassName} bg-emerald-500/12 text-emerald-600 ring-emerald-500/25`}
@@ -191,6 +205,7 @@ function RecentPredictionsStrip({
         id: `empty-${index}`,
         status: "empty" as const,
         label: "No prediction yet",
+        isPowerPick: false,
       }),
     ),
     ...visiblePredictions,
@@ -207,6 +222,7 @@ function RecentPredictionsStrip({
           key={`${item.id}-${index}`}
           status={item.status}
           label={item.label}
+          isPowerPick={item.isPowerPick}
         />
       ))}
     </div>

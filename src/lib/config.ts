@@ -32,6 +32,13 @@ export const COMPETITIONS = [
   },
 ] as const;
 export const COMPETITION_IDS = COMPETITIONS.map((competition) => competition.id);
+/** Power Pick x3: number of rights granted per admin "package". */
+export const POWER_PICK_PACKAGE_SIZE = 3;
+/** Power Pick x3: total points awarded for a correct boosted prediction (replaces the normal 1). */
+export const POWER_PICK_POINTS = 3;
+/** Power Pick x3 is only offered on the World Cup competition. */
+export const POWER_PICK_COMPETITION_ID = WORLD_CUP_2026_COMPETITION_ID;
+
 export const STATS_SYNC_LOOKBACK_DAYS = 30;
 export const STATS_SYNC_LOOKAHEAD_DAYS = 45;
 export const STATS_RECENT_MATCH_LIMIT = 5;

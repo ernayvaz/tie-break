@@ -14,7 +14,12 @@ import {
 } from "@/lib/live-match";
 import { Button, Modal } from "@/components/ui";
 import { PredictionPickDisplay } from "@/components/prediction-pick-display";
+import { PowerPickToggle } from "@/components/power-pick-toggle";
 import { CompetitionTabsClient } from "@/components/competition-tabs";
+import type {
+  PowerPickBalanceSummary,
+  PowerPickMatchState,
+} from "@/lib/power-pick";
 import { ScoreAxisWidget } from "@/components/scoreaxis-widget";
 import type { WorldCupStandingsGroup } from "@/lib/standings/world-cup";
 import {
@@ -32,7 +37,16 @@ import {
   rebuildCompetitionLeaderboardsAction,
   resetUpcomingPredictionsAction,
   resetPastPredictionsAction,
+  togglePowerPickAction,
 } from "./actions";
+
+const EMPTY_POWER_PICK_BALANCE: PowerPickBalanceSummary = {
+  competitionId: WORLD_CUP_2026_COMPETITION_ID,
+  totalGranted: 0,
+  usedLocked: 0,
+  selectedUnlocked: 0,
+  remainingAvailable: 0,
+};
 
 const MATCH_CENTER_TAB_STORAGE_KEY = "tie-break-match-center-tabs";
 const SCHEDULE_DISPLAY_TIME_ZONE = "Europe/Istanbul";
@@ -143,6 +157,8 @@ type Props = {
   statsByMatchId?: Record<string, MatchStatisticsPayload>;
   liveByMatchId?: Record<string, LiveMatchState>;
   worldCupStandings?: WorldCupStandingsGroup[];
+  powerPickBalance?: PowerPickBalanceSummary;
+  powerPickByMatchId?: Record<string, PowerPickMatchState>;
   isAdmin?: boolean;
 };
 
@@ -356,6 +372,8 @@ export function ScheduleTabs({
   statsByMatchId = {},
   liveByMatchId = {},
   worldCupStandings = [],
+  powerPickBalance,
+  powerPickByMatchId = {},
   isAdmin = false,
 }: Props) {
   const [competitionId, setCompetitionId] = useState<string>(DEFAULT_COMPETITION_ID);
@@ -394,6 +412,14 @@ export function ScheduleTabs({
     Record<string, MatchStatisticsPayload>
   >(() => ({ ...statsByMatchId }));
   const [undoingMatchId, setUndoingMatchId] = useState<string | null>(null);
+  const [powerPickBalanceState, setPowerPickBalanceState] =
+    useState<PowerPickBalanceSummary>(powerPickBalance ?? EMPTY_POWER_PICK_BALANCE);
+  const [localPowerPickByMatch, setLocalPowerPickByMatch] = useState<
+    Record<string, PowerPickMatchState>
+  >(() => ({ ...powerPickByMatchId }));
+  const [pendingPowerPickMatchIds, setPendingPowerPickMatchIds] = useState<
+    Record<string, true>
+  >({});
   const [pendingResetUpcoming, setPendingResetUpcoming] = useState(false);
   const [pendingResetPast, setPendingResetPast] = useState(false);
   const [pendingStatsRefreshMatchIds, setPendingStatsRefreshMatchIds] =
@@ -412,6 +438,14 @@ export function ScheduleTabs({
   useEffect(() => {
     setLocalPredictions(buildPredictionMap(userPredictions));
   }, [userPredictions]);
+
+  useEffect(() => {
+    setPowerPickBalanceState(powerPickBalance ?? EMPTY_POWER_PICK_BALANCE);
+  }, [powerPickBalance]);
+
+  useEffect(() => {
+    setLocalPowerPickByMatch({ ...powerPickByMatchId });
+  }, [powerPickByMatchId]);
 
   useEffect(() => {
     const intervalId = window.setInterval(() => {
@@ -655,6 +689,60 @@ export function ScheduleTabs({
         if (previousPrediction) return { ...prev, [matchId]: previousPrediction };
         const next = { ...prev };
         delete next[matchId];
+        return next;
+      });
+    });
+  };
+
+  const handleTogglePowerPick = (matchId: string, nextOn: boolean) => {
+    setActionError(null);
+    const prevMatch = localPowerPickByMatch[matchId];
+    const prevBalance = powerPickBalanceState;
+
+    setPendingPowerPickMatchIds((prev) => ({ ...prev, [matchId]: true }));
+    setLocalPowerPickByMatch((prev) => ({
+      ...prev,
+      [matchId]: {
+        matchId,
+        isOn: nextOn,
+        isLocked: prev[matchId]?.isLocked ?? false,
+      },
+    }));
+    setPowerPickBalanceState((prev) => {
+      const selectedUnlocked = Math.max(
+        0,
+        prev.selectedUnlocked + (nextOn ? 1 : -1)
+      );
+      return {
+        ...prev,
+        selectedUnlocked,
+        remainingAvailable: Math.max(
+          0,
+          prev.totalGranted - prev.usedLocked - selectedUnlocked
+        ),
+      };
+    });
+
+    void togglePowerPickAction(matchId, nextOn).then((result) => {
+      setPendingPowerPickMatchIds((prev) => {
+        const next = { ...prev };
+        delete next[matchId];
+        return next;
+      });
+      if (result.ok) {
+        setPowerPickBalanceState(result.balance);
+        setLocalPowerPickByMatch((prev) => ({
+          ...prev,
+          [matchId]: result.matchState ?? { matchId, isOn: false, isLocked: false },
+        }));
+        return;
+      }
+      setActionError(result.error);
+      setPowerPickBalanceState(prevBalance);
+      setLocalPowerPickByMatch((prev) => {
+        const next = { ...prev };
+        if (prevMatch) next[matchId] = prevMatch;
+        else delete next[matchId];
         return next;
       });
     });
@@ -934,6 +1022,57 @@ export function ScheduleTabs({
     const isLive = !!liveState?.isLive;
     const matchDate = new Date(m.matchDatetime);
 
+    // Power Pick x3 — World Cup only, and only once an admin has granted rights.
+    const isWorldCupMatch = m.competitionId === WORLD_CUP_2026_COMPETITION_ID;
+    const powerPickFeatureOn = powerPickBalanceState.totalGranted > 0;
+    const ppMatch = localPowerPickByMatch[m.id];
+    const ppOn = ppMatch?.isOn ?? false;
+    const lockPassedForPP = now.getTime() >= new Date(m.lockAt).getTime();
+    const ppPending = !!pendingPowerPickMatchIds[m.id];
+    const hasPrediction = !!displaySelection;
+    const remainingPicks = powerPickBalanceState.remainingAvailable;
+    const showPowerPick =
+      isWorldCupMatch &&
+      powerPickFeatureOn &&
+      teamsDetermined &&
+      (!lockPassedForPP || ppOn || isAdmin);
+    const ppLockedVisual = lockPassedForPP && !isAdmin;
+    const ppDisabled =
+      ppPending ||
+      ppLockedVisual ||
+      (!ppOn && remainingPicks <= 0) ||
+      (!ppOn && !hasPrediction);
+    let ppTitle = "Correct Power Pick x3 predictions are worth 3 points.";
+    if (ppLockedVisual) ppTitle = "Power Pick x3 is locked for this match.";
+    else if (!ppOn && !hasPrediction) ppTitle = "Please select a prediction first.";
+    else if (!ppOn && remainingPicks <= 0) ppTitle = "No Power Pick x3 picks remaining.";
+
+    const powerPickBadge =
+      isWorldCupMatch && ppOn ? (
+        <span
+          title={
+            ppLockedVisual
+              ? "Power Pick x3 is locked for this match."
+              : "Correct Power Pick x3 predictions are worth 3 points."
+          }
+          className="inline-flex shrink-0 items-center gap-1 rounded-full border border-amber-300/70 bg-[linear-gradient(135deg,#fde9b8,#f6c560)] px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.08em] text-[#7a4a00] shadow-[0_1px_3px_rgba(224,138,30,0.25)]"
+        >
+          ★ x3
+        </span>
+      ) : null;
+
+    const powerPickNode = showPowerPick ? (
+      <PowerPickToggle
+        on={ppOn}
+        locked={ppLockedVisual}
+        disabled={ppDisabled}
+        pending={ppPending}
+        title={ppTitle}
+        onToggle={() => handleTogglePowerPick(m.id, !ppOn)}
+        className="mb-2"
+      />
+    ) : null;
+
     const borderStyle =
       separatorVariant === "none"
         ? undefined
@@ -1064,6 +1203,7 @@ export function ScheduleTabs({
                   {m.awayTeamName}
                 </span>
               </div>
+              {powerPickBadge ? <div className="pt-0.5">{powerPickBadge}</div> : null}
             </div>
           </div>
 
@@ -1072,6 +1212,7 @@ export function ScheduleTabs({
               <span className="mb-1 block text-[11px] font-medium uppercase tracking-[0.12em] text-nord-polarLight">
                 Prediction
               </span>
+              {powerPickNode}
               {canPredict && teamsDetermined && (
                 <div className="space-y-1.5">
                   <span className="block text-[11px] uppercase tracking-wide text-nord-polarLight">
@@ -1199,9 +1340,11 @@ export function ScheduleTabs({
                 {m.awayTeamName}
               </span>
             </div>
+            {powerPickBadge ? <div className="pt-0.5">{powerPickBadge}</div> : null}
           </div>
 
           <div className="flex flex-col justify-center">
+            {powerPickNode}
             {canPredict && (
               <div className="flex flex-col gap-1.5">
                 <span className="text-[11px] text-nord-polarLight uppercase tracking-wide">
@@ -1573,6 +1716,22 @@ export function ScheduleTabs({
             >
               Clear filters
             </button>
+          )}
+          {isWorldCupTab && powerPickBalanceState.totalGranted > 0 && (
+            <div
+              title="Correct Power Pick x3 predictions are worth 3 points."
+              className="flex w-full items-center justify-between gap-2 rounded-full border border-amber-300/60 bg-[linear-gradient(135deg,rgba(253,233,184,0.55),rgba(255,255,255,0.92))] px-3 py-1.5 shadow-[0_2px_8px_rgba(224,138,30,0.12)] sm:ml-auto sm:w-auto sm:justify-start"
+            >
+              <span className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.1em] text-[#7a4a00]">
+                <span className="flex h-4 w-4 items-center justify-center rounded-full bg-[linear-gradient(135deg,#f7c948,#e08a1e)] text-[9px] text-white shadow-sm">
+                  ★
+                </span>
+                Power Pick x3 left
+              </span>
+              <span className="text-sm font-bold tabular-nums text-[#7a4a00]">
+                {powerPickBalanceState.remainingAvailable}/{powerPickBalanceState.totalGranted}
+              </span>
+            </div>
           )}
         </div>
       )}

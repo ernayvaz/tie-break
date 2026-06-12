@@ -32,6 +32,7 @@ const tieBreakAdminItems = [
   { href: "/admin/tie-break", label: "Overview", Icon: IconNavOverview },
   { href: "/admin/matches", label: "Match Management", Icon: IconSchedule },
   { href: "/admin/predictions", label: "Prediction Management", Icon: IconPredictions },
+  { href: "/admin/power-pick", label: "Power Pick x3", Icon: IconNavScoring },
   { href: "/admin/scoring", label: "Scoring", Icon: IconNavScoring },
   { href: "/admin/api", label: "API & Sync", Icon: IconNavApi },
 ] as const;
@@ -53,6 +54,7 @@ function isTieBreakAdminPath(pathname: string) {
     pathname.startsWith("/admin/tie-break") ||
     pathname.startsWith("/admin/matches") ||
     pathname.startsWith("/admin/predictions") ||
+    pathname.startsWith("/admin/power-pick") ||
     pathname.startsWith("/admin/scoring") ||
     pathname.startsWith("/admin/api")
   );

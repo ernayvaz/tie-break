@@ -3,8 +3,9 @@ import { requireAuth } from "@/lib/auth/get-user";
 import { getOthersPredictionsBatch } from "@/lib/predictions";
 import { toDisplay } from "@/lib/prediction-values";
 import { getMatchStatisticsByMatchIds } from "@/lib/match-stats/cache";
-import { UCL_COMPETITION_ID } from "@/lib/config";
+import { UCL_COMPETITION_ID, POWER_PICK_COMPETITION_ID } from "@/lib/config";
 import { getWorldCupStandings } from "@/lib/standings/world-cup";
+import { getUserPowerPickState } from "@/lib/power-pick";
 import { PageHeroBand } from "@/components/page-hero-band";
 import { ScheduleTabs } from "./schedule-tabs";
 
@@ -59,6 +60,7 @@ export default async function SchedulePage() {
     ...new Set(userPredictions.filter((p) => p.isFinal).map((p) => p.matchId)),
   ];
   const worldCupStandings = await getWorldCupStandings();
+  const powerPickState = await getUserPowerPickState(user.id, POWER_PICK_COMPETITION_ID);
 
   const othersBatch = await getOthersPredictionsBatch(finalizedMatchIds, user.id);
   const othersByMatchId: Record<
@@ -133,6 +135,8 @@ export default async function SchedulePage() {
               statsByMatchId={statsByMatchId}
               liveByMatchId={{}}
               worldCupStandings={worldCupStandings}
+              powerPickBalance={powerPickState.balance}
+              powerPickByMatchId={powerPickState.byMatchId}
               isAdmin={user.role === "admin"}
             />
           </div>

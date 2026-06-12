@@ -10,6 +10,7 @@ export type LeaderboardRecentPredictionItem = {
   id: string;
   status: RecentPredictionStatus;
   label: string;
+  isPowerPick: boolean;
 };
 
 export type LeaderboardPrizeItem = {
@@ -149,6 +150,7 @@ export async function getLeaderboardBoardData(
           select: {
             id: true,
             userId: true,
+            matchId: true,
             selectedPrediction: true,
             finalizedAt: true,
             awardedPoints: true,
@@ -161,6 +163,20 @@ export async function getLeaderboardBoardData(
         })
       : [];
 
+  const boostedSelections =
+    entryUserIds.length > 0
+      ? await prisma.powerPickSelection.findMany({
+          where: {
+            userId: { in: entryUserIds },
+            status: { not: "revoked" },
+          },
+          select: { userId: true, matchId: true },
+        })
+      : [];
+  const boostedKeys = new Set(
+    boostedSelections.map((s) => `${s.userId}:${s.matchId}`)
+  );
+
   const recentPredictionsByUser = new Map<string, LeaderboardRecentPredictionItem[]>();
   for (const prediction of recentPredictionRows) {
     const items = recentPredictionsByUser.get(prediction.userId) ?? [];
@@ -169,13 +185,16 @@ export async function getLeaderboardBoardData(
     const status: RecentPredictionStatus =
       prediction.match.officialResultType === null
         ? "pending"
-        : prediction.awardedPoints === 1
+        : (prediction.awardedPoints ?? 0) > 0
           ? "correct"
           : "incorrect";
 
+    const isPowerPick = boostedKeys.has(`${prediction.userId}:${prediction.matchId}`);
     const statusLabel =
       status === "correct"
-        ? "Correct"
+        ? isPowerPick
+          ? "Correct (+3)"
+          : "Correct"
         : status === "incorrect"
           ? "Incorrect"
           : "Pending";
@@ -186,10 +205,12 @@ export async function getLeaderboardBoardData(
         })
       : "Time unavailable";
 
+    const powerPickTag = isPowerPick ? " · x3" : "";
     items.push({
       id: prediction.id,
       status,
-      label: `${toDisplay(prediction.selectedPrediction)} - ${statusLabel} - ${finalizedLabel}`,
+      isPowerPick,
+      label: `${toDisplay(prediction.selectedPrediction)}${powerPickTag} - ${statusLabel} - ${finalizedLabel}`,
     });
     recentPredictionsByUser.set(prediction.userId, items);
   }

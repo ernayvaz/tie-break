@@ -14,6 +14,12 @@ import { scoreMatch, rebuildLeaderboardForCompetition } from "@/lib/scoring";
 import { prisma } from "@/lib/db";
 import type { PredictionDisplay } from "@/lib/prediction-values";
 import { UCL_COMPETITION_ID } from "@/lib/config";
+import {
+  setUserPowerPick,
+  type PowerPickError,
+  type PowerPickBalanceSummary,
+  type PowerPickMatchState,
+} from "@/lib/power-pick";
 
 export type ScheduleActionState =
   | {
@@ -95,6 +101,41 @@ export async function unfinalizePredictionAction(
   const result = await unfinalizePrediction(user.id, matchId, { isAdmin });
   if (!result.ok) return { ok: false, error: predictionErrorMessages[result.error] ?? result.error };
   return { ok: true };
+}
+
+export type PowerPickActionState =
+  | {
+      ok: true;
+      balance: PowerPickBalanceSummary;
+      matchState: PowerPickMatchState | null;
+    }
+  | { ok: false; error: string };
+
+const powerPickErrorMessages: Record<PowerPickError, string> = {
+  match_not_found: "Match not found.",
+  match_locked: "Power Pick x3 is locked for this match.",
+  no_prediction: "Please select a prediction first.",
+  no_rights_remaining: "You have already used all available Power Pick x3 picks.",
+  not_available: "Power Pick x3 is not available for this match.",
+};
+
+export async function togglePowerPickAction(
+  matchId: string,
+  on: boolean
+): Promise<PowerPickActionState> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: "You must be logged in." };
+
+  const isAdmin = user.role === "admin";
+  const result = await setUserPowerPick(user.id, matchId, on, { isAdmin });
+  if (!result.ok) {
+    return { ok: false, error: powerPickErrorMessages[result.error] ?? result.error };
+  }
+  return {
+    ok: true,
+    balance: result.state.balance,
+    matchState: result.state.byMatchId[matchId] ?? null,
+  };
 }
 
 export async function syncPredictionDerivedDataAction(matchId: string): Promise<void> {

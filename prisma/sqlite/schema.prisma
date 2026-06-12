@@ -40,6 +40,12 @@ enum MatchSourceStatus {
   mixed
 }
 
+enum PowerPickStatus {
+  active // selected on an unlocked match, can still be toggled off
+  locked // match passed lock time, the right is consumed for that match
+  revoked // turned off before lock time, the right is available again
+}
+
 enum HighlightSyncStatus {
   available
   stale
@@ -109,6 +115,8 @@ model User {
 
   sessions                  Session[]
   predictions               Prediction[]
+  powerPickBalances         UserPowerPickBalance[]
+  powerPickSelections       PowerPickSelection[]
   leaderboardEntries        LeaderboardEntry[]
   approvedUsers             User[]                     @relation("ApprovedByUser")
   approver                  User?                      @relation("ApprovedByUser", fields: [approvedBy], references: [id])
@@ -160,9 +168,10 @@ model Match {
   createdAt            DateTime          @default(now()) @map("created_at")
   updatedAt            DateTime          @updatedAt @map("updated_at")
 
-  predictions Prediction[]
-  statsCache  MatchStatsCache?
-  highlight   MatchHighlight?
+  predictions         Prediction[]
+  powerPickSelections PowerPickSelection[]
+  statsCache          MatchStatsCache?
+  highlight           MatchHighlight?
 
   @@index([matchDatetime])
   @@index([externalApiId])
@@ -265,6 +274,72 @@ model Prediction {
   @@index([matchId])
   @@index([userId])
   @@map("predictions")
+}
+
+// ---------------------------------------------------------------------------
+// Power Pick x3 — optional 3-point prediction booster
+// ---------------------------------------------------------------------------
+
+/// Per-user, per-competition Power Pick x3 allowance.
+/// `totalGranted` is the source of truth for how many rights an admin handed out.
+/// Used / selected / remaining counts are derived from PowerPickSelection rows so
+/// they can never drift out of sync.
+model UserPowerPickBalance {
+  id            String   @id @default(cuid())
+  userId        String   @map("user_id")
+  competitionId String   @map("competition_id")
+  totalGranted  Int      @default(0) @map("total_granted")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, competitionId])
+  @@index([competitionId])
+  @@map("user_power_pick_balances")
+}
+
+/// One row per match a user has (or had) marked as a Power Pick x3.
+/// status=active  → toggled on, match still unlocked, can be turned off.
+/// status=locked  → match passed lock time, the right is consumed for this match.
+/// status=revoked → toggled off before lock time, the right is freed up again.
+model PowerPickSelection {
+  id            String          @id @default(cuid())
+  userId        String          @map("user_id")
+  matchId       String          @map("match_id")
+  competitionId String          @map("competition_id")
+  status        PowerPickStatus @default(active)
+  selectedAt    DateTime        @default(now()) @map("selected_at")
+  lockedAt      DateTime?       @map("locked_at")
+  revokedAt     DateTime?       @map("revoked_at")
+  createdAt     DateTime        @default(now()) @map("created_at")
+  updatedAt     DateTime        @updatedAt @map("updated_at")
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  match Match @relation(fields: [matchId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, matchId])
+  @@index([userId, competitionId])
+  @@index([matchId])
+  @@index([competitionId, status])
+  @@map("power_pick_selections")
+}
+
+/// Audit trail for admin Power Pick x3 grants and removals.
+model AdminPowerPickGrantLog {
+  id            String   @id @default(cuid())
+  adminUserId   String   @map("admin_user_id")
+  targetScope   String   @map("target_scope") // all_users | selected_users
+  targetUserIds String?  @map("target_user_ids") // JSON array of affected user ids (null = all)
+  competitionId String   @map("competition_id")
+  amountGranted Int      @map("amount_granted") // positive for grants, negative for removals
+  actionType    String   @map("action_type") // grant | remove_unused | force_remove
+  affectedUsers Int      @default(0) @map("affected_users")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  @@index([createdAt])
+  @@index([competitionId])
+  @@map("admin_power_pick_grant_logs")
 }
 
 // ---------------------------------------------------------------------------
