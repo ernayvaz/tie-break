@@ -851,7 +851,10 @@ export function ScheduleTabs({
   };
 
   const refreshMatchStatsBatch = useCallback(
-    async (matchIds: string[]) => {
+    async (matchIds: string[], options?: { silent?: boolean }) => {
+      // Background auto-refreshes are best-effort: never surface a page-level error
+      // banner (e.g. a temporarily disabled/rate-limited provider key) to the user.
+      const silent = options?.silent === true;
       const ids = Array.from(
         new Set(matchIds.filter((matchId) => matchId && !pendingStatsRefreshMatchIds[matchId]))
       ).slice(0, 25);
@@ -882,9 +885,11 @@ export function ScheduleTabs({
           ids.forEach((matchId) => {
             autoRefreshedStatsMatchIdsRef.current.delete(matchId);
           });
-          setActionError(
-            data.error ?? "Match Center data could not be refreshed right now."
-          );
+          if (!silent) {
+            setActionError(
+              data.error ?? "Match Center data could not be refreshed right now."
+            );
+          }
           return;
         }
 
@@ -899,13 +904,15 @@ export function ScheduleTabs({
           ids.forEach((matchId) => {
             autoRefreshedStatsMatchIdsRef.current.delete(matchId);
           });
-          setActionError(data.refreshError);
+          if (!silent) setActionError(data.refreshError);
         }
       } catch {
         ids.forEach((matchId) => {
           autoRefreshedStatsMatchIdsRef.current.delete(matchId);
         });
-        setActionError("Match Center data could not be refreshed right now.");
+        if (!silent) {
+          setActionError("Match Center data could not be refreshed right now.");
+        }
       } finally {
         setPendingStatsRefreshMatchIds((prev) => {
           const next = { ...prev };
@@ -920,8 +927,8 @@ export function ScheduleTabs({
   );
 
   const refreshMatchStats = useCallback(
-    async (matchId: string) => {
-      await refreshMatchStatsBatch([matchId]);
+    async (matchId: string, options?: { silent?: boolean }) => {
+      await refreshMatchStatsBatch([matchId], options);
     },
     [refreshMatchStatsBatch]
   );
@@ -948,7 +955,7 @@ export function ScheduleTabs({
       autoRefreshedStatsMatchIdsRef.current.add(matchId);
     });
 
-    void refreshMatchStatsBatch(matchIdsToRefresh);
+    void refreshMatchStatsBatch(matchIdsToRefresh, { silent: true });
   }, [localStatsByMatchId, refreshMatchStatsBatch, sortedList]);
 
   const toggleStats = (matchId: string) => {

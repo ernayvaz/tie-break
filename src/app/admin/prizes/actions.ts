@@ -7,7 +7,7 @@ import { revalidatePath } from "next/cache";
 
 export type PrizeActionState = { ok: true; message?: string } | { ok: false; error: string };
 
-const LEAGUE_IDS = ["CL", "OTHER"] as const;
+const LEAGUE_IDS = ["WC", "CL", "OTHER"] as const;
 
 export async function createPrizeAction(data: {
   competitionId: string;
