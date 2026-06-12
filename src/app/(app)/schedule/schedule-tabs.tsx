@@ -189,6 +189,71 @@ function hasVisibleMatchCenterDataGap(stats?: MatchStatisticsPayload): boolean {
   );
 }
 
+// Defined at module scope (stable identity) so live polling / clock re-renders of
+// ScheduleTabs do not remount the embedded widgets. Inline component definitions
+// would create a new function reference each render, forcing React to unmount and
+// remount the ScoreAxis script + Sofascore iframe (causing the empty standings table
+// and the knockout bracket flicker).
+function WorldCupStandingsPanel() {
+  return (
+    <div className="border border-nord-polarLighter/50 border-t-0 rounded-b-lg bg-gradient-to-b from-white to-nord-snow/35 p-3 sm:p-4">
+      <ScoreAxisWidget
+        src={WORLD_CUP_STANDINGS_WIDGET_SRC}
+        widgetId={WORLD_CUP_STANDINGS_WIDGET_ID}
+        preserveQueryWidgetId
+        title="World Cup 2026 standings"
+        description="Official ScoreAxis league table widget for the World Cup group standings."
+        minHeight={620}
+        fallbackMessage="World Cup 2026 standings are blocked by the provider right now. The table will load automatically when ScoreAxis is reachable."
+      />
+    </div>
+  );
+}
+
+function WorldCupKnockoutPanel() {
+  return (
+    <div className="border border-nord-polarLighter/50 border-t-0 rounded-b-lg bg-gradient-to-b from-white to-nord-snow/35 p-3 sm:p-4">
+      <section className="rounded-[1.5rem] border border-nord-polarLighter/12 bg-white/88 p-4 shadow-[0_18px_50px_rgba(46,52,64,0.08)]">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h4 className="text-sm font-semibold text-nord-polar">
+              World Cup 2026 knockout bracket
+            </h4>
+            <p className="mt-1 text-xs leading-5 text-nord-polarLight">
+              Official Sofascore cup tree for the World Cup knockout stage.
+            </p>
+          </div>
+          <span className="rounded-full border border-nord-frostDark/15 bg-nord-frostDark/8 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-nord-frostDark">
+            Official
+          </span>
+        </div>
+        <div className="mt-4 overflow-hidden rounded-[1.2rem] border border-nord-polarLighter/10 bg-white shadow-inner">
+          <iframe
+            id="sofa-cupTree-embed-16-58210-10560975"
+            src={WORLD_CUP_KNOCKOUT_WIDGET_SRC}
+            title="World Cup 2026 knockout stage"
+            className="h-[872px] w-full max-w-[700px]"
+            style={{ height: "872px" }}
+            frameBorder="0"
+            scrolling="yes"
+          />
+        </div>
+        <div className="mt-3 text-left font-sans text-xs text-nord-polarLight">
+          Cup tree provided by{" "}
+          <a
+            target="_blank"
+            rel="noreferrer"
+            href="https://www.sofascore.com/football/tournament/world/world-championship/16#id:58210"
+            className="font-medium text-nord-frostDark hover:underline"
+          >
+            Sofascore
+          </a>
+        </div>
+      </section>
+    </div>
+  );
+}
+
 export function ScheduleTabs({
   matches,
   userPredictions,
@@ -1224,66 +1289,6 @@ export function ScheduleTabs({
         })}
         </ul>
       </>
-    );
-  }
-
-  function WorldCupStandingsPanel() {
-    return (
-      <div className="border border-nord-polarLighter/50 border-t-0 rounded-b-lg bg-gradient-to-b from-white to-nord-snow/35 p-3 sm:p-4">
-        <ScoreAxisWidget
-          src={WORLD_CUP_STANDINGS_WIDGET_SRC}
-          widgetId={WORLD_CUP_STANDINGS_WIDGET_ID}
-          preserveQueryWidgetId
-          title="World Cup 2026 standings"
-          description="Official ScoreAxis league table widget for the World Cup group standings."
-          minHeight={620}
-          fallbackMessage="World Cup 2026 standings are blocked by the provider right now. The table will load automatically when ScoreAxis is reachable."
-        />
-      </div>
-    );
-  }
-
-  function WorldCupKnockoutPanel() {
-    return (
-      <div className="border border-nord-polarLighter/50 border-t-0 rounded-b-lg bg-gradient-to-b from-white to-nord-snow/35 p-3 sm:p-4">
-        <section className="rounded-[1.5rem] border border-nord-polarLighter/12 bg-white/88 p-4 shadow-[0_18px_50px_rgba(46,52,64,0.08)]">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <h4 className="text-sm font-semibold text-nord-polar">
-                World Cup 2026 knockout bracket
-              </h4>
-              <p className="mt-1 text-xs leading-5 text-nord-polarLight">
-                Official Sofascore cup tree for the World Cup knockout stage.
-              </p>
-            </div>
-            <span className="rounded-full border border-nord-frostDark/15 bg-nord-frostDark/8 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-nord-frostDark">
-              Official
-            </span>
-          </div>
-          <div className="mt-4 overflow-hidden rounded-[1.2rem] border border-nord-polarLighter/10 bg-white shadow-inner">
-            <iframe
-              id="sofa-cupTree-embed-16-58210-10560975"
-              src={WORLD_CUP_KNOCKOUT_WIDGET_SRC}
-              title="World Cup 2026 knockout stage"
-              className="h-[872px] w-full max-w-[700px]"
-              style={{ height: "872px" }}
-              frameBorder="0"
-              scrolling="yes"
-            />
-          </div>
-          <div className="mt-3 text-left font-sans text-xs text-nord-polarLight">
-            Cup tree provided by{" "}
-            <a
-              target="_blank"
-              rel="noreferrer"
-              href="https://www.sofascore.com/football/tournament/world/world-championship/16#id:58210"
-              className="font-medium text-nord-frostDark hover:underline"
-            >
-              Sofascore
-            </a>
-          </div>
-        </section>
-      </div>
     );
   }
 
