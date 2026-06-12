@@ -208,7 +208,7 @@ function hasVisibleMatchCenterDataGap(stats?: MatchStatisticsPayload): boolean {
 const WORLD_CUP_SOFASCORE_SEASON_ID = 58210;
 // Each Sofascore embed pins its promo footer ("Never miss / See much more") to the
 // bottom of the widget; we clip that band off via an overflow-hidden wrapper.
-const WORLD_CUP_SOFASCORE_FOOTER_CLIP = 92;
+const WORLD_CUP_SOFASCORE_FOOTER_CLIP = 122;
 
 const WORLD_CUP_SOFASCORE_STANDINGS = [
   { name: "Group A", tournamentId: 3954, height: 431 },
