@@ -179,28 +179,6 @@ function shouldRefreshMatchStats(stats?: MatchStatisticsPayload): boolean {
   );
 }
 
-function hasVisibleMatchCenterDataGap(stats?: MatchStatisticsPayload): boolean {
-  if (!stats) return true;
-
-  const hasTeamContextGap = (team: MatchStatisticsPayload["homeTeam"]) => {
-    const hasDomesticContext =
-      team.domesticLeague.status !== "unavailable" ||
-      team.domesticLeagueTable.rows.length > 0 ||
-      team.recentDomesticMatches.status !== "unavailable";
-    const hasCurrentCompetitionContext =
-      team.currentCompetition.status !== "unavailable" ||
-      team.recentUclMatches.status !== "unavailable";
-
-    return !hasDomesticContext && !hasCurrentCompetitionContext;
-  };
-
-  return (
-    stats.providerMatchLinkMode === "none" ||
-    hasTeamContextGap(stats.homeTeam) ||
-    hasTeamContextGap(stats.awayTeam)
-  );
-}
-
 // Sofascore standings embeds for the World Cup group stage (Groups A–L) plus the
 // third-placed teams ranking. Standings are sourced exclusively from Sofascore.
 // Defined at module scope (stable identity) so live polling / clock re-renders of
@@ -886,30 +864,11 @@ export function ScheduleTabs({
     [refreshMatchStatsBatch]
   );
 
-  useEffect(() => {
-    const repairCandidates = sortedList
-      .filter((match) => hasVisibleMatchCenterDataGap(localStatsByMatchId[match.id]))
-      .map((match) => match.id)
-      .filter((matchId) => !autoRefreshedStatsMatchIdsRef.current.has(matchId))
-      .slice(0, 6);
-
-    const matchIdsToRefresh =
-      repairCandidates.length > 0
-        ? repairCandidates
-        : sortedList
-            .filter((match) => shouldRefreshMatchStats(localStatsByMatchId[match.id]))
-            .map((match) => match.id)
-            .filter((matchId) => !autoRefreshedStatsMatchIdsRef.current.has(matchId))
-            .slice(0, 6);
-
-    if (matchIdsToRefresh.length === 0) return;
-
-    matchIdsToRefresh.forEach((matchId) => {
-      autoRefreshedStatsMatchIdsRef.current.add(matchId);
-    });
-
-    void refreshMatchStatsBatch(matchIdsToRefresh, { silent: true });
-  }, [localStatsByMatchId, refreshMatchStatsBatch, sortedList]);
+  // NOTE: Match Center statistics are loaded lazily — only when a user actually
+  // opens a fixture's Match Center (see `toggleStats`). We intentionally do NOT
+  // pre-fetch/refresh stats for every visible match here. Proactively pulling the
+  // (large) stats payloads for all matches was the dominant database egress source
+  // and would quickly exhaust the hosting data-transfer quota.
 
   const toggleStats = (matchId: string) => {
     const willOpen = !expandedStats.has(matchId);

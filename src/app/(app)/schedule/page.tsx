@@ -2,7 +2,6 @@ import { prisma } from "@/lib/db";
 import { requireAuth } from "@/lib/auth/get-user";
 import { getOthersPredictionsBatch } from "@/lib/predictions";
 import { toDisplay } from "@/lib/prediction-values";
-import { getMatchStatisticsByMatchIds } from "@/lib/match-stats/cache";
 import { UCL_COMPETITION_ID, POWER_PICK_COMPETITION_ID } from "@/lib/config";
 import { getUserPowerPickState } from "@/lib/power-pick";
 import { PageHeroBand } from "@/components/page-hero-band";
@@ -39,19 +38,20 @@ export default async function SchedulePage() {
 
   const matchIds = matches.map((m) => m.id);
 
-  const [userPredictions, statsByMatchId] = await Promise.all([
-    prisma.prediction.findMany({
-      where: { userId: user.id, matchId: { in: matchIds } },
-      select: {
-        matchId: true,
-        selectedPrediction: true,
-        isFinal: true,
-        finalizedAt: true,
-        createdAt: true,
-      },
-    }),
-    getMatchStatisticsByMatchIds(matchIds),
-  ]);
+  // Match Center statistics are NOT loaded here. They are fetched lazily, per
+  // fixture, only when a user opens that match's Match Center (via /api/match-stats).
+  // Eagerly loading every match's (large) stats payload on each schedule render was
+  // the dominant database egress source.
+  const userPredictions = await prisma.prediction.findMany({
+    where: { userId: user.id, matchId: { in: matchIds } },
+    select: {
+      matchId: true,
+      selectedPrediction: true,
+      isFinal: true,
+      finalizedAt: true,
+      createdAt: true,
+    },
+  });
 
   // Others' predictions: only for matches where current user (including admin) has finalized.
   // Admin can see others the same way for testing; admin can still undo their predictions anytime.
@@ -130,7 +130,7 @@ export default async function SchedulePage() {
               matches={serializedMatches}
               userPredictions={serializedUserPredictions}
               othersByMatchId={othersByMatchId}
-              statsByMatchId={statsByMatchId}
+              statsByMatchId={{}}
               liveByMatchId={{}}
               powerPickBalance={powerPickState.balance}
               powerPickByMatchId={powerPickState.byMatchId}
