@@ -39,8 +39,11 @@ export const POWER_PICK_POINTS = 3;
 /** Power Pick x3 is only offered on the World Cup competition. */
 export const POWER_PICK_COMPETITION_ID = WORLD_CUP_2026_COMPETITION_ID;
 
-export const STATS_SYNC_LOOKBACK_DAYS = 30;
-export const STATS_SYNC_LOOKAHEAD_DAYS = 45;
+// Match Center bulk-sync window. Kept tight (15 days back + 15 days ahead) so each
+// background/admin stats sync only writes JSON for fixtures that are actually
+// relevant, which keeps database write/read transfer (egress) well under quota.
+export const STATS_SYNC_LOOKBACK_DAYS = 15;
+export const STATS_SYNC_LOOKAHEAD_DAYS = 15;
 export const STATS_RECENT_MATCH_LIMIT = 5;
 export const STATS_H2H_MATCH_LIMIT = 100;
 
