@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useCallback, useEffect, useTransition, useRef } from "react";
+import { useState, useMemo, useCallback, useEffect, useTransition, useRef, memo } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toDisplay } from "@/lib/prediction-values";
@@ -226,7 +226,11 @@ const WORLD_CUP_SOFASCORE_STANDINGS = [
   { name: "Third-placed teams", tournamentId: 182545, height: 751 },
 ] as const;
 
-function WorldCupSofascoreStandings() {
+// Memoized with no props so the surrounding ScheduleTabs re-renders (the 1-minute
+// clock tick, 45s live polling, Match Center stat refreshes) never re-render this
+// subtree. That keeps every embed mounted exactly once and prevents the tables from
+// reloading/blanking after they first appear.
+const WorldCupSofascoreStandings = memo(function WorldCupSofascoreStandings() {
   return (
     <div className="grid gap-3 lg:grid-cols-2">
       {WORLD_CUP_SOFASCORE_STANDINGS.map((group) => {
@@ -246,6 +250,9 @@ function WorldCupSofascoreStandings() {
                 id={`sofa-standings-embed-${group.tournamentId}-${WORLD_CUP_SOFASCORE_SEASON_ID}`}
                 title={`${group.name} standings`}
                 src={src}
+                // Lazy-load so a wide desktop grid does not request all 13 embeds at
+                // once (which the provider throttles, leaving blank tables).
+                loading="lazy"
                 className="block w-full"
                 style={{ height: `${group.height}px`, maxWidth: "768px", width: "100%", border: 0 }}
                 scrolling="no"
@@ -256,7 +263,7 @@ function WorldCupSofascoreStandings() {
       })}
     </div>
   );
-}
+});
 
 function WorldCupStandingsPanel() {
   return (
@@ -267,11 +274,11 @@ function WorldCupStandingsPanel() {
             World Cup 2026 standings
           </h4>
           <p className="mt-1 text-xs leading-5 text-nord-polarLight">
-            Group tables (A–L) and the third-placed teams ranking, provided by Sofascore.
+            Group tables (A–L) and the third-placed teams ranking.
           </p>
         </div>
         <span className="rounded-full border border-nord-frostDark/15 bg-nord-frostDark/8 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-nord-frostDark">
-          Sofascore
+          Live
         </span>
       </div>
       <WorldCupSofascoreStandings />
@@ -289,7 +296,7 @@ function WorldCupKnockoutPanel() {
               World Cup 2026 knockout bracket
             </h4>
             <p className="mt-1 text-xs leading-5 text-nord-polarLight">
-              Official Sofascore cup tree for the World Cup knockout stage.
+              Official cup tree for the World Cup knockout stage.
             </p>
           </div>
           <span className="rounded-full border border-nord-frostDark/15 bg-nord-frostDark/8 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-nord-frostDark">
@@ -306,17 +313,6 @@ function WorldCupKnockoutPanel() {
             frameBorder="0"
             scrolling="yes"
           />
-        </div>
-        <div className="mt-3 text-left font-sans text-xs text-nord-polarLight">
-          Cup tree provided by{" "}
-          <a
-            target="_blank"
-            rel="noreferrer"
-            href="https://www.sofascore.com/football/tournament/world/world-championship/16#id:58210"
-            className="font-medium text-nord-frostDark hover:underline"
-          >
-            Sofascore
-          </a>
         </div>
       </section>
     </div>
