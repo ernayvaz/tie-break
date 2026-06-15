@@ -1,6 +1,7 @@
 "use server";
 
 import { syncMatchesFromApi } from "@/lib/api/sync-matches";
+import { syncWorldCupResultsFromOpenLigaDb } from "@/lib/api/sync-wc-results";
 import { syncHighlightsFromApi } from "@/lib/api/sync-highlights";
 import { syncMatchStatisticsCache } from "@/lib/api/sync-match-stats";
 import { recalculateAll } from "@/lib/scoring";
@@ -12,30 +13,37 @@ export type SyncState = { message?: string; error?: string } | null;
 export async function syncMatchesAction(): Promise<SyncState> {
   await requireAdmin();
 
-  const result = await syncMatchesFromApi();
-  if (!result.ok) {
-    revalidatePath("/admin/api");
-    return { error: result.error };
-  }
-
+  // football-data.org is primary but best-effort while unavailable; its failure
+  // must not block the World Cup results pipeline (OpenLigaDB) or recalculation.
+  const footballData = await syncMatchesFromApi();
+  const worldCup = await syncWorldCupResultsFromOpenLigaDb();
   const stats = await syncMatchStatisticsCache();
   const recalc = await recalculateAll();
-  const statsSummary = stats.ok
-    ? `Match Center cache refreshed for ${stats.targetCount} fixture(s).`
-    : `Match Center cache refresh failed: ${stats.error}.`;
+
   revalidatePath("/schedule");
   revalidatePath("/admin/matches");
   revalidatePath("/admin/api");
   revalidatePath("/admin/predictions");
   revalidatePath("/leaderboard");
   revalidatePath("/predictions");
+
+  const fdSummary = footballData.ok
+    ? `football-data.org: ${footballData.count} fixture(s) synced.`
+    : `football-data.org unavailable (${footballData.error}).`;
+  const wcSummary = worldCup.ok
+    ? `World Cup results (OpenLigaDB): ${worldCup.updatedCount} updated of ${worldCup.finishedCount} finished${worldCup.unmatchedCount > 0 ? `, ${worldCup.unmatchedCount} unmatched` : ""}.`
+    : `World Cup results failed: ${worldCup.error}.`;
+  const statsSummary = stats.ok
+    ? `Match Center cache refreshed for ${stats.targetCount} fixture(s).`
+    : `Match Center cache refresh failed: ${stats.error}.`;
+
   if (recalc.ok) {
     return {
-      message: `Matches synced. ${result.count} match(es) processed. Scores and leaderboard updated (${recalc.leaderboardCount} users). ${statsSummary}`,
+      message: `${fdSummary} ${wcSummary} Scores and leaderboard updated (${recalc.leaderboardCount} users). ${statsSummary}`,
     };
   }
   return {
-    message: `Matches synced (${result.count} match(es)). ${statsSummary} Score update failed: ${recalc.error}. Run Recalculate manually if needed.`,
+    message: `${fdSummary} ${wcSummary} ${statsSummary} Score update failed: ${recalc.error}. Run Recalculate manually if needed.`,
   };
 }
 
