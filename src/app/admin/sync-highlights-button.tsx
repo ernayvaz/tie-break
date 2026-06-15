@@ -39,7 +39,7 @@ export function SyncHighlightsButton() {
             Syncing…
           </>
         ) : (
-          "Sync Champions League highlights"
+          "Sync highlights (CL + World Cup)"
         )}
       </Button>
       {state?.message ? (
