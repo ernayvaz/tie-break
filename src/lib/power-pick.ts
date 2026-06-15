@@ -93,14 +93,37 @@ export async function getUserPowerPickState(
   ]);
 
   const totalGranted = balance?.totalGranted ?? 0;
+
+  // Only a finalized prediction truly consumes a right. A selection that reaches
+  // lock time while its prediction is still a draft never committed the pick, so
+  // its right is returned (not counted as used). Unlocked selections still reserve
+  // a right so the per-user cap stays meaningful while the match is open.
+  const selectionMatchIds = selections.map((s) => s.matchId);
+  const finalizedMatchIds =
+    selectionMatchIds.length > 0
+      ? new Set(
+          (
+            await prisma.prediction.findMany({
+              where: { userId, matchId: { in: selectionMatchIds }, isFinal: true },
+              select: { matchId: true },
+            })
+          ).map((p) => p.matchId)
+        )
+      : new Set<string>();
+
   let usedLocked = 0;
   let selectedUnlocked = 0;
   const byMatchId: Record<string, PowerPickMatchState> = {};
 
   for (const sel of selections) {
     const locked = sel.status === "locked" || isMatchLocked(sel.match, now);
-    if (locked) usedLocked += 1;
-    else selectedUnlocked += 1;
+    if (locked) {
+      // Draft prediction at lock → right returned; the pick is not active.
+      if (!finalizedMatchIds.has(sel.matchId)) continue;
+      usedLocked += 1;
+    } else {
+      selectedUnlocked += 1;
+    }
     byMatchId[sel.matchId] = { matchId: sel.matchId, isOn: true, isLocked: locked };
   }
 
@@ -178,15 +201,41 @@ export async function setUserPowerPick(
 }
 
 /**
- * Persist the lock transition (active → locked) for a match's Power Pick selections.
- * Idempotent; safe to call from scoring / sync once a match has locked.
+ * Persist the lock transition for a match's Power Pick selections once it locks.
+ *
+ * Only selections whose prediction was finalized consume the right (→ locked).
+ * Selections still sitting on a draft prediction never committed the pick, so the
+ * right is returned (→ revoked) instead of being wasted. Idempotent.
  */
 export async function lockPowerPickSelectionsForMatch(matchId: string): Promise<void> {
   const now = new Date();
-  await prisma.powerPickSelection.updateMany({
+  const active = await prisma.powerPickSelection.findMany({
     where: { matchId, status: "active" },
-    data: { status: "locked", lockedAt: now },
+    select: { userId: true },
   });
+  if (active.length === 0) return;
+
+  const userIds = active.map((a) => a.userId);
+  const finalized = await prisma.prediction.findMany({
+    where: { matchId, userId: { in: userIds }, isFinal: true },
+    select: { userId: true },
+  });
+  const finalizedUserIds = new Set(finalized.map((p) => p.userId));
+  const lockUserIds = userIds.filter((id) => finalizedUserIds.has(id));
+  const revokeUserIds = userIds.filter((id) => !finalizedUserIds.has(id));
+
+  if (lockUserIds.length > 0) {
+    await prisma.powerPickSelection.updateMany({
+      where: { matchId, status: "active", userId: { in: lockUserIds } },
+      data: { status: "locked", lockedAt: now },
+    });
+  }
+  if (revokeUserIds.length > 0) {
+    await prisma.powerPickSelection.updateMany({
+      where: { matchId, status: "active", userId: { in: revokeUserIds } },
+      data: { status: "revoked", revokedAt: now },
+    });
+  }
 }
 
 /**

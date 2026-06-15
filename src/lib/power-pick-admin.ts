@@ -44,16 +44,34 @@ async function committedByUser(
     where: { userId: { in: userIds }, competitionId, status: { not: "revoked" } },
     select: {
       userId: true,
+      matchId: true,
       status: true,
       match: { select: { lockAt: true, isLocked: true } },
     },
   });
+  if (selections.length === 0) return result;
+
+  // A right is only consumed when its prediction was finalized. A selection that
+  // locked while still a draft returns its right (it never committed the pick).
+  const selUserIds = [...new Set(selections.map((s) => s.userId))];
+  const selMatchIds = [...new Set(selections.map((s) => s.matchId))];
+  const finalized = await prisma.prediction.findMany({
+    where: { userId: { in: selUserIds }, matchId: { in: selMatchIds }, isFinal: true },
+    select: { userId: true, matchId: true },
+  });
+  const finalizedKeys = new Set(finalized.map((p) => `${p.userId}__${p.matchId}`));
+
   for (const sel of selections) {
     const entry = result.get(sel.userId) ?? { locked: 0, activeUnlocked: 0 };
     const locked =
       sel.status === "locked" || sel.match.isLocked || now >= sel.match.lockAt;
-    if (locked) entry.locked += 1;
-    else entry.activeUnlocked += 1;
+    if (locked) {
+      // Draft prediction at lock → right returned, not counted as used.
+      if (!finalizedKeys.has(`${sel.userId}__${sel.matchId}`)) continue;
+      entry.locked += 1;
+    } else {
+      entry.activeUnlocked += 1;
+    }
     result.set(sel.userId, entry);
   }
   return result;
