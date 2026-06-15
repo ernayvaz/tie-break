@@ -1,7 +1,5 @@
 import { NextRequest } from "next/server";
 import { syncHighlightsFromApi } from "@/lib/api/sync-highlights";
-import { syncWorldCupYoutubeHighlights } from "@/lib/api/sync-youtube-highlights";
-import { hasYoutubeApiKey } from "@/lib/providers/youtube-highlights";
 
 export async function GET(request: NextRequest) {
   const authHeader = request.headers.get("authorization");
@@ -11,17 +9,13 @@ export async function GET(request: NextRequest) {
     return new Response("Unauthorized", { status: 401 });
   }
 
-  // ScoreBat highlights (Champions League + any World Cup it can match).
+  // Highlights come exclusively from ScoreBat (Champions League stored clips +
+  // the official World Cup widget rendered on the highlights page).
   const result = await syncHighlightsFromApi();
-
-  // Official FIFA World Cup highlights from YouTube (only when a key is configured).
-  const youtube = hasYoutubeApiKey()
-    ? await syncWorldCupYoutubeHighlights()
-    : { ok: false as const, error: "YOUTUBE_API_KEY not configured (skipped)." };
 
   if (!result.ok) {
     return Response.json(
-      { ok: false, stage: "sync_highlights", error: result.error, youtube },
+      { ok: false, stage: "sync_highlights", error: result.error },
       { status: 500 }
     );
   }
@@ -33,6 +27,5 @@ export async function GET(request: NextRequest) {
     storedCount: result.storedCount,
     staleCount: result.staleCount,
     unmatchedCount: result.unmatchedCount,
-    youtube,
   });
 }

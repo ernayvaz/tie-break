@@ -1,31 +1,28 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 
 /**
- * Embeds the official ScoreBat World Cup widget (league panel). Inside the widget a
- * user can open any fixture to see the full match view — AI prediction, live
- * standings, last matches, previous meetings and head-to-head — exactly as on
- * scorebat.com. The token in the URL is a public embed token (ScoreBat's own embed
- * code is a plain client-side iframe), so it is safe to ship to the browser.
+ * Embeds an official ScoreBat World Cup widget. Two variants are used:
+ *  - the league panel (Match Center): open any fixture to see AI prediction,
+ *    live standings, recent form, previous meetings and full team data;
+ *  - the video panel (Highlights): the official World Cup highlight clips.
  *
- * We load ScoreBat's embed.js once so the iframe auto-resizes via postMessage.
+ * The token in the URL is a public embed token (ScoreBat's own embed code is a
+ * plain client-side iframe), so it is safe to ship to the browser. We load
+ * ScoreBat's embed.js once so the iframe auto-resizes via postMessage.
  */
 
-const FALLBACK_EMBED_URL =
+const FALLBACK_LEAGUE_URL =
   "https://www.scorebat.com/embed/league/fifa-world-cup/?token=MzA1MTA4XzE3ODE1MTY2MTRfYzY5ODhlMjdjMzMwNDUyODcxZmY4OGQ1NjRlZDE3YzJiMjk5OTRiZg==&pref=%7B%22nomaxwidth%22%3Atrue%7D";
+
+const FALLBACK_VIDEO_URL =
+  "https://www.scorebat.com/embed/videopanel/league/fifa-world-cup/?token=MzA1MTA4XzE3ODE1MTY2MTRfYzY5ODhlMjdjMzMwNDUyODcxZmY4OGQ1NjRlZDE3YzJiMjk5OTRiZg==&pref=%7B%22autoplay%22%3Atrue%7D";
 
 const EMBED_SCRIPT_ID = "scorebat-jssdk";
 const EMBED_SCRIPT_SRC = "https://www.scorebat.com/embed/embed.js?v=arrv";
 
-function getWorldCupEmbedUrl(): string {
-  const fromEnv = process.env.NEXT_PUBLIC_SCOREBAT_WC_EMBED_URL?.trim();
-  return fromEnv && fromEnv.length > 0 ? fromEnv : FALLBACK_EMBED_URL;
-}
-
-export function ScoreBatMatchWidget({ title }: { title?: string }) {
-  const containerRef = useRef<HTMLDivElement>(null);
-
+function useScoreBatEmbedScript() {
   useEffect(() => {
     if (typeof document === "undefined") return;
     if (document.getElementById(EMBED_SCRIPT_ID)) return;
@@ -35,32 +32,51 @@ export function ScoreBatMatchWidget({ title }: { title?: string }) {
     script.async = true;
     document.body.appendChild(script);
   }, []);
+}
 
-  const embedUrl = getWorldCupEmbedUrl();
+function getLeagueEmbedUrl(): string {
+  const fromEnv = process.env.NEXT_PUBLIC_SCOREBAT_WC_EMBED_URL?.trim();
+  return fromEnv && fromEnv.length > 0 ? fromEnv : FALLBACK_LEAGUE_URL;
+}
+
+function getVideoEmbedUrl(): string {
+  const fromEnv = process.env.NEXT_PUBLIC_SCOREBAT_WC_HIGHLIGHTS_URL?.trim();
+  return fromEnv && fromEnv.length > 0 ? fromEnv : FALLBACK_VIDEO_URL;
+}
+
+function WidgetFrame({
+  embedUrl,
+  title,
+  eyebrow,
+  badge,
+  description,
+}: {
+  embedUrl: string;
+  title: string;
+  eyebrow: string;
+  badge: string;
+  description: string;
+}) {
+  useScoreBatEmbedScript();
 
   return (
     <section className="overflow-hidden rounded-[1.4rem] border border-nord-polarLighter/12 bg-white/90 shadow-[0_18px_50px_rgba(46,52,64,0.07)]">
       <div className="flex items-center justify-between gap-3 border-b border-nord-polarLighter/12 px-4 py-3">
         <div>
           <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-nord-frostDark">
-            Live match data
+            {eyebrow}
           </div>
-          <h4 className="mt-1 text-sm font-semibold text-nord-polar">
-            {title ?? "World Cup Match Center"}
-          </h4>
+          <h4 className="mt-1 text-sm font-semibold text-nord-polar">{title}</h4>
         </div>
         <span className="hidden rounded-full border border-nord-frostDark/12 bg-white/72 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-nord-frostDark sm:inline-flex">
-          AI · Standings · H2H
+          {badge}
         </span>
       </div>
-      <p className="px-4 pt-3 text-xs leading-5 text-nord-polarLight">
-        Open any fixture inside the panel below to see its AI prediction, live
-        standings, recent form, previous meetings and full team data.
-      </p>
-      <div ref={containerRef} className="px-2 pb-3 pt-2 sm:px-3">
+      <p className="px-4 pt-3 text-xs leading-5 text-nord-polarLight">{description}</p>
+      <div className="px-2 pb-3 pt-2 sm:px-3">
         <iframe
           src={embedUrl}
-          title={title ?? "World Cup Match Center"}
+          title={title}
           frameBorder={0}
           allowFullScreen
           allow="autoplay; fullscreen"
@@ -71,5 +87,29 @@ export function ScoreBatMatchWidget({ title }: { title?: string }) {
         />
       </div>
     </section>
+  );
+}
+
+export function ScoreBatMatchWidget({ title }: { title?: string }) {
+  return (
+    <WidgetFrame
+      embedUrl={getLeagueEmbedUrl()}
+      title={title ?? "World Cup Match Center"}
+      eyebrow="Live match data"
+      badge="AI · Standings · H2H"
+      description="Open any fixture inside the panel below to see its AI prediction, live standings, recent form, previous meetings and full team data."
+    />
+  );
+}
+
+export function ScoreBatHighlightsWidget({ title }: { title?: string }) {
+  return (
+    <WidgetFrame
+      embedUrl={getVideoEmbedUrl()}
+      title={title ?? "World Cup highlights"}
+      eyebrow="Official highlights"
+      badge="ScoreBat · World Cup"
+      description="Official World Cup highlight clips. Pick any match below to watch its recap right here."
+    />
   );
 }

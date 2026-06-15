@@ -3,8 +3,6 @@
 import { syncMatchesFromApi } from "@/lib/api/sync-matches";
 import { syncWorldCupResultsFromOpenLigaDb } from "@/lib/api/sync-wc-results";
 import { syncHighlightsFromApi } from "@/lib/api/sync-highlights";
-import { syncWorldCupYoutubeHighlights } from "@/lib/api/sync-youtube-highlights";
-import { hasYoutubeApiKey } from "@/lib/providers/youtube-highlights";
 import { syncMatchStatisticsCache } from "@/lib/api/sync-match-stats";
 import { recalculateAll } from "@/lib/scoring";
 import { requireAdmin } from "@/lib/auth/get-user";
@@ -53,8 +51,6 @@ export async function syncHighlightsAction(): Promise<SyncState> {
   await requireAdmin();
 
   const result = await syncHighlightsFromApi();
-  // Official FIFA World Cup highlights from YouTube (best-effort; needs YOUTUBE_API_KEY).
-  const youtube = hasYoutubeApiKey() ? await syncWorldCupYoutubeHighlights() : null;
 
   if (!result.ok) return { error: result.error };
 
@@ -63,19 +59,13 @@ export async function syncHighlightsAction(): Promise<SyncState> {
   revalidatePath("/schedule");
   revalidatePath("/admin/api");
 
-  const ytSummary = !youtube
-    ? " YouTube highlights skipped (no YOUTUBE_API_KEY)."
-    : youtube.ok
-      ? ` YouTube: ${youtube.foundCount} found, ${youtube.notFoundCount} not yet, ${youtube.searched} searched${youtube.quotaExceeded ? " (quota hit)" : ""}.`
-      : ` YouTube failed: ${youtube.error}`;
-
   const sbNote =
     result.fetchedCount === 0
       ? " ScoreBat returned no items — add SCOREBAT_API_TOKEN for the updated feed (scorebat.com/video-api)."
       : "";
 
   return {
-    message: `Highlights synced. ScoreBat: ${result.fetchedCount} item(s), ${result.matchedCount} match(es) resolved, ${result.storedCount} stored.${sbNote}${ytSummary}`,
+    message: `Highlights synced. ScoreBat: ${result.fetchedCount} item(s), ${result.matchedCount} match(es) resolved, ${result.storedCount} stored. World Cup highlights stream live from the official ScoreBat widget.${sbNote}`,
   };
 }
 

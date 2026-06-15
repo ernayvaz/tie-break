@@ -50,6 +50,10 @@ const MATCH_CENTER_TAB_STORAGE_KEY = "tie-break-match-center-tabs";
 const SCHEDULE_DISPLAY_TIME_ZONE = "Europe/Istanbul";
 const WORLD_CUP_KNOCKOUT_WIDGET_SRC =
   "https://widgets.sofascore.com/embed/unique-tournament/16/season/58210/cuptree/10560975?widgetTitle=Knockout%20stage&showCompetitionLogo=true&widgetTheme=light";
+// Height of the provider promo band ("Never miss / See much more") pinned to the
+// bottom of the cup-tree embed. We clip this many pixels so no third-party
+// branding is shown inside our knockout panel.
+const WORLD_CUP_KNOCKOUT_FOOTER_CLIP = 120;
 
 type ScheduleTab = "upcoming" | "past" | "standings" | "knockout";
 
@@ -281,15 +285,21 @@ function WorldCupKnockoutPanel() {
             Official
           </span>
         </div>
-        <div className="mt-4 overflow-hidden rounded-[1.2rem] border border-nord-polarLighter/10 bg-white shadow-inner">
+        {/* The cup-tree embed pins a provider promo footer ("Never miss / See much
+            more") to the bottom of the widget. We clip that band off via an
+            overflow-hidden wrapper so no third-party branding is shown. */}
+        <div
+          className="mt-4 overflow-hidden rounded-[1.2rem] border border-nord-polarLighter/10 bg-white shadow-inner"
+          style={{ height: `${872 - WORLD_CUP_KNOCKOUT_FOOTER_CLIP}px` }}
+        >
           <iframe
             id="sofa-cupTree-embed-16-58210-10560975"
             src={WORLD_CUP_KNOCKOUT_WIDGET_SRC}
             title="World Cup 2026 knockout stage"
-            className="h-[872px] w-full max-w-[700px]"
+            className="w-full max-w-[700px]"
             style={{ height: "872px" }}
             frameBorder="0"
-            scrolling="yes"
+            scrolling="no"
           />
         </div>
       </section>

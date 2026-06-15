@@ -6,6 +6,7 @@ import { PageHeroBand } from "@/components/page-hero-band";
 import { FeaturedHighlightCard } from "@/components/highlights/featured-highlight-card";
 import { HighlightsEmptyState } from "@/components/highlights/highlights-empty-state";
 import { StageSection } from "@/components/highlights/stage-section";
+import { ScoreBatHighlightsWidget } from "@/components/highlights/scorebat-match-widget";
 import type { HighlightCardModel } from "@/components/highlights/types";
 import {
   formatHighlightSeason,
@@ -16,6 +17,7 @@ import {
   getCompetitionLabel,
   normalizeCompetitionId,
   UCL_COMPETITION_ID,
+  WORLD_CUP_2026_COMPETITION_ID,
 } from "@/lib/config";
 
 const STAGE_ROOM_ORDER = [
@@ -168,6 +170,35 @@ export default async function HighlightsPage({ searchParams }: Props) {
 
   const params = await searchParams;
   const currentCompetitionId = getCompetitionBucket(params.competition);
+
+  // World Cup highlights come exclusively from the official ScoreBat widget. We do
+  // not query the DB for WC (no YouTube/FIFA sync any more) — the embed is the
+  // single source of truth for World Cup recaps.
+  if (currentCompetitionId === WORLD_CUP_2026_COMPETITION_ID) {
+    return (
+      <div className="space-y-3 sm:space-y-6">
+        <PageHeroBand
+          eyebrow="World Cup 2026"
+          title="World Cup highlights"
+          description="Official World Cup 2026 recaps, streamed straight from ScoreBat. Pick any match in the panel to watch its highlights."
+          highlights={[
+            { label: "Source", value: "Official ScoreBat feed" },
+            { label: "Coverage", value: "All World Cup 2026 fixtures" },
+          ]}
+        />
+
+        <section>
+          <CompetitionTabs
+            currentCompetitionId={currentCompetitionId}
+            basePath="/highlights"
+          />
+        </section>
+
+        <ScoreBatHighlightsWidget />
+      </div>
+    );
+  }
+
   const allHighlights = await fetchHighlights();
   const filteredRawHighlights = allHighlights.filter((highlight) =>
     belongsToCompetitionBucket(highlight.competitionId, currentCompetitionId)

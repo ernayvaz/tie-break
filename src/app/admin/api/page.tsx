@@ -17,7 +17,7 @@ export default async function AdminApiPage() {
     <div>
       <h1 className="text-xl font-semibold text-nord-polar">API & Sync</h1>
       <p className="mt-2 text-sm text-nord-polarLight">
-        Resync matches/results (World Cup via OpenLigaDB, plus football-data.org when available) and highlights (Champions League via ScoreBat, official World Cup recaps via YouTube). After match sync, scores and leaderboard are recalculated automatically. Manual result entry is in{" "}
+        Resync matches/results (World Cup via OpenLigaDB, plus football-data.org when available) and highlights (Champions League via ScoreBat; official World Cup recaps stream live from the ScoreBat widget). After match sync, scores and leaderboard are recalculated automatically. Manual result entry is in{" "}
         <Link href="/admin/matches" className="text-nord-frostDark hover:underline">
           Match Management
         </Link>
@@ -37,7 +37,7 @@ export default async function AdminApiPage() {
           <CardContent className="py-6">
             <h2 className="text-sm font-semibold text-nord-polar mb-2">Highlights sync</h2>
             <p className="text-sm text-nord-polarLight mb-4">
-              Fetch Champions League and World Cup video highlights from ScoreBat (embeddable, on-site playback) and official FIFA World Cup recaps from YouTube as fallback when ScoreBat has no clip.
+              Fetch Champions League video highlights from ScoreBat (embeddable, on-site playback). Official World Cup highlights stream live from the ScoreBat widget on the highlights page.
             </p>
             <SyncHighlightsButton />
           </CardContent>

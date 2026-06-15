@@ -2,7 +2,11 @@ import { prisma } from "@/lib/db";
 import { requireAuth } from "@/lib/auth/get-user";
 import { getOthersPredictionsBatch } from "@/lib/predictions";
 import { toDisplay } from "@/lib/prediction-values";
-import { UCL_COMPETITION_ID, POWER_PICK_COMPETITION_ID } from "@/lib/config";
+import {
+  UCL_COMPETITION_ID,
+  POWER_PICK_COMPETITION_ID,
+  WORLD_CUP_2026_COMPETITION_ID,
+} from "@/lib/config";
 import { getUserPowerPickState } from "@/lib/power-pick";
 import { PageHeroBand } from "@/components/page-hero-band";
 import { ScheduleTabs } from "./schedule-tabs";
@@ -87,12 +91,19 @@ export default async function SchedulePage() {
     homeScore: m.homeScore,
     awayScore: m.awayScore,
     highlightHref:
-      m.highlight &&
-      m.highlight.syncStatus !== "unavailable" &&
-      (m.officialResultType != null ||
-        (m.homeScore != null && m.awayScore != null))
-        ? `/highlights/${m.id}?competition=${m.competitionId ?? UCL_COMPETITION_ID}`
-        : null,
+      m.competitionId === WORLD_CUP_2026_COMPETITION_ID
+        ? // World Cup recaps stream from the official ScoreBat widget hub (no
+          // per-match detail page / no YouTube clips any more).
+          m.officialResultType != null ||
+            (m.homeScore != null && m.awayScore != null)
+            ? `/highlights?competition=${WORLD_CUP_2026_COMPETITION_ID}`
+            : null
+        : m.highlight &&
+            m.highlight.syncStatus !== "unavailable" &&
+            (m.officialResultType != null ||
+              (m.homeScore != null && m.awayScore != null))
+          ? `/highlights/${m.id}?competition=${m.competitionId ?? UCL_COMPETITION_ID}`
+          : null,
   }));
 
   const serializedUserPredictions = userPredictions.map((p) => ({
