@@ -6,7 +6,9 @@ import { useEffect } from "react";
  * Embeds an official ScoreBat World Cup widget. Two variants are used:
  *  - the league panel (Match Center): open any fixture to see AI prediction,
  *    live standings, recent form, previous meetings and full team data;
- *  - the video panel (Highlights): the official World Cup highlight clips.
+ *  - the video panel (Highlights, desktop): the official World Cup highlight clips;
+ *  - the league panel (Highlights, mobile): the same league widget used for Match
+ *    Center — better layout on narrow viewports.
  *
  * The token in the URL is a public embed token (ScoreBat's own embed code is a
  * plain client-side iframe), so it is safe to ship to the browser. We load
@@ -46,18 +48,39 @@ function getVideoEmbedUrl(): string {
 
 function WidgetFrame({
   embedUrl,
+  mobileEmbedUrl,
+  desktopEmbedUrl,
   title,
   eyebrow,
   badge,
   description,
 }: {
-  embedUrl: string;
+  embedUrl?: string;
+  /** When set with `desktopEmbedUrl`, mobile viewports use this iframe src. */
+  mobileEmbedUrl?: string;
+  /** When set with `mobileEmbedUrl`, sm+ viewports use this iframe src. */
+  desktopEmbedUrl?: string;
   title: string;
   eyebrow: string;
   badge: string;
   description: string;
 }) {
   useScoreBatEmbedScript();
+
+  const desktopUrl = desktopEmbedUrl ?? embedUrl ?? mobileEmbedUrl ?? "";
+  const mobileUrl = mobileEmbedUrl ?? embedUrl ?? desktopUrl;
+  const isResponsive = Boolean(mobileEmbedUrl && desktopEmbedUrl);
+
+  const iframeProps = {
+    title,
+    frameBorder: 0 as const,
+    allowFullScreen: true,
+    allow: "autoplay; fullscreen",
+    loading: "lazy" as const,
+    referrerPolicy: "strict-origin-when-cross-origin" as const,
+    className: "_scorebatEmbeddedPlayer_ block w-full rounded-[1rem] bg-white",
+    style: { width: "100%", height: 760, border: 0 },
+  };
 
   return (
     <section className="overflow-hidden rounded-[1.4rem] border border-nord-polarLighter/12 bg-white/90 shadow-[0_18px_50px_rgba(46,52,64,0.07)]">
@@ -74,17 +97,14 @@ function WidgetFrame({
       </div>
       <p className="px-4 pt-3 text-xs leading-5 text-nord-polarLight">{description}</p>
       <div className="px-2 pb-3 pt-2 sm:px-3">
-        <iframe
-          src={embedUrl}
-          title={title}
-          frameBorder={0}
-          allowFullScreen
-          allow="autoplay; fullscreen"
-          loading="lazy"
-          referrerPolicy="strict-origin-when-cross-origin"
-          className="_scorebatEmbeddedPlayer_ block w-full rounded-[1rem] bg-white"
-          style={{ width: "100%", height: 760, border: 0 }}
-        />
+        {isResponsive ? (
+          <>
+            <iframe {...iframeProps} src={mobileUrl} className={`${iframeProps.className} sm:hidden`} />
+            <iframe {...iframeProps} src={desktopUrl} className={`${iframeProps.className} hidden sm:block`} />
+          </>
+        ) : (
+          <iframe {...iframeProps} src={desktopUrl} />
+        )}
       </div>
     </section>
   );
@@ -105,7 +125,8 @@ export function ScoreBatMatchWidget({ title }: { title?: string }) {
 export function ScoreBatHighlightsWidget({ title }: { title?: string }) {
   return (
     <WidgetFrame
-      embedUrl={getVideoEmbedUrl()}
+      mobileEmbedUrl={getLeagueEmbedUrl()}
+      desktopEmbedUrl={getVideoEmbedUrl()}
       title={title ?? "World Cup highlights"}
       eyebrow="Official highlights"
       badge="ScoreBat · World Cup"
