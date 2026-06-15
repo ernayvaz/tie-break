@@ -1,5 +1,14 @@
 import Link from "next/link";
 import type { HighlightClipModel } from "./types";
+import { HighlightPlayer } from "./highlight-player";
+
+const YOUTUBE_EMBED_REGEX = /youtube(?:-nocookie)?\.com\/embed\/([\w-]{6,})/;
+
+function extractYouTubeId(url: string | null): string | null {
+  if (!url) return null;
+  const match = url.match(YOUTUBE_EMBED_REGEX);
+  return match ? match[1] : null;
+}
 
 export function HighlightMediaShell({
   title,
@@ -18,6 +27,22 @@ export function HighlightMediaShell({
 }) {
   const activeClip = clips.find((clip) => clip.isActive) ?? clips[0] ?? null;
 
+  // YouTube clips play through the IFrame Player API (handles embed blocks +
+  // auto-advances to the next stored candidate). Non-YouTube (e.g. ScoreBat) clips
+  // keep the plain iframe embed.
+  const activeIsYouTube = extractYouTubeId(activeClip?.embedUrl ?? null) !== null;
+  const youtubeCandidates = clips
+    .map((clip) => {
+      const videoId = extractYouTubeId(clip.embedUrl);
+      if (!videoId) return null;
+      return {
+        videoId,
+        title: clip.title,
+        watchUrl: clip.pageUrl ?? `https://www.youtube.com/watch?v=${videoId}`,
+      };
+    })
+    .filter((candidate): candidate is NonNullable<typeof candidate> => candidate !== null);
+
   return (
     <section className="overflow-hidden rounded-[1.9rem] border border-white/10 bg-[linear-gradient(180deg,rgba(46,52,64,0.99),rgba(59,66,82,0.97),rgba(67,76,94,0.96))] text-white shadow-[0_34px_95px_rgba(46,52,64,0.2)]">
       <div className="grid gap-0 xl:grid-cols-[minmax(0,1.35fr)_minmax(14rem,17rem)]">
@@ -35,7 +60,13 @@ export function HighlightMediaShell({
               {scoreline}
             </div>
           </div>
-          {activeClip?.embedUrl ? (
+          {activeClip?.embedUrl && activeIsYouTube ? (
+            <HighlightPlayer
+              candidates={youtubeCandidates}
+              thumbnailUrl={thumbnailUrl}
+              title={activeClip.title}
+            />
+          ) : activeClip?.embedUrl ? (
             <div className="aspect-video w-full bg-black">
               <iframe
                 src={activeClip.embedUrl}

@@ -46,7 +46,7 @@ export type YoutubeHighlightVideo = {
 };
 
 export type YoutubeSearchResult =
-  | { ok: true; video: YoutubeHighlightVideo | null }
+  | { ok: true; video: YoutubeHighlightVideo | null; videos: YoutubeHighlightVideo[] }
   | { ok: false; error: string; quotaExceeded: boolean };
 
 type YoutubeSearchResponse = {
@@ -174,7 +174,7 @@ export async function searchFifaWorldCupHighlight(params: {
     .filter((id): id is string => typeof id === "string" && id.length > 0);
 
   if (candidateIds.length === 0) {
-    return { ok: true, video: null };
+    return { ok: true, video: null, videos: [] };
   }
 
   // 2) videos.list (1 quota unit) — verify channel, embeddable, title, date.
@@ -202,8 +202,12 @@ export async function searchFifaWorldCupHighlight(params: {
     };
   }
 
-  // Preserve search relevance order when choosing among valid candidates.
+  // Collect ALL valid candidates (preserving search relevance order). The YouTube
+  // Data API cannot reveal Content-ID embed blocks, so a video can pass every check
+  // here and still be blocked at play time; storing multiple candidates lets the
+  // client fall through to the next one when one is blocked.
   const byId = new Map((videosBody.items ?? []).map((v) => [v.id, v]));
+  const videos: YoutubeHighlightVideo[] = [];
   for (const id of candidateIds) {
     const video = byId.get(id);
     if (!video?.snippet) continue;
@@ -224,16 +228,13 @@ export async function searchFifaWorldCupHighlight(params: {
       continue;
     }
 
-    return {
-      ok: true,
-      video: {
-        videoId: id,
-        title: video.snippet.title ?? `${params.homeTeamName} vs ${params.awayTeamName}`,
-        thumbnailUrl: pickThumbnail(video.snippet.thumbnails),
-        publishedAt,
-      },
-    };
+    videos.push({
+      videoId: id,
+      title: video.snippet.title ?? `${params.homeTeamName} vs ${params.awayTeamName}`,
+      thumbnailUrl: pickThumbnail(video.snippet.thumbnails),
+      publishedAt,
+    });
   }
 
-  return { ok: true, video: null };
+  return { ok: true, video: videos[0] ?? null, videos };
 }

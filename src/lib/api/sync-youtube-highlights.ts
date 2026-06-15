@@ -133,7 +133,8 @@ export async function syncWorldCupYoutubeHighlights(options?: {
 
     if (result.video) {
       const video = result.video;
-      const embedUrl = buildYoutubeNoCookieEmbedUrl(video.videoId);
+      // Keep a few candidates so the player can fall through Content-ID embed blocks.
+      const candidates = result.videos.slice(0, 3);
       const highlight = await prisma.matchHighlight.upsert({
         where: { matchId: match.id },
         update: {
@@ -172,16 +173,16 @@ export async function syncWorldCupYoutubeHighlights(options?: {
       });
 
       await prisma.matchHighlightClip.deleteMany({ where: { highlightId: highlight.id } });
-      await prisma.matchHighlightClip.create({
-        data: {
+      await prisma.matchHighlightClip.createMany({
+        data: candidates.map((candidate, index) => ({
           highlightId: highlight.id,
           provider: YOUTUBE_PROVIDER,
-          externalVideoId: video.videoId,
-          title: video.title,
-          embedUrl,
-          pageUrl: `https://www.youtube.com/watch?v=${video.videoId}`,
-          sortOrder: 0,
-        },
+          externalVideoId: candidate.videoId,
+          title: candidate.title,
+          embedUrl: buildYoutubeNoCookieEmbedUrl(candidate.videoId),
+          pageUrl: `https://www.youtube.com/watch?v=${candidate.videoId}`,
+          sortOrder: index,
+        })),
       });
       foundCount += 1;
     } else {
