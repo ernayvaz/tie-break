@@ -2,7 +2,12 @@
 
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { ScoreAxisWidget } from "@/components/scoreaxis-widget";
-import { getCompetitionLabel, UCL_COMPETITION_ID } from "@/lib/config";
+import { ScoreBatMatchWidget } from "@/components/highlights/scorebat-match-widget";
+import {
+  getCompetitionLabel,
+  UCL_COMPETITION_ID,
+  WORLD_CUP_2026_COMPETITION_ID,
+} from "@/lib/config";
 import type {
   MatchStatisticsPayload,
   StatsLeagueTableRow,
@@ -1091,6 +1096,7 @@ export function MatchCenter({
 }: Props) {
   const [localActiveTab, setLocalActiveTab] = useState<CenterTab>("overview");
   const competitionLabel = getCompetitionLabel(competitionId ?? UCL_COMPETITION_ID);
+  const isWorldCup = competitionId === WORLD_CUP_2026_COMPETITION_ID;
   const activeTab = controlledActiveTab ?? localActiveTab;
   const setActiveTab = onActiveTabChange ?? setLocalActiveTab;
 
@@ -1219,7 +1225,9 @@ export function MatchCenter({
           <div className="min-w-0">
             <div className="text-sm font-semibold text-nord-polar">Match Center</div>
             <div className="truncate text-xs text-nord-polarLight">
-              Previous meetings, local leagues, club context and official widgets
+              {isWorldCup
+                ? "AI prediction, live standings, recent form and head-to-head for this fixture"
+                : "Previous meetings, local leagues, club context and official widgets"}
             </div>
           </div>
         </div>
@@ -1238,7 +1246,15 @@ export function MatchCenter({
         </div>
       </button>
 
-      {open ? (
+      {open && isWorldCup ? (
+        <div className="space-y-4 px-4 pb-4">
+          <ScoreBatMatchWidget
+            title={`${homeTeamName} vs ${awayTeamName}`}
+          />
+        </div>
+      ) : null}
+
+      {open && !isWorldCup ? (
         <div className="space-y-4 px-4 pb-4">
           <section className="rounded-[1.2rem] border border-white/55 bg-[linear-gradient(180deg,rgba(255,255,255,0.92),rgba(236,239,244,0.78))] p-[0.35rem] shadow-[0_18px_44px_rgba(46,52,64,0.07)]">
             <div className="rounded-[0.95rem] border border-white/65 bg-white/42 p-[0.35rem] shadow-inner">

@@ -870,7 +870,7 @@ export function ScheduleTabs({
   // (large) stats payloads for all matches was the dominant database egress source
   // and would quickly exhaust the hosting data-transfer quota.
 
-  const toggleStats = (matchId: string) => {
+  const toggleStats = (matchId: string, competitionId?: string | null) => {
     const willOpen = !expandedStats.has(matchId);
     setExpandedStats((prev) => {
       const next = new Set(prev);
@@ -878,6 +878,10 @@ export function ScheduleTabs({
       else next.add(matchId);
       return next;
     });
+
+    // World Cup Match Center renders the official ScoreBat embed (its own data
+    // source), so we must not pull the heavy native stats payload for it.
+    if (competitionId === WORLD_CUP_2026_COMPETITION_ID) return;
 
     if (willOpen && shouldRefreshMatchStats(localStatsByMatchId[matchId])) {
       void refreshMatchStats(matchId);
@@ -1357,7 +1361,7 @@ export function ScheduleTabs({
         {teamsDetermined && (
           <MatchCenter
             open={isStatsExpanded}
-            onToggle={() => toggleStats(m.id)}
+            onToggle={() => toggleStats(m.id, m.competitionId ?? null)}
             competitionId={m.competitionId ?? null}
             homeTeamName={m.homeTeamName}
             homeTeamLogo={m.homeTeamLogo ?? null}
