@@ -141,6 +141,10 @@ function toHighlightCardModel(input: Awaited<ReturnType<typeof fetchHighlights>>
 
 async function fetchHighlights() {
   return prisma.matchHighlight.findMany({
+    // Only surface highlights that actually have a playable clip stored. Placeholder
+    // rows (e.g. World Cup fixtures still awaiting an official video) are tracked in
+    // the DB for retry scheduling but must not clutter the public archive.
+    where: { clips: { some: {} } },
     include: {
       clips: {
         orderBy: { sortOrder: "asc" },

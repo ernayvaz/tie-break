@@ -18,6 +18,7 @@ type Props = {
   users: PowerPickAdminUserRow[];
   logs: PowerPickAdminLogRow[];
   packageSize: number;
+  maxPerUser: number;
 };
 
 const ACTION_LABELS: Record<string, string> = {
@@ -37,10 +38,13 @@ function formatDateTime(iso: string | null): string {
   });
 }
 
-export function PowerPickAdminClient({ users, logs, packageSize }: Props) {
+export function PowerPickAdminClient({ users, logs, packageSize, maxPerUser }: Props) {
   const router = useRouter();
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [grantAmount, setGrantAmount] = useState<number>(
+    Math.min(maxPerUser, Math.max(1, packageSize))
+  );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -160,15 +164,47 @@ export function PowerPickAdminClient({ users, logs, packageSize }: Props) {
         ))}
       </div>
 
+      {/* Amount selector */}
+      <div className="rounded-xl border border-amber-300/50 bg-amber-50/60 p-4">
+        <label
+          htmlFor="grant-amount"
+          className="text-sm font-semibold text-nord-polar"
+        >
+          Amount to grant
+        </label>
+        <p className="mt-0.5 text-xs text-nord-polarLight">
+          Choose how many Power Pick x3 rights to grant (1–{maxPerUser}). No user can exceed{" "}
+          {maxPerUser} total.
+        </p>
+        <div className="mt-3 flex flex-wrap items-center gap-3">
+          <select
+            id="grant-amount"
+            value={grantAmount}
+            onChange={(e) => setGrantAmount(Number(e.target.value))}
+            disabled={busy}
+            className="rounded-lg border border-nord-polarLighter bg-white px-3 py-2 text-sm font-semibold text-nord-polar tabular-nums focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-300/40"
+          >
+            {Array.from({ length: maxPerUser }, (_, i) => i + 1).map((n) => (
+              <option key={n} value={n}>
+                {n}
+              </option>
+            ))}
+          </select>
+          <span className="text-xs text-nord-polarLight">
+            right{grantAmount === 1 ? "" : "s"} per granted user
+          </span>
+        </div>
+      </div>
+
       {/* Bulk: all users */}
       <div className="rounded-xl border border-nord-polarLighter/50 bg-nord-snow/40 p-4">
         <h2 className="text-sm font-semibold text-nord-polar">All users</h2>
         <div className="mt-3 flex flex-wrap gap-2">
           <Button
             disabled={busy}
-            onClick={() => run(() => grantPowerPickAction("all_users", [], packageSize))}
+            onClick={() => run(() => grantPowerPickAction("all_users", [], grantAmount))}
           >
-            Grant {packageSize} to all users
+            Grant {grantAmount} to all users
           </Button>
           <Button
             variant="secondary"
@@ -208,10 +244,10 @@ export function PowerPickAdminClient({ users, logs, packageSize }: Props) {
             disabled={busy}
             onClick={() => {
               if (!requireSelection()) return;
-              run(() => grantPowerPickAction("selected_users", selectedIds, packageSize));
+              run(() => grantPowerPickAction("selected_users", selectedIds, grantAmount));
             }}
           >
-            Grant {packageSize} to selected
+            Grant {grantAmount} to selected
           </Button>
           <Button
             variant="secondary"

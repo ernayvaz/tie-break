@@ -88,6 +88,7 @@ export default async function SchedulePage() {
     awayScore: m.awayScore,
     highlightHref:
       m.highlight &&
+      m.highlight.syncStatus !== "unavailable" &&
       (m.officialResultType != null ||
         (m.homeScore != null && m.awayScore != null))
         ? `/highlights/${m.id}?competition=${m.competitionId ?? UCL_COMPETITION_ID}`

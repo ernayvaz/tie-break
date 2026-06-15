@@ -34,6 +34,8 @@ export const COMPETITIONS = [
 export const COMPETITION_IDS = COMPETITIONS.map((competition) => competition.id);
 /** Power Pick x3: number of rights granted per admin "package". */
 export const POWER_PICK_PACKAGE_SIZE = 3;
+/** Power Pick x3: hard ceiling on how many rights a single user can hold. */
+export const POWER_PICK_MAX_PER_USER = 10;
 /** Power Pick x3: total points awarded for a correct boosted prediction (replaces the normal 1). */
 export const POWER_PICK_POINTS = 3;
 /** Power Pick x3 is only offered on the World Cup competition. */

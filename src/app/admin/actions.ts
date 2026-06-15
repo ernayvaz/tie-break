@@ -3,6 +3,8 @@
 import { syncMatchesFromApi } from "@/lib/api/sync-matches";
 import { syncWorldCupResultsFromOpenLigaDb } from "@/lib/api/sync-wc-results";
 import { syncHighlightsFromApi } from "@/lib/api/sync-highlights";
+import { syncWorldCupYoutubeHighlights } from "@/lib/api/sync-youtube-highlights";
+import { hasYoutubeApiKey } from "@/lib/providers/youtube-highlights";
 import { syncMatchStatisticsCache } from "@/lib/api/sync-match-stats";
 import { recalculateAll } from "@/lib/scoring";
 import { requireAdmin } from "@/lib/auth/get-user";
@@ -51,6 +53,9 @@ export async function syncHighlightsAction(): Promise<SyncState> {
   await requireAdmin();
 
   const result = await syncHighlightsFromApi();
+  // Official FIFA World Cup highlights from YouTube (best-effort; needs YOUTUBE_API_KEY).
+  const youtube = hasYoutubeApiKey() ? await syncWorldCupYoutubeHighlights() : null;
+
   if (!result.ok) return { error: result.error };
 
   revalidatePath("/highlights");
@@ -58,8 +63,14 @@ export async function syncHighlightsAction(): Promise<SyncState> {
   revalidatePath("/schedule");
   revalidatePath("/admin/api");
 
+  const ytSummary = !youtube
+    ? " YouTube highlights skipped (no YOUTUBE_API_KEY)."
+    : youtube.ok
+      ? ` YouTube: ${youtube.foundCount} found, ${youtube.notFoundCount} not yet, ${youtube.searched} searched${youtube.quotaExceeded ? " (quota hit)" : ""}.`
+      : ` YouTube failed: ${youtube.error}`;
+
   return {
-    message: `Highlights synced. ${result.fetchedCount} provider item(s), ${result.matchedCount} match(es) resolved, ${result.storedCount} record(s) stored, ${result.staleCount} recent record(s) marked stale.`,
+    message: `Highlights synced. ${result.fetchedCount} provider item(s), ${result.matchedCount} match(es) resolved, ${result.storedCount} record(s) stored, ${result.staleCount} recent record(s) marked stale.${ytSummary}`,
   };
 }
 

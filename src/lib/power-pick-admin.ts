@@ -2,6 +2,7 @@ import { prisma } from "@/lib/db";
 import {
   POWER_PICK_PACKAGE_SIZE,
   POWER_PICK_COMPETITION_ID,
+  POWER_PICK_MAX_PER_USER,
 } from "@/lib/config";
 
 export type PowerPickAdminScope = "all_users" | "selected_users";
@@ -120,8 +121,9 @@ async function logAdminAction(
 }
 
 /**
- * Grant a package of Power Pick x3 rights (default 3) to the target users.
- * Adds to any existing balance.
+ * Grant Power Pick x3 rights to the target users, adding to any existing balance.
+ * The requested amount is clamped to 1..POWER_PICK_MAX_PER_USER, and no user is
+ * ever pushed above POWER_PICK_MAX_PER_USER total (extra is dropped per user).
  */
 export async function grantPowerPick(params: {
   adminUserId: string;
@@ -129,22 +131,43 @@ export async function grantPowerPick(params: {
   userIds?: string[];
   amount?: number;
   competitionId?: string;
-}): Promise<{ ok: true; affected: number; amount: number } | { ok: false; error: string }> {
+}): Promise<
+  | { ok: true; affected: number; amount: number; skippedAtMax: number }
+  | { ok: false; error: string }
+> {
   const competitionId = params.competitionId ?? POWER_PICK_COMPETITION_ID;
-  const amount = Math.max(1, Math.floor(params.amount ?? POWER_PICK_PACKAGE_SIZE));
+  const amount = Math.min(
+    POWER_PICK_MAX_PER_USER,
+    Math.max(1, Math.floor(params.amount ?? POWER_PICK_PACKAGE_SIZE))
+  );
   const targets = await resolveTargetUserIds(params.scope, params.userIds);
   if (targets.length === 0) return { ok: false, error: "No eligible users selected." };
 
+  const existing = await prisma.userPowerPickBalance.findMany({
+    where: { userId: { in: targets }, competitionId },
+    select: { userId: true, totalGranted: true },
+  });
+  const grantedByUser = new Map(existing.map((b) => [b.userId, b.totalGranted]));
+
+  let affected = 0;
+  let skippedAtMax = 0;
   for (const userId of targets) {
+    const current = grantedByUser.get(userId) ?? 0;
+    const newTotal = Math.min(POWER_PICK_MAX_PER_USER, current + amount);
+    if (newTotal <= current) {
+      skippedAtMax += 1;
+      continue;
+    }
     await prisma.userPowerPickBalance.upsert({
       where: { userId_competitionId: { userId, competitionId } },
-      create: { userId, competitionId, totalGranted: amount },
-      update: { totalGranted: { increment: amount } },
+      create: { userId, competitionId, totalGranted: newTotal },
+      update: { totalGranted: newTotal },
     });
+    affected += 1;
   }
 
   await logAdminAction(params.adminUserId, params.scope, "grant", amount, targets, competitionId);
-  return { ok: true, affected: targets.length, amount };
+  return { ok: true, affected, amount, skippedAtMax };
 }
 
 /**

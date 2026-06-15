@@ -8,7 +8,7 @@ import {
   forceRemovePowerPick,
   type PowerPickAdminScope,
 } from "@/lib/power-pick-admin";
-import { POWER_PICK_PACKAGE_SIZE } from "@/lib/config";
+import { POWER_PICK_PACKAGE_SIZE, POWER_PICK_MAX_PER_USER } from "@/lib/config";
 
 export type PowerPickAdminActionState =
   | { ok: true; message: string }
@@ -26,17 +26,25 @@ export async function grantPowerPickAction(
   amount: number = POWER_PICK_PACKAGE_SIZE
 ): Promise<PowerPickAdminActionState> {
   const admin = await requireAdmin();
+  const safeAmount = Math.min(
+    POWER_PICK_MAX_PER_USER,
+    Math.max(1, Math.floor(Number.isFinite(amount) ? amount : POWER_PICK_PACKAGE_SIZE))
+  );
   const result = await grantPowerPick({
     adminUserId: admin.id,
     scope,
     userIds,
-    amount,
+    amount: safeAmount,
   });
   if (!result.ok) return result;
   revalidate();
+  const skippedNote =
+    result.skippedAtMax > 0
+      ? ` ${result.skippedAtMax} user(s) already at the ${POWER_PICK_MAX_PER_USER} cap were skipped.`
+      : "";
   return {
     ok: true,
-    message: `Granted ${result.amount} Power Pick x3 right(s) to ${result.affected} user(s).`,
+    message: `Granted up to ${result.amount} Power Pick x3 right(s) to ${result.affected} user(s) (max ${POWER_PICK_MAX_PER_USER} per user).${skippedNote}`,
   };
 }
 
