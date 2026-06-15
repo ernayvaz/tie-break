@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 
 /**
  * Embeds an official ScoreBat World Cup widget. Variants:
@@ -31,21 +31,35 @@ declare global {
   }
 }
 
-function useScoreBatEmbedScript() {
+function useMobileViewport(): boolean | null {
+  const [isMobile, setIsMobile] = useState<boolean | null>(null);
+
   useEffect(() => {
-    if (typeof document === "undefined") return;
+    const mq = window.matchMedia("(max-width: 639px)");
+    const onChange = () => setIsMobile(mq.matches);
+    onChange();
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, []);
+
+  return isMobile;
+}
+
+function useScoreBatEmbedScript(enabled = true) {
+  useEffect(() => {
+    if (!enabled || typeof document === "undefined") return;
     if (document.getElementById(EMBED_SCRIPT_ID)) return;
     const script = document.createElement("script");
     script.id = EMBED_SCRIPT_ID;
     script.src = EMBED_SCRIPT_SRC;
     script.async = true;
     document.body.appendChild(script);
-  }, []);
+  }, [enabled]);
 }
 
-function useScoreBatPanelScript() {
+function useScoreBatPanelScript(enabled = true) {
   useEffect(() => {
-    if (typeof window === "undefined") return;
+    if (!enabled || typeof window === "undefined") return;
     if (document.getElementById(PANEL_SCRIPT_ID)) return;
     window.SCOREBAT_OPTIONS = {
       panelClassName: "_scorebatEmbeddedPanel_",
@@ -56,7 +70,7 @@ function useScoreBatPanelScript() {
     script.src = PANEL_SCRIPT_SRC;
     script.async = true;
     document.body.appendChild(script);
-  }, []);
+  }, [enabled]);
 }
 
 function getLeagueEmbedUrl(): string {
@@ -128,8 +142,12 @@ export function ScoreBatMatchWidget({ title }: { title?: string }) {
 }
 
 export function ScoreBatHighlightsWidget({ title }: { title?: string }) {
-  useScoreBatEmbedScript();
-  useScoreBatPanelScript();
+  const isMobile = useMobileViewport();
+  const showMobile = isMobile === true;
+  const showDesktop = isMobile === false;
+
+  useScoreBatPanelScript(showMobile);
+  useScoreBatEmbedScript(showDesktop);
 
   const videoUrl = getVideoEmbedUrl();
   const widgetTitle = title ?? "World Cup highlights";
@@ -151,38 +169,47 @@ export function ScoreBatHighlightsWidget({ title }: { title?: string }) {
         Official World Cup highlight clips. Pick any match below to watch its recap right here.
       </p>
       <div className="px-2 pb-3 pt-2 sm:px-3">
-        {/* Mobile: videopanel + panelx.js responsive embed (official ScoreBat mobile code). */}
-        <iframe
-          src={videoUrl}
-          title={widgetTitle}
-          frameBorder={0}
-          allowFullScreen
-          allow="autoplay; fullscreen"
-          loading="lazy"
-          referrerPolicy="strict-origin-when-cross-origin"
-          className="_scorebatEmbeddedPanel_ block w-full sm:hidden"
-          style={{
-            display: "block",
-            width: "100%",
-            height: 800,
-            backgroundColor: "rgb(17,17,17)",
-            borderRadius: 12,
-            boxShadow: "0 1px 2px #111111b4",
-            border: 0,
-          }}
-        />
-        {/* Desktop: videopanel + embed.js player sizing. */}
-        <iframe
-          src={videoUrl}
-          title={widgetTitle}
-          frameBorder={0}
-          allowFullScreen
-          allow="autoplay; fullscreen"
-          loading="lazy"
-          referrerPolicy="strict-origin-when-cross-origin"
-          className="_scorebatEmbeddedPlayer_ hidden w-full rounded-[1rem] bg-white sm:block"
-          style={{ width: "100%", height: 760, border: 0 }}
-        />
+        {showMobile ? (
+          <iframe
+            key="scorebat-highlights-mobile"
+            src={videoUrl}
+            title={widgetTitle}
+            frameBorder={0}
+            allowFullScreen
+            allow="autoplay; fullscreen"
+            loading="lazy"
+            referrerPolicy="strict-origin-when-cross-origin"
+            className="_scorebatEmbeddedPanel_ block w-full"
+            style={{
+              display: "block",
+              width: "100%",
+              height: 800,
+              backgroundColor: "rgb(17,17,17)",
+              borderRadius: 12,
+              boxShadow: "0 1px 2px #111111b4",
+              border: 0,
+            }}
+          />
+        ) : showDesktop ? (
+          <iframe
+            key="scorebat-highlights-desktop"
+            src={videoUrl}
+            title={widgetTitle}
+            frameBorder={0}
+            allowFullScreen
+            allow="autoplay; fullscreen"
+            loading="lazy"
+            referrerPolicy="strict-origin-when-cross-origin"
+            className="_scorebatEmbeddedPlayer_ block w-full rounded-[1rem] bg-white"
+            style={{ width: "100%", height: 760, border: 0 }}
+          />
+        ) : (
+          <div
+            className="w-full rounded-[1rem] bg-nord-snow/60"
+            style={{ height: 760 }}
+            aria-hidden
+          />
+        )}
       </div>
     </section>
   );
