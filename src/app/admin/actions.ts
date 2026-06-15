@@ -69,8 +69,13 @@ export async function syncHighlightsAction(): Promise<SyncState> {
       ? ` YouTube: ${youtube.foundCount} found, ${youtube.notFoundCount} not yet, ${youtube.searched} searched${youtube.quotaExceeded ? " (quota hit)" : ""}.`
       : ` YouTube failed: ${youtube.error}`;
 
+  const sbNote =
+    result.fetchedCount === 0
+      ? " ScoreBat returned no items — add SCOREBAT_API_TOKEN for the updated feed (scorebat.com/video-api)."
+      : "";
+
   return {
-    message: `Highlights synced. ${result.fetchedCount} provider item(s), ${result.matchedCount} match(es) resolved, ${result.storedCount} record(s) stored, ${result.staleCount} recent record(s) marked stale.${ytSummary}`,
+    message: `Highlights synced. ScoreBat: ${result.fetchedCount} item(s), ${result.matchedCount} match(es) resolved, ${result.storedCount} stored.${sbNote}${ytSummary}`,
   };
 }
 

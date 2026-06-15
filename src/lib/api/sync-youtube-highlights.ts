@@ -22,6 +22,7 @@ import {
 } from "@/lib/providers/youtube-highlights";
 
 const YOUTUBE_PROVIDER = "youtube";
+const SCOREBAT_PROVIDER = "scorebat.com";
 /** Cap searches per run so a single sync never blows the daily YouTube quota. */
 const MAX_SEARCHES_PER_RUN = 40;
 
@@ -76,12 +77,15 @@ export async function syncWorldCupYoutubeHighlights(options?: {
     },
   });
 
-  // Already-found = an official YouTube video is stored and embeddable (has a clip).
+  // Skip when a playable highlight already exists (ScoreBat preferred, or prior YouTube).
   const pending = finished.filter((m) => {
     const h = m.highlight;
-    const alreadyFound =
-      h && h.provider === YOUTUBE_PROVIDER && h.syncStatus === "available" && h._count.clips > 0;
-    return !alreadyFound;
+    if (!h) return true;
+    const hasPlayable =
+      h.syncStatus === "available" && h._count.clips > 0;
+    if (hasPlayable && h.provider === SCOREBAT_PROVIDER) return false;
+    if (hasPlayable && h.provider === YOUTUBE_PROVIDER) return false;
+    return true;
   });
 
   // Search the never-tried fixtures first, then those whose last attempt is oldest.

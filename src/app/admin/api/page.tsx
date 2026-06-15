@@ -37,7 +37,7 @@ export default async function AdminApiPage() {
           <CardContent className="py-6">
             <h2 className="text-sm font-semibold text-nord-polar mb-2">Highlights sync</h2>
             <p className="text-sm text-nord-polarLight mb-4">
-              Fetch Champions League video highlights from ScoreBat and official FIFA World Cup recaps from YouTube (finished fixtures only), resolve them to local fixtures, and refresh the stored highlights archive.
+              Fetch Champions League and World Cup video highlights from ScoreBat (embeddable, on-site playback) and official FIFA World Cup recaps from YouTube as fallback when ScoreBat has no clip.
             </p>
             <SyncHighlightsButton />
           </CardContent>

@@ -8,6 +8,18 @@ export const FOOTBALL_DATA_API_KEY =
 export const SCOREBAT_HIGHLIGHTS_API_URL =
   process.env.SCOREBAT_HIGHLIGHTS_API_URL?.trim() ||
   "https://www.scorebat.com/video-api/v3/";
+/** ScoreBat Video API access token (free-feed + paid competition endpoints). */
+export const SCOREBAT_API_TOKEN = process.env.SCOREBAT_API_TOKEN?.trim() || "";
+/** ScoreBat competition slug for UEFA Champions League highlights feed. */
+export const SCOREBAT_UCL_COMPETITION_SLUG =
+  process.env.SCOREBAT_UCL_COMPETITION_SLUG?.trim() || "uefa-champions-league";
+/** ScoreBat competition slug for World Cup highlights feed (paid plan). */
+export const SCOREBAT_WC_COMPETITION_SLUG =
+  process.env.SCOREBAT_WC_COMPETITION_SLUG?.trim() || "international-world-cup";
+
+export function hasScoreBatApiToken(): boolean {
+  return SCOREBAT_API_TOKEN.length > 0;
+}
 
 export const UCL_COMPETITION_ID = "CL";
 export const WORLD_CUP_2026_COMPETITION_ID = "WC";

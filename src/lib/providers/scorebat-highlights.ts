@@ -1,4 +1,9 @@
-import { SCOREBAT_HIGHLIGHTS_API_URL } from "@/lib/config";
+import {
+  SCOREBAT_HIGHLIGHTS_API_URL,
+  SCOREBAT_API_TOKEN,
+  SCOREBAT_UCL_COMPETITION_SLUG,
+  SCOREBAT_WC_COMPETITION_SLUG,
+} from "@/lib/config";
 import {
   isHighlightLabelTrackable,
   parseScoreBatTitle,
@@ -543,34 +548,71 @@ function normalizeEntry(value: unknown): ScoreBatHighlightEntry | null {
   };
 }
 
+function scoreBatApiBaseUrl(): string {
+  return SCOREBAT_HIGHLIGHTS_API_URL.replace(/\/$/, "");
+}
+
+function buildScoreBatFeedUrls(): string[] {
+  const base = scoreBatApiBaseUrl();
+  const token = SCOREBAT_API_TOKEN;
+  if (token) {
+    const urls = [
+      `${base}/free-feed/?token=${encodeURIComponent(token)}`,
+      `${base}/competition/${encodeURIComponent(SCOREBAT_UCL_COMPETITION_SLUG)}/?token=${encodeURIComponent(token)}`,
+      `${base}/competition/${encodeURIComponent(SCOREBAT_WC_COMPETITION_SLUG)}/?token=${encodeURIComponent(token)}`,
+    ];
+    // Extra World Cup slug guesses (first 200 response wins; others are best-effort).
+    for (const slug of ["world-cup", "fifa-world-cup"]) {
+      if (slug !== SCOREBAT_WC_COMPETITION_SLUG) {
+        urls.push(
+          `${base}/competition/${encodeURIComponent(slug)}/?token=${encodeURIComponent(token)}`
+        );
+      }
+    }
+    return urls;
+  }
+  // Legacy unauthenticated feed (deprecated by ScoreBat but still returns a subset).
+  return [`${base}/`];
+}
+
+function dedupeEntries(entries: ScoreBatHighlightEntry[]): ScoreBatHighlightEntry[] {
+  const seen = new Set<string>();
+  const result: ScoreBatHighlightEntry[] = [];
+  for (const entry of entries) {
+    const key =
+      entry.providerMatchId ??
+      `${entry.title}__${entry.publishedAt.toISOString()}__${entry.competition}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    result.push(entry);
+  }
+  return result;
+}
+
+async function fetchScoreBatFeedUrl(url: string): Promise<ScoreBatHighlightEntry[]> {
+  const response = await fetch(url, {
+    method: "GET",
+    headers: { Accept: "application/json" },
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    return [];
+  }
+  const data = (await response.json()) as ScoreBatApiResponse;
+  if (!Array.isArray(data.response)) {
+    return [];
+  }
+  return data.response
+    .map(normalizeEntry)
+    .filter((entry): entry is ScoreBatHighlightEntry => entry !== null);
+}
+
 export async function fetchScoreBatHighlights(): Promise<ScoreBatHighlightsResult> {
   try {
-    const response = await fetch(SCOREBAT_HIGHLIGHTS_API_URL, {
-      method: "GET",
-      headers: {
-        Accept: "application/json",
-      },
-      cache: "no-store",
-    });
-
-    if (!response.ok) {
-      return {
-        ok: false,
-        error: `ScoreBat highlights request failed with ${response.status}.`,
-      };
-    }
-
-    const data = (await response.json()) as ScoreBatApiResponse;
-    const entries = Array.isArray(data.response)
-      ? data.response
-          .map(normalizeEntry)
-          .filter((entry): entry is ScoreBatHighlightEntry => entry !== null)
-      : [];
-
-    return {
-      ok: true,
-      entries,
-    };
+    const urls = buildScoreBatFeedUrls();
+    const batches = await Promise.all(urls.map((url) => fetchScoreBatFeedUrl(url)));
+    const entries = dedupeEntries(batches.flat());
+    return { ok: true, entries };
   } catch (error) {
     return {
       ok: false,
