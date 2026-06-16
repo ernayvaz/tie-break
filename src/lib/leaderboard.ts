@@ -233,8 +233,7 @@ export async function getLeaderboardBoardData(
     const pending = built.filter((entry) => entry.status === "pending");
     const selected = [...decided, ...pending].slice(0, 5).map((entry) => entry.item);
 
-    // Display oldest → newest, left to right.
-    selected.reverse();
+    // Display newest → oldest, left to right.
     recentPredictionsByUser.set(userId, selected);
   }
 

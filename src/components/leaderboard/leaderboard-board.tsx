@@ -197,7 +197,7 @@ function RecentPredictionsStrip({
 }: {
   predictions: LeaderboardRecentPredictionItem[];
 }) {
-  const visiblePredictions = predictions.slice(-5);
+  const visiblePredictions = predictions.slice(0, 5);
   const items = [
     ...Array.from(
       { length: Math.max(0, 5 - visiblePredictions.length) },
@@ -214,8 +214,8 @@ function RecentPredictionsStrip({
   return (
     <div
       className="flex items-center gap-1.5 whitespace-nowrap"
-      title="Last 5 predictions, left to right from oldest to newest"
-      aria-label="Last 5 predictions, left to right from oldest to newest"
+      title="Last 5 predictions, left to right from newest to oldest"
+      aria-label="Last 5 predictions, left to right from newest to oldest"
     >
       {items.map((item, index) => (
         <RecentPredictionMarker
@@ -371,7 +371,7 @@ function LeaderboardMobileCard({
 
       <div className="mt-3 border-t border-nord-polarLighter/20 pt-3">
         <div className="text-[11px] uppercase tracking-wide text-nord-polarLight">
-          {labels.lastFive} (old to new)
+          {labels.lastFive} (new to old)
         </div>
         <div className="mt-2">
           <RecentPredictionsStrip predictions={entry.recentPredictions} />
