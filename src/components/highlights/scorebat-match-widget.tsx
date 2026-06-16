@@ -1,12 +1,17 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useState } from "react";
 
 /**
  * Embeds an official ScoreBat World Cup widget. Variants:
  *  - league panel + embed.js (Match Center): fixture data, AI prediction, H2H, etc.
  *  - videopanel + embed.js (Highlights, desktop): highlight clips, player sizing.
  *  - videopanel + panelx.js (Highlights, mobile): responsive panel sizing.
+ *
+ * The embed is a cross-origin iframe, so we render it as-is with the full set of
+ * player permissions. We intentionally do NOT overlay/clip the iframe: doing so
+ * both crops the player and (because an overlay swallows pointer events) blocks
+ * clicking a fixture, which stops videos from opening.
  *
  * Embed tokens are public (ScoreBat ships them in plain iframe embed codes).
  */
@@ -16,6 +21,11 @@ const FALLBACK_LEAGUE_URL =
 
 const FALLBACK_VIDEO_URL =
   "https://www.scorebat.com/embed/videopanel/league/fifa-world-cup/?token=MzA1MTA4XzE3ODE1MTY2MTRfYzY5ODhlMjdjMzMwNDUyODcxZmY4OGQ1NjRlZDE3YzJiMjk5OTRiZg==&pref=%7B%22autoplay%22%3Atrue%7D";
+
+// Full player permissions so highlights play with every feature enabled
+// (autoplay, fullscreen, DRM/encrypted-media, PiP, sharing, etc.).
+const PLAYER_ALLOW =
+  "autoplay; fullscreen; encrypted-media; picture-in-picture; clipboard-write; web-share; accelerometer; gyroscope";
 
 const EMBED_SCRIPT_ID = "scorebat-jssdk";
 const EMBED_SCRIPT_SRC = "https://www.scorebat.com/embed/embed.js?v=arrv";
@@ -83,39 +93,6 @@ function getVideoEmbedUrl(): string {
   return fromEnv && fromEnv.length > 0 ? fromEnv : FALLBACK_VIDEO_URL;
 }
 
-// The embed renders third-party branding chrome we must not show: a header band
-// ("FOOTBALL GAMES" + "Embed this widget") pinned to the very top and a promo
-// card ("Add the World Cup to your website / Build your widget") pinned to the
-// very bottom. The iframe is cross-origin so we cannot edit its DOM; instead we
-// clip the top band (negative offset inside an overflow-hidden wrapper) and cover
-// the bottom promo with an opaque mask matching the embed background.
-const EMBED_HEADER_CLIP = 48;
-const EMBED_PROMO_MASK = 132;
-const EMBED_BG = "rgb(251,249,249)";
-
-function MaskedEmbed({
-  children,
-  background = EMBED_BG,
-  headerClip = EMBED_HEADER_CLIP,
-  promoMask = EMBED_PROMO_MASK,
-}: {
-  children: ReactNode;
-  background?: string;
-  headerClip?: number;
-  promoMask?: number;
-}) {
-  return (
-    <div className="relative overflow-hidden rounded-[1rem]" style={{ background }}>
-      <div style={{ marginTop: -headerClip }}>{children}</div>
-      <div
-        className="absolute inset-x-0 bottom-0"
-        style={{ height: promoMask, background }}
-        aria-hidden
-      />
-    </div>
-  );
-}
-
 function WidgetFrame({
   embedUrl,
   title,
@@ -146,19 +123,15 @@ function WidgetFrame({
       </div>
       <p className="px-4 pt-3 text-xs leading-5 text-nord-polarLight">{description}</p>
       <div className="px-2 pb-3 pt-2 sm:px-3">
-        <MaskedEmbed>
-          <iframe
-            src={embedUrl}
-            title={title}
-            frameBorder={0}
-            allowFullScreen
-            allow="autoplay; fullscreen"
-            loading="lazy"
-            referrerPolicy="strict-origin-when-cross-origin"
-            className="_scorebatEmbeddedPlayer_ block w-full bg-white"
-            style={{ width: "100%", height: 760, border: 0 }}
-          />
-        </MaskedEmbed>
+        <iframe
+          src={embedUrl}
+          title={title}
+          frameBorder={0}
+          allowFullScreen
+          allow={PLAYER_ALLOW}
+          className="_scorebatEmbeddedPlayer_ block w-full rounded-[1rem] bg-white"
+          style={{ width: "100%", height: 760, border: 0 }}
+        />
       </div>
     </section>
   );
@@ -205,41 +178,33 @@ export function ScoreBatHighlightsWidget({ title }: { title?: string }) {
       </p>
       <div className="px-2 pb-3 pt-2 sm:px-3">
         {showMobile ? (
-          <MaskedEmbed background="rgb(17,17,17)">
-            <iframe
-              key="scorebat-highlights-mobile"
-              src={videoUrl}
-              title={widgetTitle}
-              frameBorder={0}
-              allowFullScreen
-              allow="autoplay; fullscreen"
-              loading="lazy"
-              referrerPolicy="strict-origin-when-cross-origin"
-              className="_scorebatEmbeddedPanel_ block w-full"
-              style={{
-                display: "block",
-                width: "100%",
-                height: 800,
-                backgroundColor: "rgb(17,17,17)",
-                border: 0,
-              }}
-            />
-          </MaskedEmbed>
+          <iframe
+            key="scorebat-highlights-mobile"
+            src={videoUrl}
+            title={widgetTitle}
+            frameBorder={0}
+            allowFullScreen
+            allow={PLAYER_ALLOW}
+            className="_scorebatEmbeddedPanel_ block w-full rounded-[1rem]"
+            style={{
+              display: "block",
+              width: "100%",
+              height: 800,
+              backgroundColor: "rgb(17,17,17)",
+              border: 0,
+            }}
+          />
         ) : showDesktop ? (
-          <MaskedEmbed>
-            <iframe
-              key="scorebat-highlights-desktop"
-              src={videoUrl}
-              title={widgetTitle}
-              frameBorder={0}
-              allowFullScreen
-              allow="autoplay; fullscreen"
-              loading="lazy"
-              referrerPolicy="strict-origin-when-cross-origin"
-              className="_scorebatEmbeddedPlayer_ block w-full bg-white"
-              style={{ width: "100%", height: 760, border: 0 }}
-            />
-          </MaskedEmbed>
+          <iframe
+            key="scorebat-highlights-desktop"
+            src={videoUrl}
+            title={widgetTitle}
+            frameBorder={0}
+            allowFullScreen
+            allow={PLAYER_ALLOW}
+            className="_scorebatEmbeddedPlayer_ block w-full rounded-[1rem] bg-white"
+            style={{ width: "100%", height: 760, border: 0 }}
+          />
         ) : (
           <div
             className="w-full rounded-[1rem] bg-nord-snow/60"
