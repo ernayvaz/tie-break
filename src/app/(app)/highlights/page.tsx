@@ -180,9 +180,9 @@ export default async function HighlightsPage({ searchParams }: Props) {
         <PageHeroBand
           eyebrow="World Cup 2026"
           title="World Cup highlights"
-          description="Official World Cup 2026 recaps, streamed straight from ScoreBat. Pick any match in the panel to watch its highlights."
+          description="Official World Cup 2026 recaps. Pick any match in the panel to watch its highlights."
           highlights={[
-            { label: "Source", value: "Official ScoreBat feed" },
+            { label: "Source", value: "Official highlights feed" },
             { label: "Coverage", value: "All World Cup 2026 fixtures" },
           ]}
         />

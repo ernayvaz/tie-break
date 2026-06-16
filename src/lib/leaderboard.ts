@@ -177,46 +177,65 @@ export async function getLeaderboardBoardData(
     boostedSelections.map((s) => `${s.userId}:${s.matchId}`)
   );
 
-  const recentPredictionsByUser = new Map<string, LeaderboardRecentPredictionItem[]>();
+  // Group every finalized prediction per user (rows already arrive ordered by
+  // finalizedAt desc). We then prioritise decided picks (correct/incorrect) over
+  // still-pending ones inside the "Last 5", so a run of recent not-yet-scored
+  // matches can't push the user's decided results out of the strip.
+  const rowsByUser = new Map<string, typeof recentPredictionRows>();
   for (const prediction of recentPredictionRows) {
-    const items = recentPredictionsByUser.get(prediction.userId) ?? [];
-    if (items.length >= 5) continue;
-
-    const status: RecentPredictionStatus =
-      prediction.match.officialResultType === null
-        ? "pending"
-        : (prediction.awardedPoints ?? 0) > 0
-          ? "correct"
-          : "incorrect";
-
-    const isPowerPick = boostedKeys.has(`${prediction.userId}:${prediction.matchId}`);
-    const statusLabel =
-      status === "correct"
-        ? isPowerPick
-          ? "Correct (+3)"
-          : "Correct"
-        : status === "incorrect"
-          ? "Incorrect"
-          : "Pending";
-    const finalizedLabel = prediction.finalizedAt
-      ? new Date(prediction.finalizedAt).toLocaleString("en-GB", {
-          dateStyle: "short",
-          timeStyle: "short",
-        })
-      : "Time unavailable";
-
-    const powerPickTag = isPowerPick ? " · x3" : "";
-    items.push({
-      id: prediction.id,
-      status,
-      isPowerPick,
-      label: `${toDisplay(prediction.selectedPrediction)}${powerPickTag} - ${statusLabel} - ${finalizedLabel}`,
-    });
-    recentPredictionsByUser.set(prediction.userId, items);
+    const rows = rowsByUser.get(prediction.userId) ?? [];
+    rows.push(prediction);
+    rowsByUser.set(prediction.userId, rows);
   }
 
-  for (const items of recentPredictionsByUser.values()) {
-    items.reverse();
+  const recentPredictionsByUser = new Map<string, LeaderboardRecentPredictionItem[]>();
+  for (const [userId, rows] of rowsByUser) {
+    const built = rows.map((prediction) => {
+      const status: RecentPredictionStatus =
+        prediction.match.officialResultType === null
+          ? "pending"
+          : (prediction.awardedPoints ?? 0) > 0
+            ? "correct"
+            : "incorrect";
+
+      const isPowerPick = boostedKeys.has(
+        `${prediction.userId}:${prediction.matchId}`
+      );
+      const statusLabel =
+        status === "correct"
+          ? isPowerPick
+            ? "Correct (+3)"
+            : "Correct"
+          : status === "incorrect"
+            ? "Incorrect"
+            : "Pending";
+      const finalizedLabel = prediction.finalizedAt
+        ? new Date(prediction.finalizedAt).toLocaleString("en-GB", {
+            dateStyle: "short",
+            timeStyle: "short",
+          })
+        : "Time unavailable";
+
+      const powerPickTag = isPowerPick ? " · x3" : "";
+      return {
+        item: {
+          id: prediction.id,
+          status,
+          isPowerPick,
+          label: `${toDisplay(prediction.selectedPrediction)}${powerPickTag} - ${statusLabel} - ${finalizedLabel}`,
+        } satisfies LeaderboardRecentPredictionItem,
+        status,
+      };
+    });
+
+    // Decided picks first (most-recent-first), then pending picks; keep 5.
+    const decided = built.filter((entry) => entry.status !== "pending");
+    const pending = built.filter((entry) => entry.status === "pending");
+    const selected = [...decided, ...pending].slice(0, 5).map((entry) => entry.item);
+
+    // Display oldest → newest, left to right.
+    selected.reverse();
+    recentPredictionsByUser.set(userId, selected);
   }
 
   const prizes = await prisma.prize.findMany({

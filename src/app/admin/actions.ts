@@ -61,7 +61,7 @@ export async function syncHighlightsAction(): Promise<SyncState> {
 
   const sbNote =
     result.fetchedCount === 0
-      ? " ScoreBat returned no items — add SCOREBAT_API_TOKEN for the updated feed (scorebat.com/video-api)."
+      ? " Highlights provider returned no items — check the SCOREBAT_API_TOKEN configuration."
       : "";
 
   return {

@@ -202,20 +202,20 @@ export function LiveMatchSheet({ open, onClose, match, liveState }: Props) {
               <section className="rounded-[1.7rem] border border-white/12 bg-white/7 p-5 shadow-[0_20px_60px_rgba(15,23,42,0.24)]">
                 <div className="inline-flex items-center gap-2 rounded-full border border-white/12 bg-white/8 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-white/75">
                   <LiveSpark />
-                  ScoreBat Fallback
+                  Live Fallback
                 </div>
                 <h3 className="mt-4 text-lg font-semibold text-white">
                   Full live widget is coming soon.
                 </h3>
                 <p className="mt-2 max-w-xl text-sm leading-6 text-white/72">
                   The premium live rail is still active for this fixture. While the
-                  official full widget is being finalized, the public ScoreBat live
-                  scores view stays visible as the fallback.
+                  official full widget is being finalized, the public live scores
+                  view stays visible as the fallback.
                 </p>
                 <div className="mt-5 overflow-hidden rounded-[1.35rem] border border-white/10 bg-white">
                   <iframe
                     src={scoreBatLiveWidget.src}
-                    title="ScoreBat live scores"
+                    title="Live scores"
                     className="h-[720px] w-full border-0"
                     loading="lazy"
                   />

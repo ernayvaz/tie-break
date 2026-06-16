@@ -619,7 +619,7 @@ export async function fetchScoreBatHighlights(): Promise<ScoreBatHighlightsResul
       error:
         error instanceof Error
           ? error.message
-          : "Unknown ScoreBat highlights error.",
+          : "Unknown highlights provider error.",
     };
   }
 }

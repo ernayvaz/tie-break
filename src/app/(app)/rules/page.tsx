@@ -86,6 +86,40 @@ export default async function RulesPage() {
         </section>
 
         <section className="space-y-3 pt-1">
+          <h2 className={sectionTitle}>Power Pick x3</h2>
+          <p className="text-nord-polarLight">
+            Power Pick x3 is a special booster available only in the{" "}
+            <strong className="font-semibold text-nord-polar">World Cup</strong>{" "}
+            competition. It lets you triple the value of one match prediction.
+          </p>
+          <ul className="list-disc space-y-1.5 pl-5 text-nord-polarLight">
+            <li>
+              Each Power Pick applies to a{" "}
+              <strong className="font-semibold text-nord-polar">single match</strong>. If that
+              boosted prediction is correct, it scores{" "}
+              <strong className="font-semibold text-nord-polar">3 points</strong> instead of 1.
+              A wrong boosted prediction still scores 0.
+            </li>
+            <li>
+              Power Pick rights are limited. You can hold at most{" "}
+              <strong className="font-semibold text-nord-polar">10</strong> rights at a time, and
+              they are granted by the administrator.
+            </li>
+            <li>
+              A right is only consumed if your boosted prediction is{" "}
+              <strong className="font-semibold text-nord-polar">finalized</strong> when the match
+              locks. If the prediction is still a draft at lock time, the Power Pick is{" "}
+              <strong className="font-semibold text-nord-polar">not used</strong> and the right is
+              returned to you.
+            </li>
+            <li>
+              You can change which match a Power Pick is applied to before that match locks. Once
+              the match locks with a finalized boosted prediction, the right is spent.
+            </li>
+          </ul>
+        </section>
+
+        <section className="space-y-3 pt-1">
           <h2 className={sectionTitle}>Tie-break</h2>
           <p className="text-nord-polarLight">
             If two or more users have the same total points, they are ranked by{" "}
