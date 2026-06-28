@@ -153,24 +153,37 @@ function readHomeAway(obj: { homeTeam?: number | null; awayTeam?: number | null;
 }
 
 /**
- * Derive 1/X/2 from API score. Uses 90 min + extra time only; penalties ignored.
+ * Derive 1/X/2 from API score, honoring the FULL match outcome:
+ * 90 min, then extra time, then penalties decide the winner.
+ *
+ * - REGULAR: full-time score decides.
+ * - EXTRA_TIME: 90 min + extra time aggregate decides.
+ * - PENALTY_SHOOTOUT: the side that won the shootout is the winner (never X),
+ *   resolved from `score.winner` first, then the `score.penalties` tally.
+ *
  * API v4 uses homeTeam/awayTeam in score objects.
  */
 export function getResultTypeFromScore(score: ApiMatch["score"]): "ONE" | "X" | "TWO" | null {
   if (!score) return null;
 
   const duration = score.duration;
+
+  if (duration === "PENALTY_SHOOTOUT") {
+    // A shootout always produces a decisive winner — it is never a draw (X).
+    if (score.winner === "HOME_TEAM") return "ONE";
+    if (score.winner === "AWAY_TEAM") return "TWO";
+    const pens = readHomeAway(score.penalties);
+    if (pens) {
+      if (pens.home > pens.away) return "ONE";
+      if (pens.away > pens.home) return "TWO";
+    }
+    return null;
+  }
+
   let home = 0;
   let away = 0;
 
   if (duration === "EXTRA_TIME" && score.regularTime && score.extraTime) {
-    const rt = readHomeAway(score.regularTime);
-    const et = readHomeAway(score.extraTime);
-    if (rt && et) {
-      home = rt.home + et.home;
-      away = rt.away + et.away;
-    } else return null;
-  } else if (duration === "PENALTY_SHOOTOUT" && score.regularTime && score.extraTime) {
     const rt = readHomeAway(score.regularTime);
     const et = readHomeAway(score.extraTime);
     if (rt && et) {
@@ -191,7 +204,10 @@ export function getResultTypeFromScore(score: ApiMatch["score"]): "ONE" | "X" | 
 }
 
 /**
- * Get home/away score from API (90 min + extra time only). Returns null if not available.
+ * Get the home/away goal scoreline from API (90 min + extra time aggregate).
+ * The penalty-shootout tally is intentionally NOT added to this scoreline — it is
+ * stored as the displayed score; the 1/X/2 winner (incl. penalties) is derived by
+ * getResultTypeFromScore. Returns null if not available.
  * API v4 uses homeTeam/awayTeam in score objects.
  */
 export function getScoreFromApi(score: ApiMatch["score"]): { home: number; away: number } | null {

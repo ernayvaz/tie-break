@@ -156,9 +156,9 @@ model Match {
   awayTeamName         String            @map("away_team_name")
   homeTeamLogo         String?           @map("home_team_logo")
   awayTeamLogo         String?           @map("away_team_logo")
-  officialResultType   PredictionValue?  @map("official_result_type") // 1 / X / 2 – 90 min + extra time only, no penalties
-  homeScore            Int?              @map("home_score") // full-time (90+ET) home goals
-  awayScore            Int?              @map("away_score") // full-time (90+ET) away goals
+  officialResultType   PredictionValue?  @map("official_result_type") // 1 / X / 2 – winner incl. penalties (90 min → extra time → shootout)
+  homeScore            Int?              @map("home_score") // goal scoreline (90+ET), shootout not added
+  awayScore            Int?              @map("away_score") // goal scoreline (90+ET), shootout not added
   officialWinnerTeamId String?           @map("official_winner_team_id") // optional team id if needed
   lockAt               DateTime          @map("lock_at")
   isLocked             Boolean           @default(false) @map("is_locked")

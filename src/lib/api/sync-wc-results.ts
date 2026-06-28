@@ -10,7 +10,7 @@ import { prisma } from "@/lib/db";
 import { WORLD_CUP_2026_COMPETITION_ID } from "@/lib/config";
 import {
   fetchOpenLigaDbWorldCupMatches,
-  getOpenLigaDbFinalScore,
+  getOpenLigaDbOutcome,
   normalizeTeamName,
   resolveEnglishTeamName,
 } from "./openligadb";
@@ -23,12 +23,6 @@ export type SyncWcResultsResult =
       unmatchedCount: number;
     }
   | { ok: false; error: string };
-
-function resultTypeFromScores(home: number, away: number): "ONE" | "X" | "TWO" {
-  if (home > away) return "ONE";
-  if (away > home) return "TWO";
-  return "X";
-}
 
 function pairKey(a: string, b: string): string {
   return [normalizeTeamName(a), normalizeTeamName(b)].sort().join("__vs__");
@@ -73,8 +67,8 @@ export async function syncWorldCupResultsFromOpenLigaDb(): Promise<SyncWcResults
 
   for (const apiMatch of fetched.matches) {
     if (!apiMatch.matchIsFinished) continue;
-    const score = getOpenLigaDbFinalScore(apiMatch);
-    if (!score) continue;
+    const outcome = getOpenLigaDbOutcome(apiMatch);
+    if (!outcome) continue;
     finishedCount++;
 
     const team1English = resolveEnglishTeamName(apiMatch.team1);
@@ -90,12 +84,24 @@ export async function syncWorldCupResultsFromOpenLigaDb(): Promise<SyncWcResults
       continue;
     }
 
-    // Re-orient OpenLigaDB team1/team2 scores onto the local home/away orientation.
+    // Re-orient OpenLigaDB team1/team2 onto the local home/away orientation.
     const localHomeIsTeam1 =
       normalizeTeamName(local.homeTeamName) === normalizeTeamName(team1English);
-    const homeScore = localHomeIsTeam1 ? score.team1 : score.team2;
-    const awayScore = localHomeIsTeam1 ? score.team2 : score.team1;
-    const resultType = resultTypeFromScores(homeScore, awayScore);
+    const homeScore = localHomeIsTeam1 ? outcome.team1 : outcome.team2;
+    const awayScore = localHomeIsTeam1 ? outcome.team2 : outcome.team1;
+    // Winner includes a penalty shootout, so a draw scoreline decided on penalties
+    // resolves to 1/2 (the shootout winner), never X.
+    const homeWon = localHomeIsTeam1
+      ? outcome.winner === "team1"
+      : outcome.winner === "team2";
+    const awayWon = localHomeIsTeam1
+      ? outcome.winner === "team2"
+      : outcome.winner === "team1";
+    const resultType: "ONE" | "X" | "TWO" = homeWon
+      ? "ONE"
+      : awayWon
+        ? "TWO"
+        : "X";
 
     const unchanged =
       local.officialResultType === resultType &&

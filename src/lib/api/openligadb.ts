@@ -129,29 +129,69 @@ export function resolveEnglishTeamName(team: OpenLigaDbTeam): string | null {
 }
 
 /**
- * Extract the final (regular/extra-time) score from an OpenLigaDB match.
- * "Endergebnis" (resultTypeID 2) is the official final result; we fall back to the
- * highest resultOrderID. Penalties are not represented here and are ignored for 1/X/2.
+ * OpenLigaDB encodes a match outcome across several `matchResults` rows, keyed by
+ * `resultTypeID`:
+ *   - 1  "Halbzeitergebnis"      → half-time
+ *   - 2  "Endergebnis"           → score after 90 minutes
+ *   - 4  "nach Verlängerung"     → score after extra time
+ *   - 5  "nach Elfmeterschießen" → penalty-shootout tally
+ *
+ * Important quirks confirmed against real tournament data:
+ *   - "Endergebnis" (id 2) is the 90-minute score, NOT the post-extra-time score.
+ *     For a knockout that went to extra time the real result is id 4.
+ *   - id 4 / id 5 rows are sometimes present even when the match never went to
+ *     extra time / penalties — they simply duplicate the final score (noise). A
+ *     shootout is only genuine when the score was level after 90/extra time, so we
+ *     only trust id 5 when the base scoreline is a draw.
  */
-export function getOpenLigaDbFinalScore(
-  match: OpenLigaDbMatch
+type OpenLigaDbOutcome = {
+  /** Displayed goal scoreline (after extra time if played, else 90 min). */
+  team1: number;
+  team2: number;
+  /** Overall winner including a penalty shootout; "draw" only if truly undecided. */
+  winner: "team1" | "team2" | "draw";
+};
+
+function readResult(
+  r: OpenLigaDbResult | undefined
 ): { team1: number; team2: number } | null {
+  if (!r || typeof r.pointsTeam1 !== "number" || typeof r.pointsTeam2 !== "number") {
+    return null;
+  }
+  return { team1: r.pointsTeam1, team2: r.pointsTeam2 };
+}
+
+/**
+ * Resolve a match's full outcome (scoreline + winner) honoring 90 min → extra time
+ * → penalties. Returns null if no usable result row exists yet.
+ */
+export function getOpenLigaDbOutcome(match: OpenLigaDbMatch): OpenLigaDbOutcome | null {
   const results = match.matchResults ?? [];
   if (results.length === 0) return null;
 
-  const endergebnis =
-    results.find((r) => r.resultTypeID === 2) ??
-    [...results].sort((a, b) => (b.resultOrderID ?? 0) - (a.resultOrderID ?? 0))[0];
+  const byType = (id: number) => results.find((r) => r.resultTypeID === id);
+  const afterEt = readResult(byType(4));
+  const after90 = readResult(byType(2));
+  const shootout = readResult(byType(5));
+  const fallback = readResult(
+    [...results].sort((a, b) => (b.resultOrderID ?? 0) - (a.resultOrderID ?? 0))[0]
+  );
 
-  if (
-    !endergebnis ||
-    typeof endergebnis.pointsTeam1 !== "number" ||
-    typeof endergebnis.pointsTeam2 !== "number"
-  ) {
-    return null;
+  // Base scoreline: after extra time if it was played, else 90 min, else newest row.
+  const base = afterEt ?? after90 ?? fallback;
+  if (!base) return null;
+
+  let winner: OpenLigaDbOutcome["winner"];
+  if (base.team1 > base.team2) winner = "team1";
+  else if (base.team2 > base.team1) winner = "team2";
+  else if (shootout && shootout.team1 !== shootout.team2) {
+    // Level after 90/extra time and a real shootout broke the tie.
+    winner = shootout.team1 > shootout.team2 ? "team1" : "team2";
+  } else {
+    winner = "draw";
   }
 
-  return { team1: endergebnis.pointsTeam1, team2: endergebnis.pointsTeam2 };
+  return { team1: base.team1, team2: base.team2, winner };
 }
 
 /** Fetch all World Cup 2026 matches from OpenLigaDB. No API key required. */

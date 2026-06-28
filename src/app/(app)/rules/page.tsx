@@ -50,7 +50,7 @@ export default async function RulesPage() {
             <strong className="font-semibold text-nord-polar">
               X is correct only when the official result of the match is a draw.
             </strong>{" "}
-            If the match goes to extra time or penalties and a winner is decided, the result is not X; it becomes 1 or 2. In two-legged ties, aggregate score does not matter. Only the official result of that specific match (90 minutes + extra time if played, no penalties) counts.
+            If the match goes to extra time or penalties and a winner is decided, the result is not X; it becomes 1 or 2. In two-legged ties, aggregate score does not matter. The winner of that specific match decides the result: 90 minutes, then extra time if played, and finally the penalty shootout if it is needed — the side that wins on penalties counts as 1 or 2.
           </p>
         </section>
 

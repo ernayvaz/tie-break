@@ -97,6 +97,48 @@ describe("football-data match sync client", () => {
     expect(getScoreFromApi(score)).toBeNull();
   });
 
+  it("derives the 1/X/2 result honoring extra time and penalties", async () => {
+    const { getResultTypeFromScore, getScoreFromApi } = await import("../api/football-data");
+
+    // Regular time.
+    expect(
+      getResultTypeFromScore({ duration: "REGULAR", fullTime: { homeTeam: 2, awayTeam: 1 } })
+    ).toBe("ONE");
+
+    // Extra time aggregate decides (1-1 after 90, 2-1 after ET → home wins).
+    const etScore = {
+      duration: "EXTRA_TIME" as const,
+      regularTime: { homeTeam: 1, awayTeam: 1 },
+      extraTime: { homeTeam: 1, awayTeam: 0 },
+      fullTime: { homeTeam: 2, awayTeam: 1 },
+    };
+    expect(getResultTypeFromScore(etScore)).toBe("ONE");
+    expect(getScoreFromApi(etScore)).toEqual({ home: 2, away: 1 });
+
+    // Penalty shootout: drawn after ET, away team wins on penalties → result is 2 (never X).
+    const penScore = {
+      duration: "PENALTY_SHOOTOUT" as const,
+      regularTime: { homeTeam: 0, awayTeam: 0 },
+      extraTime: { homeTeam: 1, awayTeam: 1 },
+      penalties: { homeTeam: 3, awayTeam: 5 },
+      winner: "AWAY_TEAM" as const,
+      fullTime: { homeTeam: 1, awayTeam: 1 },
+    };
+    expect(getResultTypeFromScore(penScore)).toBe("TWO");
+    // Scoreline stays the 90+ET aggregate; the shootout tally is not added.
+    expect(getScoreFromApi(penScore)).toEqual({ home: 1, away: 1 });
+
+    // Penalty shootout winner resolved from the tally when winner field is absent.
+    expect(
+      getResultTypeFromScore({
+        duration: "PENALTY_SHOOTOUT",
+        regularTime: { homeTeam: 1, awayTeam: 1 },
+        extraTime: { homeTeam: 0, awayTeam: 0 },
+        penalties: { homeTeam: 4, awayTeam: 2 },
+      })
+    ).toBe("ONE");
+  });
+
   it("falls back to the current competition endpoint when a season does not exist", async () => {
     process.env.FOOTBALL_DATA_ORG_API_KEY = "test-token";
     const fetchMock = vi
