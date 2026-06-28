@@ -99,6 +99,14 @@ export const OPENLIGADB_CODE_TO_ENGLISH: Record<string, string> = {
   URY: "Uruguay",
   USA: "United States",
   UZB: "Uzbekistan",
+  // Alternate 3-letter codes OpenLigaDB uses in the knockout rounds (they differ
+  // from the codes above used in the group stage, e.g. Germany = GER not DEU).
+  GER: "Germany",
+  NED: "Netherlands",
+  POR: "Portugal",
+  CRO: "Croatia",
+  SUI: "Switzerland",
+  ALG: "Algeria",
 };
 
 /** Normalize a team name for tolerant comparison (case/space/diacritics-insensitive). */

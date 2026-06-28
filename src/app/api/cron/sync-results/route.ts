@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { syncMatchesFromApi } from "@/lib/api/sync-matches";
+import { syncWorldCupFixturesFromOpenLigaDb } from "@/lib/api/sync-wc-fixtures";
 import { syncWorldCupResultsFromOpenLigaDb } from "@/lib/api/sync-wc-results";
 import { recalculateAll } from "@/lib/scoring";
 
@@ -15,6 +16,11 @@ export async function GET(request: NextRequest) {
   // failure must not block the World Cup results pipeline. Treat it as best-effort.
   const footballData = await syncMatchesFromApi();
 
+  // World Cup 2026: fill the next round's knockout fixtures (teams + logos) as
+  // soon as the draw/qualification is known, so they become predictable
+  // automatically after each round finishes.
+  const worldCupFixtures = await syncWorldCupFixturesFromOpenLigaDb();
+
   // World Cup 2026 results come from OpenLigaDB (free, key-less) for now.
   const worldCup = await syncWorldCupResultsFromOpenLigaDb();
 
@@ -27,6 +33,7 @@ export async function GET(request: NextRequest) {
         stage: "recalculate",
         error: recalc.error,
         footballData: footballData.ok ? { matchesSynced: footballData.count } : { error: footballData.error },
+        worldCupFixtures,
         worldCup,
       },
       { status: 500 }
@@ -38,6 +45,7 @@ export async function GET(request: NextRequest) {
     footballData: footballData.ok
       ? { matchesSynced: footballData.count }
       : { error: footballData.error },
+    worldCupFixtures,
     worldCup,
     matchesScored: recalc.matchesScored,
     leaderboardUpdated: recalc.leaderboardCount,

@@ -1,6 +1,7 @@
 "use server";
 
 import { syncMatchesFromApi } from "@/lib/api/sync-matches";
+import { syncWorldCupFixturesFromOpenLigaDb } from "@/lib/api/sync-wc-fixtures";
 import { syncWorldCupResultsFromOpenLigaDb } from "@/lib/api/sync-wc-results";
 import { syncHighlightsFromApi } from "@/lib/api/sync-highlights";
 import { syncMatchStatisticsCache } from "@/lib/api/sync-match-stats";
@@ -16,6 +17,8 @@ export async function syncMatchesAction(): Promise<SyncState> {
   // football-data.org is primary but best-effort while unavailable; its failure
   // must not block the World Cup results pipeline (OpenLigaDB) or recalculation.
   const footballData = await syncMatchesFromApi();
+  // Fill the next knockout round's teams as soon as they're known.
+  const worldCupFixtures = await syncWorldCupFixturesFromOpenLigaDb();
   const worldCup = await syncWorldCupResultsFromOpenLigaDb();
   const stats = await syncMatchStatisticsCache();
   const recalc = await recalculateAll();
@@ -30,6 +33,9 @@ export async function syncMatchesAction(): Promise<SyncState> {
   const fdSummary = footballData.ok
     ? `football-data.org: ${footballData.count} fixture(s) synced.`
     : `football-data.org unavailable (${footballData.error}).`;
+  const wcFixturesSummary = worldCupFixtures.ok
+    ? `World Cup knockout fixtures: ${worldCupFixtures.filledCount} round(s) filled${worldCupFixtures.pendingDrawCount > 0 ? `, ${worldCupFixtures.pendingDrawCount} awaiting draw` : ""}.`
+    : `World Cup fixtures failed: ${worldCupFixtures.error}.`;
   const wcSummary = worldCup.ok
     ? `World Cup results (OpenLigaDB): ${worldCup.updatedCount} updated of ${worldCup.finishedCount} finished${worldCup.unmatchedCount > 0 ? `, ${worldCup.unmatchedCount} unmatched` : ""}.`
     : `World Cup results failed: ${worldCup.error}.`;
@@ -39,11 +45,11 @@ export async function syncMatchesAction(): Promise<SyncState> {
 
   if (recalc.ok) {
     return {
-      message: `${fdSummary} ${wcSummary} Scores and leaderboard updated (${recalc.leaderboardCount} users). ${statsSummary}`,
+      message: `${fdSummary} ${wcFixturesSummary} ${wcSummary} Scores and leaderboard updated (${recalc.leaderboardCount} users). ${statsSummary}`,
     };
   }
   return {
-    message: `${fdSummary} ${wcSummary} ${statsSummary} Score update failed: ${recalc.error}. Run Recalculate manually if needed.`,
+    message: `${fdSummary} ${wcFixturesSummary} ${wcSummary} ${statsSummary} Score update failed: ${recalc.error}. Run Recalculate manually if needed.`,
   };
 }
 
