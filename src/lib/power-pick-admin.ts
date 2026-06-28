@@ -6,7 +6,11 @@ import {
 } from "@/lib/config";
 
 export type PowerPickAdminScope = "all_users" | "selected_users";
-export type PowerPickAdminAction = "grant" | "remove_unused" | "force_remove";
+export type PowerPickAdminAction =
+  | "grant"
+  | "remove_unused"
+  | "force_remove"
+  | "reset_next_round";
 
 export type PowerPickAdminUserRow = {
   userId: string;
@@ -208,6 +212,71 @@ export async function removeUnusedPowerPick(params: {
 
   await logAdminAction(params.adminUserId, params.scope, "remove_unused", 0, targets, competitionId);
   return { ok: true, affected };
+}
+
+/**
+ * Round transition helper: clear every user's leftover (unused) rights and top
+ * their available balance back up to exactly `amount` fresh rights for the next
+ * round — in a single step.
+ *
+ * Committed rights are always preserved: locked historical picks (used in past
+ * rounds, keeps scoring intact) and active selections already armed on still
+ * unlocked matches. Only the truly unused/available leftover from the previous
+ * round is dropped before the new allowance is set, so each user ends up with
+ * precisely `amount` available rights regardless of how many they hoarded.
+ *
+ * Unlike {@link grantPowerPick} this is NOT additive and does not apply the
+ * lifetime cap to the cumulative `totalGranted` counter — it targets the
+ * *available* balance so admins can keep handing out a fresh allowance every
+ * round throughout the tournament. The chosen `amount` is still clamped to
+ * 1..POWER_PICK_MAX_PER_USER so no user holds more than the per-user maximum at
+ * once.
+ */
+export async function resetForNextRound(params: {
+  adminUserId: string;
+  scope: PowerPickAdminScope;
+  userIds?: string[];
+  amount?: number;
+  competitionId?: string;
+}): Promise<
+  | { ok: true; affected: number; amount: number }
+  | { ok: false; error: string }
+> {
+  const competitionId = params.competitionId ?? POWER_PICK_COMPETITION_ID;
+  const amount = Math.min(
+    POWER_PICK_MAX_PER_USER,
+    Math.max(1, Math.floor(params.amount ?? POWER_PICK_PACKAGE_SIZE))
+  );
+  const now = new Date();
+  const targets = await resolveTargetUserIds(params.scope, params.userIds);
+  if (targets.length === 0) return { ok: false, error: "No eligible users selected." };
+
+  const committed = await committedByUser(targets, competitionId, now);
+
+  let affected = 0;
+  for (const userId of targets) {
+    const c = committed.get(userId) ?? { locked: 0, activeUnlocked: 0 };
+    // Keep committed rights, then set the available balance to exactly `amount`:
+    // available = totalGranted - locked - activeUnlocked, so totalGranted must be
+    // (locked + activeUnlocked) + amount.
+    const newTotal = c.locked + c.activeUnlocked + amount;
+    await prisma.userPowerPickBalance.upsert({
+      where: { userId_competitionId: { userId, competitionId } },
+      create: { userId, competitionId, totalGranted: newTotal },
+      update: { totalGranted: newTotal },
+    });
+    affected += 1;
+  }
+
+  await logAdminAction(
+    params.adminUserId,
+    params.scope,
+    "reset_next_round",
+    amount,
+    targets,
+    competitionId
+  );
+  return { ok: true, affected, amount };
 }
 
 /**

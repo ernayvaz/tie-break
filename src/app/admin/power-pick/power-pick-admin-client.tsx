@@ -11,6 +11,7 @@ import {
   grantPowerPickAction,
   removeUnusedPowerPickAction,
   forceRemovePowerPickAction,
+  resetForNextRoundPowerPickAction,
   type PowerPickAdminActionState,
 } from "./actions";
 
@@ -25,6 +26,7 @@ const ACTION_LABELS: Record<string, string> = {
   grant: "Grant",
   remove_unused: "Remove unused",
   force_remove: "Force reset",
+  reset_next_round: "Next-round reset",
 };
 
 function formatDateTime(iso: string | null): string {
@@ -49,6 +51,9 @@ export function PowerPickAdminClient({ users, logs, packageSize, maxPerUser }: P
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [forceModal, setForceModal] = useState<{
+    scope: "all_users" | "selected_users";
+  } | null>(null);
+  const [resetModal, setResetModal] = useState<{
     scope: "all_users" | "selected_users";
   } | null>(null);
 
@@ -193,6 +198,40 @@ export function PowerPickAdminClient({ users, logs, packageSize, maxPerUser }: P
           <span className="text-xs text-nord-polarLight">
             right{grantAmount === 1 ? "" : "s"} per granted user
           </span>
+        </div>
+      </div>
+
+      {/* Next-round reset (primary round-transition workflow) */}
+      <div className="rounded-xl border border-emerald-300/60 bg-emerald-50/60 p-4">
+        <div className="flex items-start gap-2">
+          <span aria-hidden className="mt-0.5 text-base">♻️</span>
+          <div>
+            <h2 className="text-sm font-semibold text-nord-polar">Start a new round</h2>
+            <p className="mt-0.5 text-xs text-nord-polarLight">
+              Clears each user&apos;s leftover <strong>unused</strong> rights from the previous round
+              and gives them exactly <strong>{grantAmount}</strong> fresh Power Pick x3 right
+              {grantAmount === 1 ? "" : "s"} for the next round. Used (locked) picks and rights
+              already armed on upcoming matches are kept untouched.
+            </p>
+          </div>
+        </div>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <Button
+            disabled={busy}
+            onClick={() => setResetModal({ scope: "all_users" })}
+          >
+            Reset &amp; grant {grantAmount} to all users
+          </Button>
+          <Button
+            variant="secondary"
+            disabled={busy}
+            onClick={() => {
+              if (!requireSelection()) return;
+              setResetModal({ scope: "selected_users" });
+            }}
+          >
+            Reset &amp; grant {grantAmount} to selected
+          </Button>
         </div>
       </div>
 
@@ -407,6 +446,39 @@ export function PowerPickAdminClient({ users, logs, packageSize, maxPerUser }: P
           )}
         </div>
       </div>
+
+      {/* Next-round reset confirmation */}
+      <Modal
+        open={!!resetModal}
+        onClose={() => !busy && setResetModal(null)}
+        title="Start a new round?"
+        confirmLabel={`Yes, reset & grant ${grantAmount}`}
+        cancelLabel="Cancel"
+        loading={busy}
+        onConfirm={() => {
+          if (!resetModal) return;
+          const scope = resetModal.scope;
+          setResetModal(null);
+          run(() =>
+            resetForNextRoundPowerPickAction(
+              scope,
+              scope === "selected_users" ? selectedIds : [],
+              grantAmount
+            )
+          );
+        }}
+      >
+        <p>
+          This will remove all <strong>unused</strong> Power Pick x3 rights and set exactly{" "}
+          <strong>{grantAmount}</strong> fresh right{grantAmount === 1 ? "" : "s"} for{" "}
+          <strong>
+            {resetModal?.scope === "all_users"
+              ? "all users"
+              : `${selectedIds.length} selected user(s)`}
+          </strong>
+          . Used (locked) picks and rights already armed on upcoming matches are preserved.
+        </p>
+      </Modal>
 
       {/* Force reset confirmation */}
       <Modal

@@ -6,6 +6,7 @@ import {
   grantPowerPick,
   removeUnusedPowerPick,
   forceRemovePowerPick,
+  resetForNextRound,
   type PowerPickAdminScope,
 } from "@/lib/power-pick-admin";
 import { POWER_PICK_PACKAGE_SIZE, POWER_PICK_MAX_PER_USER } from "@/lib/config";
@@ -63,6 +64,30 @@ export async function removeUnusedPowerPickAction(
   return {
     ok: true,
     message: `Removed unused Power Pick x3 rights from ${result.affected} user(s).`,
+  };
+}
+
+export async function resetForNextRoundPowerPickAction(
+  scope: PowerPickAdminScope,
+  userIds: string[] = [],
+  amount: number = POWER_PICK_PACKAGE_SIZE
+): Promise<PowerPickAdminActionState> {
+  const admin = await requireAdmin();
+  const safeAmount = Math.min(
+    POWER_PICK_MAX_PER_USER,
+    Math.max(1, Math.floor(Number.isFinite(amount) ? amount : POWER_PICK_PACKAGE_SIZE))
+  );
+  const result = await resetForNextRound({
+    adminUserId: admin.id,
+    scope,
+    userIds,
+    amount: safeAmount,
+  });
+  if (!result.ok) return result;
+  revalidate();
+  return {
+    ok: true,
+    message: `Cleared unused rights and set ${result.amount} fresh Power Pick x3 right(s) for the next round on ${result.affected} user(s).`,
   };
 }
 
