@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/db";
-import { UCL_COMPETITION_ID } from "@/lib/config";
+import { UCL_COMPETITION_ID, WORLD_CUP_2026_COMPETITION_ID } from "@/lib/config";
 import { fromDisplay, toDisplay, type PredictionDisplay } from "@/lib/prediction-values";
 import type { Match } from "@prisma/client";
 
@@ -29,6 +29,22 @@ export type PredictionOptions = {
   finalizedAt?: Date;
 };
 
+const WORLD_CUP_GROUP_STAGE_KEYS = new Set(["GROUP_STAGE", "LEAGUE_STAGE"]);
+
+export function isPredictionValueAllowedForMatch(
+  match: Pick<Match, "competitionId" | "stage">,
+  displayValue: PredictionDisplay
+): boolean {
+  if (
+    displayValue === "X" &&
+    match.competitionId === WORLD_CUP_2026_COMPETITION_ID &&
+    !WORLD_CUP_GROUP_STAGE_KEYS.has(match.stage)
+  ) {
+    return false;
+  }
+  return true;
+}
+
 /**
  * Create or update a draft prediction. Fails if match is locked or already finalized.
  * When isAdmin is true, lock and already-finalized checks are skipped (for testing on past matches).
@@ -44,6 +60,9 @@ export async function createOrUpdatePrediction(
 
   const allowLocked = options?.isAdmin === true;
   if (!allowLocked && !canPredict(match, new Date())) return { ok: false, error: "match_locked" };
+  if (!isPredictionValueAllowedForMatch(match, displayValue)) {
+    return { ok: false, error: "invalid_prediction" };
+  }
 
   const value = fromDisplay(displayValue);
   const adminCreatedAt = allowLocked && options?.createdAt ? options.createdAt : undefined;
@@ -51,7 +70,10 @@ export async function createOrUpdatePrediction(
   const existing = await prisma.prediction.findUnique({
     where: { userId_matchId: { userId, matchId } },
   });
-  if (!allowLocked && existing?.isFinal) {
+  const existingValueAllowed = existing
+    ? isPredictionValueAllowedForMatch(match, toDisplay(existing.selectedPrediction))
+    : true;
+  if (!allowLocked && existing?.isFinal && existingValueAllowed) {
     if (existing.selectedPrediction === value) return { ok: true };
     return { ok: false, error: "already_finalized" };
   }
@@ -67,6 +89,9 @@ export async function createOrUpdatePrediction(
     },
     update: {
       selectedPrediction: value,
+      ...(!existingValueAllowed
+        ? { isFinal: false, finalizedAt: null, awardedPoints: 0 }
+        : {}),
       ...(adminCreatedAt ? { createdAt: adminCreatedAt } : {}),
     },
   });
@@ -92,6 +117,9 @@ export async function finalizePrediction(
     where: { userId_matchId: { userId, matchId } },
   });
   if (!existing) return { ok: false, error: "match_not_found" };
+  if (!isPredictionValueAllowedForMatch(match, toDisplay(existing.selectedPrediction))) {
+    return { ok: false, error: "invalid_prediction" };
+  }
   if (existing.isFinal) return { ok: true };
 
   const finalizedAt =

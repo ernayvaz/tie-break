@@ -29,8 +29,12 @@ const PLAYER_ALLOW =
 
 const EMBED_SCRIPT_ID = "scorebat-jssdk";
 const EMBED_SCRIPT_SRC = "https://www.scorebat.com/embed/embed.js?v=arrv";
+const EMBED_RESCAN_SCRIPT_ID_PREFIX = "scorebat-jssdk-rescan";
 const PANEL_SCRIPT_ID = "scorebat-paneljs";
 const PANEL_SCRIPT_SRC = "https://www.scorebat.com/embed/panelx.js?v=f4fksn";
+
+let lastEmbedRescanAt = 0;
+let embedRescanSequence = 0;
 
 declare global {
   interface Window {
@@ -58,20 +62,44 @@ function useMobileViewport(): boolean | null {
 function useScoreBatEmbedScript(enabled = true) {
   useEffect(() => {
     if (!enabled || typeof document === "undefined") return;
-    // ScoreBat's embed.js only scans for ._scorebatEmbeddedPlayer_ iframes that
-    // exist when it first runs. A Match Center embed is mounted lazily (only when
-    // the user expands a fixture), so if the script already ran it would NOT
-    // initialise the new iframe and the embed would stay on ScoreBat's "Visit
-    // ScoreBat to view the content" placeholder — i.e. Match Center appears not to
-    // load (notably on mobile). Re-injecting the script forces a fresh scan that
-    // picks up the just-mounted iframe.
-    const existing = document.getElementById(EMBED_SCRIPT_ID);
-    if (existing) existing.remove();
-    const script = document.createElement("script");
-    script.id = EMBED_SCRIPT_ID;
-    script.src = EMBED_SCRIPT_SRC;
-    script.async = true;
-    document.body.appendChild(script);
+    let cancelled = false;
+    const frame = window.requestAnimationFrame(() => {
+      if (cancelled) return;
+
+      const existing = document.getElementById(EMBED_SCRIPT_ID);
+      if (!existing) {
+        const script = document.createElement("script");
+        script.id = EMBED_SCRIPT_ID;
+        script.src = EMBED_SCRIPT_SRC;
+        script.async = true;
+        document.body.appendChild(script);
+        lastEmbedRescanAt = Date.now();
+        return;
+      }
+
+      // ScoreBat's embed.js scans ._scorebatEmbeddedPlayer_ iframes when it runs.
+      // Match Center is mounted lazily, but removing the already-loaded script on
+      // every mount makes mobile embeds flicker/reload as parent schedule state
+      // changes. If the base script already exists, append a short-lived rescan
+      // copy instead. Throttle rescans so repeated React remounts do not keep
+      // tearing the iframe down and rebuilding it.
+      const now = Date.now();
+      if (now - lastEmbedRescanAt < 2_000) return;
+      lastEmbedRescanAt = now;
+      embedRescanSequence += 1;
+      const script = document.createElement("script");
+      script.id = `${EMBED_RESCAN_SCRIPT_ID_PREFIX}-${embedRescanSequence}`;
+      script.src = EMBED_SCRIPT_SRC;
+      script.async = true;
+      script.onload = () => script.remove();
+      script.onerror = () => script.remove();
+      document.body.appendChild(script);
+    });
+
+    return () => {
+      cancelled = true;
+      window.cancelAnimationFrame(frame);
+    };
   }, [enabled]);
 }
 

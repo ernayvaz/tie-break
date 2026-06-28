@@ -52,6 +52,12 @@ export default async function RulesPage() {
             </strong>{" "}
             If the match goes to extra time or penalties and a winner is decided, the result is not X; it becomes 1 or 2. In two-legged ties, aggregate score does not matter. The winner of that specific match decides the result: 90 minutes, then extra time if played, and finally the penalty shootout if it is needed — the side that wins on penalties counts as 1 or 2.
           </p>
+          <p className="text-nord-polarLight">
+            For World Cup 2026 knockout matches, X is not available as a pick because every tie
+            must produce a winner through extra time and, if needed, penalties. X remains
+            available for World Cup group-stage matches and other competitions where a draw can
+            be the final outcome.
+          </p>
         </section>
 
         <section className="space-y-3 pt-1">

@@ -157,6 +157,20 @@ const OTHER_PICK_PILL_CLASS: Record<string, string> = {
   "2": "bg-violet-500/12 text-violet-600 ring-violet-500/25",
 };
 
+const ALL_PREDICTION_CHOICES = ["1", "X", "2"] as const;
+const DECISIVE_ONLY_PREDICTION_CHOICES = ["1", "2"] as const;
+const WORLD_CUP_GROUP_STAGE_KEYS = new Set(["GROUP_STAGE", "LEAGUE_STAGE"]);
+
+function getPredictionChoices(match: ScheduleMatch): readonly PredictionDisplay[] {
+  if (
+    match.competitionId === WORLD_CUP_2026_COMPETITION_ID &&
+    !WORLD_CUP_GROUP_STAGE_KEYS.has(match.stage)
+  ) {
+    return DECISIVE_ONLY_PREDICTION_CHOICES;
+  }
+  return ALL_PREDICTION_CHOICES;
+}
+
 function OtherPickPill({ value }: { value: string }) {
   return (
     <span
@@ -616,10 +630,14 @@ export function ScheduleTabs({
   }, []);
 
   const handleSubmitPrediction = (
-    matchId: string,
+    match: ScheduleMatch,
     value: PredictionDisplay
   ) => {
+    const matchId = match.id;
     const previousPrediction = userPredictionByMatch[matchId];
+    const previousSelectionAllowed =
+      !previousPrediction ||
+      getPredictionChoices(match).includes(previousPrediction.selectedPrediction);
     setActionError(null);
     setOptimisticSelections((prev) => ({ ...prev, [matchId]: value }));
     setLocalPredictions((prev) => ({
@@ -627,8 +645,8 @@ export function ScheduleTabs({
       [matchId]: {
         matchId,
         selectedPrediction: value,
-        isFinal: prev[matchId]?.isFinal ?? false,
-        finalizedAt: prev[matchId]?.finalizedAt ?? null,
+        isFinal: previousSelectionAllowed ? (prev[matchId]?.isFinal ?? false) : false,
+        finalizedAt: previousSelectionAllowed ? (prev[matchId]?.finalizedAt ?? null) : null,
         createdAt: prev[matchId]?.createdAt ?? new Date().toISOString(),
       },
     }));
@@ -968,11 +986,14 @@ export function ScheduleTabs({
       m.homeTeamName !== "TBD" && m.awayTeamName !== "TBD";
     const isFinalizing = !!pendingFinalizeMatchIds[m.id];
 
-    const showOthers = userPred?.isFinal && others.length > 0;
     const isExpanded = expandedOthers.has(m.id);
     const isStatsExpanded = expandedStats.has(m.id);
     const isLive = !!liveState?.isLive;
     const matchDate = new Date(m.matchDatetime);
+    const predictionChoices = getPredictionChoices(m);
+    const displaySelectionIsAllowed =
+      !!displaySelection && predictionChoices.includes(displaySelection);
+    const showOthers = userPred?.isFinal && displaySelectionIsAllowed && others.length > 0;
 
     // Power Pick x3 — World Cup only, and only once an admin has granted rights.
     const isWorldCupMatch = m.competitionId === WORLD_CUP_2026_COMPETITION_ID;
@@ -981,7 +1002,7 @@ export function ScheduleTabs({
     const ppOn = ppMatch?.isOn ?? false;
     const lockPassedForPP = now.getTime() >= new Date(m.lockAt).getTime();
     const ppPending = !!pendingPowerPickMatchIds[m.id];
-    const hasPrediction = !!displaySelection;
+    const hasPrediction = displaySelectionIsAllowed;
     const remainingPicks = powerPickBalanceState.remainingAvailable;
     const showPowerPick =
       isWorldCupMatch &&
@@ -1171,11 +1192,11 @@ export function ScheduleTabs({
                     Lock {formatScheduleTime(m.lockAt)}
                   </span>
                   <div className="flex flex-wrap items-center gap-1.5">
-                    {(["1", "X", "2"] as const).map((val) => (
+                    {predictionChoices.map((val) => (
                       <button
                         key={val}
                         type="button"
-                        onClick={() => handleSubmitPrediction(m.id, val)}
+                        onClick={() => handleSubmitPrediction(m, val)}
                         className={`min-w-[2rem] rounded-md border px-2.5 py-1 text-xs font-medium transition-colors ${
                           displaySelection === val
                             ? "border-nord-frostDark bg-nord-frostDark text-white"
@@ -1188,7 +1209,7 @@ export function ScheduleTabs({
                     <Button
                       type="button"
                       size="sm"
-                      disabled={!displaySelection || isFinalizing}
+                      disabled={!displaySelectionIsAllowed || isFinalizing}
                       onClick={() =>
                         setFinalizeModal({
                           matchId: m.id,
@@ -1303,11 +1324,11 @@ export function ScheduleTabs({
                   Lock {formatScheduleTime(m.lockAt)}
                 </span>
                 <div className="flex flex-wrap items-center gap-1.5">
-                  {(["1", "X", "2"] as const).map((val) => (
+                  {predictionChoices.map((val) => (
                     <button
                       key={val}
                       type="button"
-                      onClick={() => handleSubmitPrediction(m.id, val)}
+                      onClick={() => handleSubmitPrediction(m, val)}
                       className={`min-w-[2rem] rounded border px-2 py-1 text-xs font-medium transition-colors ${
                         displaySelection === val
                           ? "border-nord-frostDark bg-nord-frostDark text-white"
@@ -1320,7 +1341,7 @@ export function ScheduleTabs({
                   <Button
                     type="button"
                     size="sm"
-                    disabled={!displaySelection || isFinalizing}
+                    disabled={!displaySelectionIsAllowed || isFinalizing}
                     onClick={() =>
                       setFinalizeModal({
                         matchId: m.id,
@@ -1477,10 +1498,6 @@ export function ScheduleTabs({
           const lockAt = new Date(m.lockAt).getTime();
           const teamsDetermined =
             m.homeTeamName !== "TBD" && m.awayTeamName !== "TBD";
-          const canPredict =
-            teamsDetermined &&
-            (now.getTime() < lockAt || isAdmin) &&
-            !userPredictionByMatch[m.id]?.isFinal;
           const userPred = userPredictionByMatch[m.id];
           const others = localOthersByMatchId[m.id] ?? [];
           const stats =
@@ -1493,6 +1510,14 @@ export function ScheduleTabs({
             });
           const liveState = liveStateByMatchId[m.id] ?? null;
           const displaySelection = optimisticSelections[m.id] ?? userPred?.selectedPrediction;
+          const displaySelectionAllowed =
+            !displaySelection || getPredictionChoices(m).includes(displaySelection);
+          const predictionFinalizedAndValid =
+            !!userPred?.isFinal && displaySelectionAllowed;
+          const canPredict =
+            teamsDetermined &&
+            (now.getTime() < lockAt || isAdmin) &&
+            !predictionFinalizedAndValid;
           const isLast = index === list.length - 1;
           const nextMatch = list[index + 1];
           const sameDayAsNext = nextMatch ? isSameCalendarDay(m.matchDatetime, nextMatch.matchDatetime) : false;
