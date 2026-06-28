@@ -58,7 +58,15 @@ function useMobileViewport(): boolean | null {
 function useScoreBatEmbedScript(enabled = true) {
   useEffect(() => {
     if (!enabled || typeof document === "undefined") return;
-    if (document.getElementById(EMBED_SCRIPT_ID)) return;
+    // ScoreBat's embed.js only scans for ._scorebatEmbeddedPlayer_ iframes that
+    // exist when it first runs. A Match Center embed is mounted lazily (only when
+    // the user expands a fixture), so if the script already ran it would NOT
+    // initialise the new iframe and the embed would stay on ScoreBat's "Visit
+    // ScoreBat to view the content" placeholder — i.e. Match Center appears not to
+    // load (notably on mobile). Re-injecting the script forces a fresh scan that
+    // picks up the just-mounted iframe.
+    const existing = document.getElementById(EMBED_SCRIPT_ID);
+    if (existing) existing.remove();
     const script = document.createElement("script");
     script.id = EMBED_SCRIPT_ID;
     script.src = EMBED_SCRIPT_SRC;
@@ -107,6 +115,7 @@ function WidgetFrame({
   description: string;
 }) {
   useScoreBatEmbedScript();
+  const [loaded, setLoaded] = useState(false);
 
   return (
     <section className="overflow-hidden rounded-[1.4rem] border border-nord-polarLighter/12 bg-white/90 shadow-[0_18px_50px_rgba(46,52,64,0.07)]">
@@ -123,15 +132,29 @@ function WidgetFrame({
       </div>
       <p className="px-4 pt-3 text-xs leading-5 text-nord-polarLight">{description}</p>
       <div className="px-2 pb-3 pt-2 sm:px-3">
-        <iframe
-          src={embedUrl}
-          title={title}
-          frameBorder={0}
-          allowFullScreen
-          allow={PLAYER_ALLOW}
-          className="_scorebatEmbeddedPlayer_ block w-full rounded-[1rem] bg-white"
-          style={{ width: "100%", height: 760, border: 0 }}
-        />
+        <div className="relative w-full overflow-hidden rounded-[1rem] bg-white" style={{ minHeight: 420 }}>
+          {!loaded ? (
+            <div
+              className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-[linear-gradient(180deg,rgba(248,250,252,0.95),rgba(236,239,244,0.85))]"
+              aria-hidden
+            >
+              <span className="h-7 w-7 animate-spin rounded-full border-2 border-nord-polarLighter/40 border-t-nord-frostDark" />
+              <span className="text-[11px] font-medium uppercase tracking-[0.16em] text-nord-polarLight">
+                Loading match data…
+              </span>
+            </div>
+          ) : null}
+          <iframe
+            src={embedUrl}
+            title={title}
+            frameBorder={0}
+            allowFullScreen
+            allow={PLAYER_ALLOW}
+            onLoad={() => setLoaded(true)}
+            className="_scorebatEmbeddedPlayer_ relative block w-full bg-white"
+            style={{ width: "100%", height: 760, border: 0 }}
+          />
+        </div>
       </div>
     </section>
   );

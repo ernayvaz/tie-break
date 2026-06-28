@@ -51,10 +51,17 @@ const MATCH_CENTER_TAB_STORAGE_KEY = "tie-break-match-center-tabs";
 const SCHEDULE_DISPLAY_TIME_ZONE = "Europe/Istanbul";
 const WORLD_CUP_KNOCKOUT_WIDGET_SRC =
   "https://widgets.sofascore.com/embed/unique-tournament/16/season/58210/cuptree/10560975?widgetTitle=Knockout%20stage&showCompetitionLogo=true&widgetTheme=light";
-// Height of the provider promo band ("Never miss / See much more") pinned to the
-// bottom of the cup-tree embed. We clip this many pixels so no third-party
-// branding is shown inside our knockout panel.
-const WORLD_CUP_KNOCKOUT_FOOTER_CLIP = 120;
+// The cup-tree widget pins a provider promo band ("Never miss / See much more")
+// to the very bottom of the iframe. We clip that band off via an overflow-hidden
+// wrapper so no third-party branding shows. Measured content heights:
+//   - Desktop "bracket" view: top-aligned, full bracket ends ~764px down; promo
+//     sits ~56px above the iframe bottom. iframe h-[900px] + wrapper h-[810px]
+//     shows the whole bracket and clips the promo.
+//   - Mobile "tab" view: lists all 16 Round-of-32 fixtures top-aligned, ending
+//     ~770px down; promo ~80px above the iframe bottom. iframe h-[1040px] +
+//     wrapper h-[930px] shows every fixture and clips the promo.
+// Heights are responsive because the mobile list is much taller than the desktop
+// bracket — a single fixed height would otherwise cut the bottom rows on mobile.
 
 type ScheduleTab = "upcoming" | "past" | "standings" | "knockout";
 
@@ -153,7 +160,7 @@ const OTHER_PICK_PILL_CLASS: Record<string, string> = {
 function OtherPickPill({ value }: { value: string }) {
   return (
     <span
-      className={`inline-flex h-7 min-w-[1.85rem] items-center justify-center rounded-lg px-2 text-sm font-bold tabular-nums ring-1 ${
+      className={`inline-flex h-6 min-w-[1.6rem] items-center justify-center rounded-md px-1.5 text-xs font-bold tabular-nums ring-1 sm:h-7 sm:min-w-[1.85rem] sm:rounded-lg sm:px-2 sm:text-sm ${
         OTHER_PICK_PILL_CLASS[value] ?? OTHER_PICK_PILL_CLASS.X
       }`}
       aria-label={`Pick ${value}`}
@@ -301,17 +308,16 @@ function WorldCupKnockoutPanel() {
         </div>
         {/* The cup-tree embed pins a provider promo footer ("Never miss / See much
             more") to the bottom of the widget. We clip that band off via an
-            overflow-hidden wrapper so no third-party branding is shown. */}
-        <div
-          className="mt-4 overflow-hidden rounded-[1.2rem] border border-nord-polarLighter/10 bg-white shadow-inner"
-          style={{ height: `${872 - WORLD_CUP_KNOCKOUT_FOOTER_CLIP}px` }}
-        >
+            overflow-hidden wrapper so no third-party branding is shown. The
+            wrapper/iframe heights are responsive: the mobile tab view lists all
+            16 Round-of-32 fixtures and needs far more height than the desktop
+            bracket, otherwise its bottom rows get cut off. */}
+        <div className="mt-4 h-[930px] overflow-hidden rounded-[1.2rem] border border-nord-polarLighter/10 bg-white shadow-inner sm:h-[810px]">
           <iframe
             id="sofa-cupTree-embed-16-58210-10560975"
             src={WORLD_CUP_KNOCKOUT_WIDGET_SRC}
             title="World Cup 2026 knockout stage"
-            className="w-full max-w-[700px]"
-            style={{ height: "872px" }}
+            className="block h-[1040px] w-full max-w-[700px] sm:h-[900px]"
             frameBorder="0"
             scrolling="no"
           />
@@ -1424,30 +1430,30 @@ export function ScheduleTabs({
               </svg>
             </button>
             {isExpanded && (
-              <ul className="mt-3 grid gap-2 sm:grid-cols-2">
+              <ul className="mt-3 grid grid-cols-2 gap-1.5 sm:gap-2 lg:grid-cols-3">
                 {others.map((o, i) => (
                   <li
                     key={i}
-                    className="flex items-center gap-3 rounded-xl border border-nord-polarLighter/30 bg-white/88 px-3 py-2 shadow-[0_4px_14px_rgba(46,52,64,0.04)]"
+                    className="flex items-center gap-2 rounded-lg border border-nord-polarLighter/30 bg-white/88 px-2 py-1.5 shadow-[0_4px_14px_rgba(46,52,64,0.04)] sm:gap-3 sm:rounded-xl sm:px-3 sm:py-2"
                   >
-                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[linear-gradient(135deg,rgba(94,129,172,0.16),rgba(76,86,106,0.12))] text-[11px] font-bold text-nord-frostDark ring-1 ring-white/70">
+                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[linear-gradient(135deg,rgba(94,129,172,0.16),rgba(76,86,106,0.12))] text-[10px] font-bold text-nord-frostDark ring-1 ring-white/70 sm:h-8 sm:w-8 sm:text-[11px]">
                       {initialsOf(o.name, o.surname)}
                     </span>
                     <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-1.5">
-                        <span className="truncate text-sm font-semibold text-nord-polar">
+                      <div className="flex items-center gap-1">
+                        <span className="truncate text-xs font-semibold text-nord-polar sm:text-sm">
                           {o.name} {o.surname}
                         </span>
                         {o.isPowerPick ? (
                           <span
                             title="Armed Power Pick x3 on this match"
-                            className="inline-flex shrink-0 items-center gap-1 rounded-full border border-amber-300/70 bg-[linear-gradient(135deg,#fde9b8,#f6c560)] px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.08em] text-[#7a4a00] shadow-[0_1px_3px_rgba(224,138,30,0.25)]"
+                            className="inline-flex shrink-0 items-center rounded-full border border-amber-300/70 bg-[linear-gradient(135deg,#fde9b8,#f6c560)] px-1 py-0.5 text-[8px] font-bold uppercase tracking-[0.06em] text-[#7a4a00] shadow-[0_1px_3px_rgba(224,138,30,0.25)] sm:px-1.5 sm:text-[9px] sm:tracking-[0.08em]"
                           >
                             ★ x3
                           </span>
                         ) : null}
                       </div>
-                      <div className="mt-0.5 text-[11px] text-nord-polarLight">
+                      <div className="mt-0.5 hidden text-[11px] text-nord-polarLight sm:block">
                         Finalized {formatScheduleDateTime(o.finalizedAt)}
                       </div>
                     </div>
