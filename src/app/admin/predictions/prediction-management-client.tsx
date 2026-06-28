@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { PredictionPickDisplay } from "@/components/prediction-pick-display";
 import { Button, Card, CardContent } from "@/components/ui";
 import { COMPETITIONS, UCL_COMPETITION_ID } from "@/lib/config";
+import { formatStageLabel } from "@/lib/stages";
 import {
   applyAdminPredictionHistoryFilters,
   buildAdminPredictionHistorySummary,
@@ -57,19 +58,7 @@ function displayResult(v: string | null): string {
   return displayPick(v);
 }
 
-function formatStage(stage: string): string {
-  const map: Record<string, string> = {
-    GROUP_STAGE: "Group stage",
-    LEAGUE_STAGE: "League stage",
-    ROUND_16: "Round of 16",
-    LAST_16: "Round of 16",
-    QUARTER_FINAL: "Quarter-final",
-    SEMI_FINAL: "Semi-final",
-    FINAL: "Final",
-    PLAYOFFS: "Play-offs",
-  };
-  return map[stage] ?? stage;
-}
+const formatStage = formatStageLabel;
 
 function formatDateTime(iso: string): string {
   return new Date(iso).toLocaleString("en-GB", {

@@ -3,14 +3,28 @@ import type { AuthUser } from "@/lib/auth/get-user";
 import { getLeaderboardStatsForUser } from "@/lib/scoring";
 import { normalizeCompetitionId, UCL_COMPETITION_ID } from "@/lib/config";
 import { toDisplay } from "@/lib/prediction-values";
+import { formatStageLabel } from "@/lib/stages";
 
 export type RecentPredictionStatus = "correct" | "incorrect" | "pending";
 
 export type LeaderboardRecentPredictionItem = {
   id: string;
   status: RecentPredictionStatus;
-  label: string;
   isPowerPick: boolean;
+  /** The user's 1 / X / 2 pick. */
+  pick: string;
+  /** "Home vs Away" of the predicted match. */
+  matchLabel: string;
+  /** Premium stage label, e.g. "Round of 32". */
+  stageLabel: string;
+  /** Full-time score once the match has completed, e.g. "2 – 1" (null otherwise). */
+  scoreLabel: string | null;
+  /** "Correct (+3)", "Incorrect", "Pending"… */
+  statusLabel: string;
+  /** Localised finalize timestamp. */
+  finalizedLabel: string;
+  /** Single-line accessible fallback summary. */
+  label: string;
 };
 
 export type LeaderboardPrizeItem = {
@@ -157,6 +171,11 @@ export async function getLeaderboardBoardData(
             match: {
               select: {
                 officialResultType: true,
+                homeTeamName: true,
+                awayTeamName: true,
+                homeScore: true,
+                awayScore: true,
+                stage: true,
               },
             },
           },
@@ -216,13 +235,26 @@ export async function getLeaderboardBoardData(
           })
         : "Time unavailable";
 
+      const pick = toDisplay(prediction.selectedPrediction);
+      const matchLabel = `${prediction.match.homeTeamName} vs ${prediction.match.awayTeamName}`;
+      const stageLabel = formatStageLabel(prediction.match.stage);
+      const scoreLabel =
+        prediction.match.homeScore != null && prediction.match.awayScore != null
+          ? `${prediction.match.homeScore} – ${prediction.match.awayScore}`
+          : null;
       const powerPickTag = isPowerPick ? " · x3" : "";
       return {
         item: {
           id: prediction.id,
           status,
           isPowerPick,
-          label: `${toDisplay(prediction.selectedPrediction)}${powerPickTag} - ${statusLabel} - ${finalizedLabel}`,
+          pick,
+          matchLabel,
+          stageLabel,
+          scoreLabel,
+          statusLabel,
+          finalizedLabel,
+          label: `${matchLabel} — ${pick}${powerPickTag} · ${statusLabel} · ${finalizedLabel}`,
         } satisfies LeaderboardRecentPredictionItem,
         status,
       };
@@ -247,24 +279,32 @@ export async function getLeaderboardBoardData(
     isAdmin,
     adminHasLiveRow,
     hasAdminRows: adminEntries.length > 0,
-    entries: visibleEntries.map((entry) => ({
-      userId: entry.userId,
-      competitionId: entry.competitionId,
-      name: entry.user.name,
-      surname: entry.user.surname,
-      isAdminRow: entry.user.role === "admin",
-      rank: entry.user.role === "admin" ? null : entry.currentRank,
-      podiumPlace: podiumPlaces.get(entry.userId),
-      finalizedPredictionCount: entry.finalizedPredictionCount,
-      completedMatchCount: entry.completedMatchCount,
-      correctCalls: getCorrectCalls(entry),
-      accuracyLabel:
-        entry.finalizedPredictionCount > 0
-          ? `${Math.round(entry.accuracyRate * 100)}%`
-          : "–",
-      totalPoints: entry.totalPoints,
-      recentPredictions: recentPredictionsByUser.get(entry.userId) ?? [],
-    })),
+    entries: visibleEntries.map((entry) => {
+      const correctCalls = getCorrectCalls(entry);
+      // Accuracy is measured against matches that have actually completed (have an
+      // official result), not against every finalized prediction — predictions on
+      // not-yet-played fixtures must not dilute the rate.
+      const accuracyLabel =
+        entry.completedMatchCount > 0
+          ? `${Math.round((correctCalls / entry.completedMatchCount) * 100)}%`
+          : "–";
+
+      return {
+        userId: entry.userId,
+        competitionId: entry.competitionId,
+        name: entry.user.name,
+        surname: entry.user.surname,
+        isAdminRow: entry.user.role === "admin",
+        rank: entry.user.role === "admin" ? null : entry.currentRank,
+        podiumPlace: podiumPlaces.get(entry.userId),
+        finalizedPredictionCount: entry.finalizedPredictionCount,
+        completedMatchCount: entry.completedMatchCount,
+        correctCalls,
+        accuracyLabel,
+        totalPoints: entry.totalPoints,
+        recentPredictions: recentPredictionsByUser.get(entry.userId) ?? [],
+      };
+    }),
     prizes,
   };
 }

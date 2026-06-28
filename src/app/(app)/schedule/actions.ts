@@ -30,6 +30,7 @@ export type ScheduleActionState =
         surname: string;
         selectedPrediction: string;
         finalizedAt: string;
+        isPowerPick: boolean;
       }[];
     }
   | { ok: false; error: string };

@@ -261,12 +261,19 @@ export async function resetAllPredictionsPast(
  * Match does not need to have started.
  * Returns name, surname, selectedPrediction, finalizedAt (no username).
  */
+export type OthersPredictionEntry = {
+  name: string;
+  surname: string;
+  selectedPrediction: string;
+  finalizedAt: Date;
+  /** Whether this user armed Power Pick x3 on this match (active or locked). */
+  isPowerPick: boolean;
+};
+
 export async function getOthersPredictions(
   matchId: string,
   currentUserId: string
-): Promise<
-  { name: string; surname: string; selectedPrediction: string; finalizedAt: Date }[]
-> {
+): Promise<OthersPredictionEntry[]> {
   const byMatch = await getOthersPredictionsBatch([matchId], currentUserId);
   return byMatch[matchId] ?? [];
 }
@@ -280,12 +287,7 @@ export async function getOthersPredictions(
 export async function getOthersPredictionsBatch(
   matchIds: string[],
   currentUserId: string
-): Promise<
-  Record<
-    string,
-    { name: string; surname: string; selectedPrediction: string; finalizedAt: Date }[]
-  >
-> {
+): Promise<Record<string, OthersPredictionEntry[]>> {
   if (matchIds.length === 0) return {};
 
   const currentUserFinalized = await prisma.prediction.findMany({
@@ -310,16 +312,24 @@ export async function getOthersPredictionsBatch(
     orderBy: [{ matchId: "asc" }, { finalizedAt: "asc" }],
     select: {
       matchId: true,
+      userId: true,
       selectedPrediction: true,
       finalizedAt: true,
       user: { select: { name: true, surname: true } },
     },
   });
 
-  const result: Record<
-    string,
-    { name: string; surname: string; selectedPrediction: string; finalizedAt: Date }[]
-  > = {};
+  // Power Pick x3 armed on these matches (active = still on, locked = consumed).
+  const boosted = await prisma.powerPickSelection.findMany({
+    where: {
+      matchId: { in: [...finalizedMatchIds] },
+      status: { not: "revoked" },
+    },
+    select: { userId: true, matchId: true },
+  });
+  const boostedKeys = new Set(boosted.map((b) => `${b.userId}:${b.matchId}`));
+
+  const result: Record<string, OthersPredictionEntry[]> = {};
   for (const o of others) {
     if (!o.finalizedAt) continue;
     if (!result[o.matchId]) result[o.matchId] = [];
@@ -328,6 +338,7 @@ export async function getOthersPredictionsBatch(
       surname: o.user.surname,
       selectedPrediction: toDisplay(o.selectedPrediction),
       finalizedAt: o.finalizedAt,
+      isPowerPick: boostedKeys.has(`${o.userId}:${o.matchId}`),
     });
   }
   return result;

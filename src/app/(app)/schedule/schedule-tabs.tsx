@@ -25,6 +25,7 @@ import {
   UCL_COMPETITION_ID,
   WORLD_CUP_2026_COMPETITION_ID,
 } from "@/lib/config";
+import { formatStageLabel, STAGE_ORDER } from "@/lib/stages";
 import { MatchCenter, type CenterTab } from "./match-center";
 import { LiveMatchSheet } from "./live-match-sheet";
 import {
@@ -110,6 +111,7 @@ export type OtherPrediction = {
   surname: string;
   selectedPrediction: string;
   finalizedAt: string;
+  isPowerPick: boolean;
 };
 
 function isSameCalendarDay(iso1: string, iso2: string): boolean {
@@ -118,19 +120,7 @@ function isSameCalendarDay(iso1: string, iso2: string): boolean {
   return d1.getFullYear() === d2.getFullYear() && d1.getMonth() === d2.getMonth() && d1.getDate() === d2.getDate();
 }
 
-function formatStage(stage: string): string {
-  const map: Record<string, string> = {
-    GROUP_STAGE: "Group stage",
-    LEAGUE_STAGE: "Group stage",
-    ROUND_16: "Round of 16",
-    LAST_16: "Round of 16",
-    QUARTER_FINAL: "Quarter-final",
-    SEMI_FINAL: "Semi-final",
-    FINAL: "Final",
-    PLAYOFFS: "Play-offs",
-  };
-  return map[stage] ?? stage;
-}
+const formatStage = formatStageLabel;
 
 function formatResult(value: PredictionValue | null): string {
   if (!value) return "–";
@@ -147,6 +137,30 @@ function formatScheduleTime(dateLike: string | Date) {
 
 function formatScheduleDateTime(dateLike: string | Date) {
   return scheduleDateTimeFormatter.format(new Date(dateLike));
+}
+
+function initialsOf(name: string, surname: string): string {
+  const initials = `${name.trim().charAt(0)}${surname.trim().charAt(0)}`.toUpperCase();
+  return initials || "?";
+}
+
+const OTHER_PICK_PILL_CLASS: Record<string, string> = {
+  "1": "bg-nord-frostDark/12 text-nord-frostDark ring-nord-frostDark/25",
+  X: "bg-nord-polarLighter/20 text-nord-polar ring-nord-polarLighter/35",
+  "2": "bg-violet-500/12 text-violet-600 ring-violet-500/25",
+};
+
+function OtherPickPill({ value }: { value: string }) {
+  return (
+    <span
+      className={`inline-flex h-7 min-w-[1.85rem] items-center justify-center rounded-lg px-2 text-sm font-bold tabular-nums ring-1 ${
+        OTHER_PICK_PILL_CLASS[value] ?? OTHER_PICK_PILL_CLASS.X
+      }`}
+      aria-label={`Pick ${value}`}
+    >
+      {value}
+    </span>
+  );
 }
 
 type Props = {
@@ -467,9 +481,8 @@ export function ScheduleTabs({
   const stageOptions = useMemo(() => {
     const stages = new Set(currentList.map((m) => m.stage));
     return Array.from(stages).sort((a, b) => {
-      const order = ["GROUP_STAGE", "LEAGUE_STAGE", "PLAYOFFS", "ROUND_16", "LAST_16", "QUARTER_FINAL", "SEMI_FINAL", "FINAL"];
-      const i = order.indexOf(a);
-      const j = order.indexOf(b);
+      const i = STAGE_ORDER.indexOf(a as (typeof STAGE_ORDER)[number]);
+      const j = STAGE_ORDER.indexOf(b as (typeof STAGE_ORDER)[number]);
       if (i !== -1 && j !== -1) return i - j;
       if (i !== -1) return -1;
       if (j !== -1) return 1;
@@ -1386,22 +1399,59 @@ export function ScheduleTabs({
         )}
 
         {showOthers && (
-          <div className="bg-nord-snow/50 px-4 pb-3 pt-1">
+          <div className="border-t border-nord-polarLighter/15 bg-[linear-gradient(180deg,rgba(236,239,244,0.4),rgba(255,255,255,0.62))] px-4 py-3 sm:px-5">
             <button
               type="button"
               onClick={() => toggleOthers(m.id)}
-              className="text-xs font-medium text-nord-frostDark hover:underline py-1"
+              aria-expanded={isExpanded}
+              className="group inline-flex items-center gap-2 rounded-full border border-nord-frostDark/15 bg-white/82 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.14em] text-nord-frostDark shadow-[0_6px_18px_rgba(46,52,64,0.05)] transition-colors hover:border-nord-frostDark/30 hover:text-nord-polar"
             >
-              {isExpanded
-                ? "Hide others' predictions"
-                : `Others' predictions (${others.length})`}
+              <span className="flex h-4 w-4 items-center justify-center rounded-full bg-nord-frostDark/12 text-[10px] font-bold tabular-nums">
+                {others.length}
+              </span>
+              {isExpanded ? "Hide players' picks" : "Players' picks"}
+              <svg
+                viewBox="0 0 16 16"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden
+                className={`h-3.5 w-3.5 transition-transform ${isExpanded ? "rotate-180" : ""}`}
+              >
+                <path d="M4 6l4 4 4-4" />
+              </svg>
             </button>
             {isExpanded && (
-              <ul className="mt-2 space-y-1 text-xs text-nord-polarLight">
+              <ul className="mt-3 grid gap-2 sm:grid-cols-2">
                 {others.map((o, i) => (
-                  <li key={i}>
-                    {o.name} {o.surname}: {o.selectedPrediction} (finalized{" "}
-                    {formatScheduleDateTime(o.finalizedAt)})
+                  <li
+                    key={i}
+                    className="flex items-center gap-3 rounded-xl border border-nord-polarLighter/30 bg-white/88 px-3 py-2 shadow-[0_4px_14px_rgba(46,52,64,0.04)]"
+                  >
+                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[linear-gradient(135deg,rgba(94,129,172,0.16),rgba(76,86,106,0.12))] text-[11px] font-bold text-nord-frostDark ring-1 ring-white/70">
+                      {initialsOf(o.name, o.surname)}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5">
+                        <span className="truncate text-sm font-semibold text-nord-polar">
+                          {o.name} {o.surname}
+                        </span>
+                        {o.isPowerPick ? (
+                          <span
+                            title="Armed Power Pick x3 on this match"
+                            className="inline-flex shrink-0 items-center gap-1 rounded-full border border-amber-300/70 bg-[linear-gradient(135deg,#fde9b8,#f6c560)] px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.08em] text-[#7a4a00] shadow-[0_1px_3px_rgba(224,138,30,0.25)]"
+                          >
+                            ★ x3
+                          </span>
+                        ) : null}
+                      </div>
+                      <div className="mt-0.5 text-[11px] text-nord-polarLight">
+                        Finalized {formatScheduleDateTime(o.finalizedAt)}
+                      </div>
+                    </div>
+                    <OtherPickPill value={o.selectedPrediction} />
                   </li>
                 ))}
               </ul>

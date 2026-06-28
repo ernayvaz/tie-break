@@ -67,7 +67,13 @@ export default async function SchedulePage() {
   const othersBatch = await getOthersPredictionsBatch(finalizedMatchIds, user.id);
   const othersByMatchId: Record<
     string,
-    { name: string; surname: string; selectedPrediction: string; finalizedAt: string }[]
+    {
+      name: string;
+      surname: string;
+      selectedPrediction: string;
+      finalizedAt: string;
+      isPowerPick: boolean;
+    }[]
   > = {};
   for (const [matchId, list] of Object.entries(othersBatch)) {
     othersByMatchId[matchId] = list.map((o) => ({

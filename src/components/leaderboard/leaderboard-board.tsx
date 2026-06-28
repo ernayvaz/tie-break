@@ -1,8 +1,8 @@
 import type {
   LeaderboardBoardData,
   LeaderboardBoardEntry,
-  LeaderboardRecentPredictionItem,
 } from "@/lib/leaderboard";
+import { RecentPredictionsStrip } from "./recent-predictions-strip";
 
 type ColumnLabels = {
   rank: string;
@@ -35,40 +35,6 @@ const DEFAULT_LABELS: ColumnLabels = {
   mobileAccuracy: "Acc.",
   mobilePoints: "Pts",
 };
-
-function CheckMiniIcon({ className }: { className?: string }) {
-  return (
-    <svg
-      className={className}
-      viewBox="0 0 16 16"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden
-    >
-      <path d="M3.5 8l2.5 2.5 6-6" />
-    </svg>
-  );
-}
-
-function CrossMiniIcon({ className }: { className?: string }) {
-  return (
-    <svg
-      className={className}
-      viewBox="0 0 16 16"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden
-    >
-      <path d="M5 5l6 6M11 5l-6 6" />
-    </svg>
-  );
-}
 
 function MedalMiniIcon({ className }: { className?: string }) {
   return (
@@ -120,112 +86,6 @@ function TopPlacementBadge({ place }: { place?: 1 | 2 | 3 }) {
     >
       <MedalMiniIcon className="h-3.5 w-3.5" />
     </span>
-  );
-}
-
-function RecentPredictionMarker({
-  status,
-  label,
-  isPowerPick = false,
-}: {
-  status: LeaderboardRecentPredictionItem["status"] | "empty";
-  label: string;
-  isPowerPick?: boolean;
-}) {
-  const sharedClassName =
-    "inline-flex h-6 w-6 items-center justify-center rounded-full ring-1";
-
-  if (status === "correct") {
-    if (isPowerPick) {
-      // Gold marker highlights a correct Power Pick x3 (worth 3 points).
-      return (
-        <span
-          className={`${sharedClassName} bg-[linear-gradient(135deg,#f7c948,#e08a1e)] text-[10px] font-bold text-white ring-amber-300/60`}
-          title={label}
-          aria-label={label}
-        >
-          ×3
-        </span>
-      );
-    }
-    return (
-      <span
-        className={`${sharedClassName} bg-emerald-500/12 text-emerald-600 ring-emerald-500/25`}
-        title={label}
-        aria-label={label}
-      >
-        <CheckMiniIcon className="h-3.5 w-3.5" />
-      </span>
-    );
-  }
-
-  if (status === "incorrect") {
-    return (
-      <span
-        className={`${sharedClassName} bg-rose-500/10 text-rose-500 ring-rose-500/20`}
-        title={label}
-        aria-label={label}
-      >
-        <CrossMiniIcon className="h-3.5 w-3.5" />
-      </span>
-    );
-  }
-
-  if (status === "pending") {
-    return (
-      <span
-        className={`${sharedClassName} bg-nord-frostDark/10 text-nord-frostDark ring-nord-frostDark/20`}
-        title={label}
-        aria-label={label}
-      >
-        <span className="h-1.5 w-1.5 rounded-full bg-current" aria-hidden />
-      </span>
-    );
-  }
-
-  return (
-    <span
-      className={`${sharedClassName} bg-transparent text-nord-polarLighter/25 ring-nord-polarLighter/15`}
-      title={label}
-      aria-hidden
-    />
-  );
-}
-
-function RecentPredictionsStrip({
-  predictions,
-}: {
-  predictions: LeaderboardRecentPredictionItem[];
-}) {
-  const visiblePredictions = predictions.slice(0, 5);
-  const items = [
-    ...Array.from(
-      { length: Math.max(0, 5 - visiblePredictions.length) },
-      (_, index) => ({
-        id: `empty-${index}`,
-        status: "empty" as const,
-        label: "No prediction yet",
-        isPowerPick: false,
-      }),
-    ),
-    ...visiblePredictions,
-  ];
-
-  return (
-    <div
-      className="flex items-center gap-1.5 whitespace-nowrap"
-      title="Last 5 predictions, left to right from newest to oldest"
-      aria-label="Last 5 predictions, left to right from newest to oldest"
-    >
-      {items.map((item, index) => (
-        <RecentPredictionMarker
-          key={`${item.id}-${index}`}
-          status={item.status}
-          label={item.label}
-          isPowerPick={item.isPowerPick}
-        />
-      ))}
-    </div>
   );
 }
 
@@ -351,7 +211,7 @@ function LeaderboardMobileCard({
             {entry.correctCalls}
           </div>
         </div>
-        <div>
+        <div title="Correct picks ÷ matches completed (predictions on not-yet-played matches don't count).">
           <div className="text-[9px] uppercase tracking-wide text-nord-polarLight">
             {labels.mobileAccuracy}
           </div>
@@ -446,7 +306,12 @@ export function LeaderboardBoard({
                     >
                       {mergedLabels.correct}
                     </th>
-                    <th className="pb-2 pr-4">{mergedLabels.accuracy}</th>
+                    <th
+                      className="pb-2 pr-4"
+                      title="Correct picks ÷ matches completed (predictions on not-yet-played matches don't count)."
+                    >
+                      {mergedLabels.accuracy}
+                    </th>
                     <th className="pb-2 pr-4">{mergedLabels.points}</th>
                     <th className="pb-2">{mergedLabels.lastFive}</th>
                   </tr>
