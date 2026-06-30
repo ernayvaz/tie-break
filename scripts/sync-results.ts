@@ -1,7 +1,9 @@
 /**
- * One-off results sync: pulls fixtures/scores for all configured competitions
- * (World Cup 2026 + UCL) from football-data.org, writes official results to the
- * DB, scores finalized predictions and rebuilds every competition leaderboard.
+ * One-off results sync: mirrors /api/cron/sync-results.
+ *
+ * - football-data.org sync is best-effort for configured competitions.
+ * - World Cup 2026 knockout fixtures + results are synced from OpenLigaDB.
+ * - finalized predictions are rescored and every competition leaderboard is rebuilt.
  *
  * Mirrors what /api/cron/sync-results does, runnable locally against the
  * production Neon DB defined in .env.
@@ -10,17 +12,38 @@
  */
 import { prisma } from "../src/lib/db";
 import { syncMatchesFromApi } from "../src/lib/api/sync-matches";
+import { syncWorldCupFixturesFromOpenLigaDb } from "../src/lib/api/sync-wc-fixtures";
+import { syncWorldCupResultsFromOpenLigaDb } from "../src/lib/api/sync-wc-results";
 import { recalculateAll } from "../src/lib/scoring";
 
 async function main() {
   console.log("[sync-results] starting fixture/score sync…");
-  const sync = await syncMatchesFromApi();
-  if (!sync.ok) {
-    console.error(`[sync-results] sync FAILED — ${sync.error}`);
-    process.exitCode = 1;
-    return;
+  const footballData = await syncMatchesFromApi();
+  if (footballData.ok) {
+    console.log(`[sync-results] football-data ok — ${footballData.count} matches upserted.`);
+  } else {
+    console.warn(`[sync-results] football-data unavailable — ${footballData.error}`);
   }
-  console.log(`[sync-results] sync ok — ${sync.count} matches upserted.`);
+
+  const wcFixtures = await syncWorldCupFixturesFromOpenLigaDb();
+  if (wcFixtures.ok) {
+    console.log(
+      `[sync-results] WC fixtures ok — filled=${wcFixtures.filledCount} pendingDraw=${wcFixtures.pendingDrawCount} unmatched=${wcFixtures.unmatchedCount}.`
+    );
+  } else {
+    console.error(`[sync-results] WC fixtures FAILED — ${wcFixtures.error}`);
+    process.exitCode = 1;
+  }
+
+  const wcResults = await syncWorldCupResultsFromOpenLigaDb();
+  if (wcResults.ok) {
+    console.log(
+      `[sync-results] WC results ok — updated=${wcResults.updatedCount} finished=${wcResults.finishedCount} unmatched=${wcResults.unmatchedCount}.`
+    );
+  } else {
+    console.error(`[sync-results] WC results FAILED — ${wcResults.error}`);
+    process.exitCode = 1;
+  }
 
   const finished = await prisma.match.findMany({
     where: { officialResultType: { not: null } },
