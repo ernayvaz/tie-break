@@ -54,13 +54,20 @@ function CrossMiniIcon({ className }: { className?: string }) {
   );
 }
 
-function markerVisuals(status: MarkerStatus, isPowerPick: boolean) {
+const TOOLTIP_MAX_WIDTH = 240;
+const TOOLTIP_VIEWPORT_MARGIN = 12;
+
+function markerVisuals(
+  status: MarkerStatus,
+  isPowerPick: boolean,
+  powerPickMultiplier?: number | null
+) {
   if (status === "correct") {
     if (isPowerPick) {
       return {
         className:
           "bg-[linear-gradient(135deg,#f7c948,#e08a1e)] text-[10px] font-bold text-white ring-amber-300/60",
-        content: <>×3</>,
+        content: <>×{powerPickMultiplier ?? 3}</>,
       };
     }
     return {
@@ -104,16 +111,28 @@ function PredictionTooltip({
   useEffect(() => setMounted(true), []);
   if (!mounted) return null;
 
-  const left = anchor.left + anchor.width / 2;
+  const viewportWidth = window.innerWidth;
+  const tooltipWidth = Math.min(
+    TOOLTIP_MAX_WIDTH,
+    Math.max(180, viewportWidth - TOOLTIP_VIEWPORT_MARGIN * 2)
+  );
+  const anchorCenter = anchor.left + anchor.width / 2;
+  const minCenter = TOOLTIP_VIEWPORT_MARGIN + tooltipWidth / 2;
+  const maxCenter = viewportWidth - TOOLTIP_VIEWPORT_MARGIN - tooltipWidth / 2;
+  const left = Math.min(Math.max(anchorCenter, minCenter), maxCenter);
+  const arrowLeft = Math.min(
+    Math.max(anchorCenter - (left - tooltipWidth / 2), 18),
+    tooltipWidth - 18
+  );
   const top = anchor.top;
 
   return createPortal(
     <div
       role="tooltip"
-      className="pointer-events-none fixed z-[120] -translate-x-1/2 -translate-y-full pb-2"
-      style={{ left, top }}
+      className="pointer-events-none fixed z-[120] -translate-y-full pb-2"
+      style={{ left: left - tooltipWidth / 2, top, width: tooltipWidth }}
     >
-      <div className="w-60 overflow-hidden rounded-2xl border border-white/70 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(244,247,252,0.96))] p-3 shadow-[0_22px_60px_rgba(46,52,64,0.22)] ring-1 ring-nord-polarLighter/15 backdrop-blur">
+      <div className="w-full overflow-hidden rounded-2xl border border-white/70 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(244,247,252,0.96))] p-3 shadow-[0_22px_60px_rgba(46,52,64,0.22)] ring-1 ring-nord-polarLighter/15 backdrop-blur">
         <div className="flex items-center justify-between gap-2">
           {item.stageLabel ? (
             <span className="rounded-full bg-nord-frostDark/8 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.14em] text-nord-frostDark">
@@ -163,7 +182,8 @@ function PredictionTooltip({
         ) : null}
       </div>
       <div
-        className="absolute left-1/2 top-full h-2.5 w-2.5 -translate-x-1/2 -translate-y-[7px] rotate-45 border-b border-r border-white/70 bg-[rgba(244,247,252,0.96)]"
+        className="absolute top-full h-2.5 w-2.5 -translate-x-1/2 -translate-y-[7px] rotate-45 border-b border-r border-white/70 bg-[rgba(244,247,252,0.96)]"
+        style={{ left: arrowLeft }}
         aria-hidden
       />
     </div>,
@@ -215,7 +235,7 @@ export function RecentPredictionsStrip({
       aria-label="Last 5 predictions, left to right from newest to oldest"
     >
       {items.map((item, index) => {
-        const visuals = markerVisuals(item.status, item.isPowerPick);
+        const visuals = markerVisuals(item.status, item.isPowerPick, item.powerPickMultiplier);
         const isInteractive = item.status !== "empty";
         return (
           <span
