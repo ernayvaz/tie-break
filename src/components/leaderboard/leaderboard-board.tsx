@@ -166,17 +166,18 @@ function isPerfectFive(entry: LeaderboardBoardEntry): boolean {
   );
 }
 
-/** Golden Perfect-5 star shown next to a player's name when their Last 5 is flawless. */
+/**
+ * Golden Perfect-5 badge shown next to a player's name when their Last 5 is
+ * flawless. Displays the numeral "5" (clearer than a star that they went 5/5).
+ */
 function PerfectFiveStar() {
   return (
     <span
-      className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[linear-gradient(135deg,#f7c948,#e08a1e)] text-white shadow-[0_2px_8px_rgba(224,138,30,0.4)] ring-1 ring-amber-200/70"
+      className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[linear-gradient(135deg,#f7c948,#e08a1e)] text-[11px] font-black leading-none text-white shadow-[0_2px_8px_rgba(224,138,30,0.4)] ring-1 ring-amber-200/70"
       title="Perfect 5 — five correct in a row"
       aria-label="Perfect 5 — five correct in a row"
     >
-      <svg viewBox="0 0 16 16" className="h-3 w-3" fill="currentColor" aria-hidden>
-        <path d="M8 1.2l1.7 3.9 4.2.4-3.2 2.8 1 4.1L8 10.9 4.3 12.4l1-4.1L2.1 5.5l4.2-.4L8 1.2z" />
-      </svg>
+      5
     </span>
   );
 }
