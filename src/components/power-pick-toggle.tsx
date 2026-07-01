@@ -10,6 +10,7 @@ type PowerPickToggleProps = {
   pending?: boolean;
   /** Accessible + hover hint describing the current interaction. */
   title?: string;
+  multiplier?: number;
   onToggle: () => void;
   className?: string;
 };
@@ -24,6 +25,7 @@ export function PowerPickToggle({
   locked = false,
   pending = false,
   title,
+  multiplier = 3,
   onToggle,
   className = "",
 }: PowerPickToggleProps) {
@@ -47,7 +49,7 @@ export function PowerPickToggle({
       type="button"
       role="switch"
       aria-checked={on}
-      aria-label="Power Pick x3 booster"
+      aria-label={`Power Pick x${multiplier} booster`}
       title={title}
       disabled={!isInteractive}
       onClick={() => {
@@ -77,7 +79,7 @@ export function PowerPickToggle({
             "★"
           )}
         </span>
-        <span className="truncate">Power Pick x3</span>
+        <span className="truncate">Power Pick x{multiplier}</span>
       </span>
       <span
         aria-hidden

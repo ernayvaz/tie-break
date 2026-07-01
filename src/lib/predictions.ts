@@ -296,6 +296,7 @@ export type OthersPredictionEntry = {
   finalizedAt: Date;
   /** Whether this user armed Power Pick x3 on this match (active or locked). */
   isPowerPick: boolean;
+  powerPickMultiplier: number | null;
 };
 
 export async function getOthersPredictions(
@@ -353,20 +354,24 @@ export async function getOthersPredictionsBatch(
       matchId: { in: [...finalizedMatchIds] },
       status: { not: "revoked" },
     },
-    select: { userId: true, matchId: true },
+    select: { userId: true, matchId: true, multiplier: true },
   });
-  const boostedKeys = new Set(boosted.map((b) => `${b.userId}:${b.matchId}`));
+  const boostedByKey = new Map(
+    boosted.map((b) => [`${b.userId}:${b.matchId}`, b.multiplier])
+  );
 
   const result: Record<string, OthersPredictionEntry[]> = {};
   for (const o of others) {
     if (!o.finalizedAt) continue;
     if (!result[o.matchId]) result[o.matchId] = [];
+    const multiplier = boostedByKey.get(`${o.userId}:${o.matchId}`) ?? null;
     result[o.matchId].push({
       name: o.user.name,
       surname: o.user.surname,
       selectedPrediction: toDisplay(o.selectedPrediction),
       finalizedAt: o.finalizedAt,
-      isPowerPick: boostedKeys.has(`${o.userId}:${o.matchId}`),
+      isPowerPick: multiplier != null,
+      powerPickMultiplier: multiplier,
     });
   }
   return result;

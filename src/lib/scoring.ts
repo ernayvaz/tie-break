@@ -2,7 +2,7 @@ import { prisma } from "@/lib/db";
 import { UCL_COMPETITION_ID } from "@/lib/config";
 import {
   pointsForPrediction,
-  getPowerPickUserIdsByMatch,
+  getPowerPickMultipliersByMatch,
   lockPowerPickSelectionsForMatch,
 } from "@/lib/power-pick";
 
@@ -19,7 +19,7 @@ function matchCompetitionFilter(competitionId: string) {
 
 /**
  * Score all finalized predictions for a finished match.
- * Normal correct = 1 point, Power Pick x3 correct = exactly 3 points, incorrect = 0.
+ * Normal correct = 1 point, Power Pick xN correct = exactly N points, incorrect = 0.
  */
 export async function scoreMatch(matchId: string): Promise<{ ok: true } | { ok: false; error: string }> {
   const match = await prisma.match.findUnique({
@@ -33,8 +33,9 @@ export async function scoreMatch(matchId: string): Promise<{ ok: true } | { ok: 
   // A finished match has necessarily passed its lock time: consume any active boosters.
   await lockPowerPickSelectionsForMatch(matchId);
 
-  const boostedByMatch = await getPowerPickUserIdsByMatch([matchId]);
-  const boostedUserIds = [...(boostedByMatch.get(matchId) ?? new Set<string>())];
+  const boostedByMatch = await getPowerPickMultipliersByMatch([matchId]);
+  const boostedUsers = boostedByMatch.get(matchId) ?? new Map<string, number>();
+  const boostedUserIds = [...boostedUsers.keys()];
 
   // Incorrect predictions always score 0 (normal and boosted alike).
   await prisma.prediction.updateMany({
@@ -47,16 +48,18 @@ export async function scoreMatch(matchId: string): Promise<{ ok: true } | { ok: 
   });
 
   if (boostedUserIds.length > 0) {
-    // Boosted correct → exactly 3 points (never 1 + 3).
-    await prisma.prediction.updateMany({
-      where: {
-        matchId,
-        isFinal: true,
-        selectedPrediction: match.officialResultType,
-        userId: { in: boostedUserIds },
-      },
-      data: { awardedPoints: pointsForPrediction(true, true) },
-    });
+    for (const multiplier of [...new Set(boostedUsers.values())]) {
+      const userIds = boostedUserIds.filter((userId) => boostedUsers.get(userId) === multiplier);
+      await prisma.prediction.updateMany({
+        where: {
+          matchId,
+          isFinal: true,
+          selectedPrediction: match.officialResultType,
+          userId: { in: userIds },
+        },
+        data: { awardedPoints: pointsForPrediction(true, multiplier) },
+      });
+    }
     // Everyone else correct → normal 1 point.
     await prisma.prediction.updateMany({
       where: {
@@ -102,9 +105,9 @@ export async function getLeaderboardStatsForUser(
 
   const boostedSelections = await prisma.powerPickSelection.findMany({
     where: { userId, status: { not: "revoked" } },
-    select: { matchId: true },
+    select: { matchId: true, multiplier: true },
   });
-  const boostedMatchIds = new Set(boostedSelections.map((s) => s.matchId));
+  const boostedByMatchId = new Map(boostedSelections.map((s) => [s.matchId, s.multiplier]));
 
   let totalPoints = 0;
   let correctCount = 0;
@@ -114,7 +117,7 @@ export async function getLeaderboardStatsForUser(
     if (p.match.officialResultType !== null) {
       completedMatchCount++;
       const isCorrect = p.selectedPrediction === p.match.officialResultType;
-      const points = pointsForPrediction(isCorrect, boostedMatchIds.has(p.matchId));
+      const points = pointsForPrediction(isCorrect, boostedByMatchId.get(p.matchId) ?? false);
       totalPoints += points;
       if (isCorrect) correctCount++;
     }

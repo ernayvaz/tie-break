@@ -3,6 +3,9 @@ import {
   POWER_PICK_PACKAGE_SIZE,
   POWER_PICK_COMPETITION_ID,
   POWER_PICK_MAX_PER_USER,
+  normalizePowerPickMultiplier,
+  POWER_PICK_POINTS,
+  type PowerPickMultiplier,
 } from "@/lib/config";
 
 export type PowerPickAdminScope = "all_users" | "selected_users";
@@ -18,6 +21,7 @@ export type PowerPickAdminUserRow = {
   surname: string;
   username: string;
   totalGranted: number;
+  multiplier: PowerPickMultiplier;
   usedLocked: number;
   selectedUnlocked: number;
   remainingAvailable: number;
@@ -31,6 +35,7 @@ export type PowerPickAdminLogRow = {
   targetScope: PowerPickAdminScope;
   actionType: PowerPickAdminAction;
   amountGranted: number;
+  multiplier: PowerPickMultiplier;
   affectedUsers: number;
   createdAt: string;
 };
@@ -108,6 +113,7 @@ async function logAdminAction(
   scope: PowerPickAdminScope,
   actionType: PowerPickAdminAction,
   amountGranted: number,
+  multiplier: PowerPickMultiplier,
   affectedUserIds: string[],
   competitionId: string
 ): Promise<void> {
@@ -118,6 +124,7 @@ async function logAdminAction(
       targetUserIds: scope === "all_users" ? null : JSON.stringify(affectedUserIds),
       competitionId,
       amountGranted,
+      multiplier,
       actionType,
       affectedUsers: affectedUserIds.length,
     },
@@ -134,6 +141,7 @@ export async function grantPowerPick(params: {
   scope: PowerPickAdminScope;
   userIds?: string[];
   amount?: number;
+  multiplier?: number;
   competitionId?: string;
 }): Promise<
   | { ok: true; affected: number; amount: number; skippedAtMax: number }
@@ -144,6 +152,7 @@ export async function grantPowerPick(params: {
     POWER_PICK_MAX_PER_USER,
     Math.max(1, Math.floor(params.amount ?? POWER_PICK_PACKAGE_SIZE))
   );
+  const multiplier = normalizePowerPickMultiplier(params.multiplier ?? POWER_PICK_POINTS);
   const targets = await resolveTargetUserIds(params.scope, params.userIds);
   if (targets.length === 0) return { ok: false, error: "No eligible users selected." };
 
@@ -164,13 +173,21 @@ export async function grantPowerPick(params: {
     }
     await prisma.userPowerPickBalance.upsert({
       where: { userId_competitionId: { userId, competitionId } },
-      create: { userId, competitionId, totalGranted: newTotal },
-      update: { totalGranted: newTotal },
+      create: { userId, competitionId, totalGranted: newTotal, multiplier },
+      update: { totalGranted: newTotal, multiplier },
     });
     affected += 1;
   }
 
-  await logAdminAction(params.adminUserId, params.scope, "grant", amount, targets, competitionId);
+  await logAdminAction(
+    params.adminUserId,
+    params.scope,
+    "grant",
+    amount,
+    multiplier,
+    targets,
+    competitionId
+  );
   return { ok: true, affected, amount, skippedAtMax };
 }
 
@@ -210,7 +227,15 @@ export async function removeUnusedPowerPick(params: {
     affected += 1;
   }
 
-  await logAdminAction(params.adminUserId, params.scope, "remove_unused", 0, targets, competitionId);
+  await logAdminAction(
+    params.adminUserId,
+    params.scope,
+    "remove_unused",
+    0,
+    POWER_PICK_POINTS,
+    targets,
+    competitionId
+  );
   return { ok: true, affected };
 }
 
@@ -237,6 +262,7 @@ export async function resetForNextRound(params: {
   scope: PowerPickAdminScope;
   userIds?: string[];
   amount?: number;
+  multiplier?: number;
   competitionId?: string;
 }): Promise<
   | { ok: true; affected: number; amount: number }
@@ -247,6 +273,7 @@ export async function resetForNextRound(params: {
     POWER_PICK_MAX_PER_USER,
     Math.max(1, Math.floor(params.amount ?? POWER_PICK_PACKAGE_SIZE))
   );
+  const multiplier = normalizePowerPickMultiplier(params.multiplier ?? POWER_PICK_POINTS);
   const now = new Date();
   const targets = await resolveTargetUserIds(params.scope, params.userIds);
   if (targets.length === 0) return { ok: false, error: "No eligible users selected." };
@@ -262,8 +289,8 @@ export async function resetForNextRound(params: {
     const newTotal = c.locked + c.activeUnlocked + amount;
     await prisma.userPowerPickBalance.upsert({
       where: { userId_competitionId: { userId, competitionId } },
-      create: { userId, competitionId, totalGranted: newTotal },
-      update: { totalGranted: newTotal },
+      create: { userId, competitionId, totalGranted: newTotal, multiplier },
+      update: { totalGranted: newTotal, multiplier },
     });
     affected += 1;
   }
@@ -273,6 +300,7 @@ export async function resetForNextRound(params: {
     params.scope,
     "reset_next_round",
     amount,
+    multiplier,
     targets,
     competitionId
   );
@@ -305,12 +333,20 @@ export async function forceRemovePowerPick(params: {
     const c = committed.get(userId) ?? { locked: 0, activeUnlocked: 0 };
     await prisma.userPowerPickBalance.upsert({
       where: { userId_competitionId: { userId, competitionId } },
-      create: { userId, competitionId, totalGranted: c.locked },
-      update: { totalGranted: c.locked },
+      create: { userId, competitionId, totalGranted: c.locked, multiplier: POWER_PICK_POINTS },
+      update: { totalGranted: c.locked, multiplier: POWER_PICK_POINTS },
     });
   }
 
-  await logAdminAction(params.adminUserId, params.scope, "force_remove", 0, targets, competitionId);
+  await logAdminAction(
+    params.adminUserId,
+    params.scope,
+    "force_remove",
+    0,
+    POWER_PICK_POINTS,
+    targets,
+    competitionId
+  );
   return { ok: true, affected: targets.length };
 }
 
@@ -329,7 +365,7 @@ export async function getPowerPickAdminOverview(
   const [balances, committed, logs, admins] = await Promise.all([
     prisma.userPowerPickBalance.findMany({
       where: { userId: { in: userIds }, competitionId },
-      select: { userId: true, totalGranted: true, updatedAt: true },
+      select: { userId: true, totalGranted: true, multiplier: true, updatedAt: true },
     }),
     committedByUser(userIds, competitionId, now),
     prisma.adminPowerPickGrantLog.findMany({
@@ -357,6 +393,7 @@ export async function getPowerPickAdminOverview(
       surname: u.surname,
       username: u.username,
       totalGranted,
+      multiplier: normalizePowerPickMultiplier(balance?.multiplier ?? POWER_PICK_POINTS),
       usedLocked: c.locked,
       selectedUnlocked: c.activeUnlocked,
       remainingAvailable,
@@ -371,6 +408,7 @@ export async function getPowerPickAdminOverview(
     targetScope: l.targetScope as PowerPickAdminScope,
     actionType: l.actionType as PowerPickAdminAction,
     amountGranted: l.amountGranted,
+    multiplier: normalizePowerPickMultiplier(l.multiplier ?? POWER_PICK_POINTS),
     affectedUsers: l.affectedUsers,
     createdAt: l.createdAt.toISOString(),
   }));

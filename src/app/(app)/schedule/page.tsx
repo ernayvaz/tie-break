@@ -73,6 +73,7 @@ export default async function SchedulePage() {
       selectedPrediction: string;
       finalizedAt: string;
       isPowerPick: boolean;
+      powerPickMultiplier: number | null;
     }[]
   > = {};
   for (const [matchId, list] of Object.entries(othersBatch)) {
@@ -132,8 +133,8 @@ export default async function SchedulePage() {
             value: "Only the latest 5 meetings are shown for faster scanning.",
           },
           {
-            label: "Power Pick x3",
-            value: "Feeling confident? Arm Power Pick x3 on a match and a correct call is worth triple the points. Choose your moments — your picks are limited.",
+            label: "Power Pick",
+            value: "Feeling confident? Arm your assigned Power Pick multiplier on a match and a correct call is worth that many points. Choose your moments — your picks are limited.",
           },
         ]}
       />

@@ -154,9 +154,13 @@ function PrizeGrid({ data }: { data: LeaderboardBoardData }) {
 function LeaderboardMobileCard({
   entry,
   labels,
+  highlightAccuracy,
+  highlightPoints,
 }: {
   entry: LeaderboardBoardEntry;
   labels: ColumnLabels;
+  highlightAccuracy: boolean;
+  highlightPoints: boolean;
 }) {
   return (
     <li
@@ -211,19 +215,40 @@ function LeaderboardMobileCard({
             {entry.correctCalls}
           </div>
         </div>
-        <div title="Correct picks ÷ matches completed (predictions on not-yet-played matches don't count).">
+        <div
+          title="Correct picks ÷ matches completed (predictions on not-yet-played matches don't count)."
+          className={
+            highlightAccuracy
+              ? "rounded-md border border-emerald-200 bg-emerald-50/80 px-0.5 py-0.5 shadow-[0_8px_18px_rgba(16,185,129,0.10)]"
+              : ""
+          }
+        >
           <div className="text-[9px] uppercase tracking-wide text-nord-polarLight">
             {labels.mobileAccuracy}
           </div>
-          <div className="mt-0.5 text-xs font-medium tabular-nums text-nord-polar sm:text-sm">
+          <div
+            className={`mt-0.5 text-xs font-medium tabular-nums sm:text-sm ${
+              highlightAccuracy ? "font-extrabold text-emerald-700" : "text-nord-polar"
+            }`}
+          >
             {entry.accuracyLabel}
           </div>
         </div>
-        <div className="rounded-md bg-nord-frostDark/8 px-0.5 py-0.5">
+        <div
+          className={`rounded-md px-0.5 py-0.5 ${
+            highlightPoints
+              ? "border border-amber-200 bg-amber-50/90 shadow-[0_8px_18px_rgba(245,158,11,0.12)]"
+              : "bg-nord-frostDark/8"
+          }`}
+        >
           <div className="text-[9px] uppercase tracking-wide text-nord-polarLight">
             {labels.mobilePoints}
           </div>
-          <div className="mt-0.5 text-xs font-semibold tabular-nums text-nord-frostDark sm:text-sm">
+          <div
+            className={`mt-0.5 text-xs font-semibold tabular-nums sm:text-sm ${
+              highlightPoints ? "font-extrabold text-amber-700" : "text-nord-frostDark"
+            }`}
+          >
             {entry.totalPoints}
           </div>
         </div>
@@ -255,6 +280,38 @@ export function LeaderboardBoard({
   showAdminNotes?: boolean;
 }) {
   const mergedLabels = { ...DEFAULT_LABELS, ...labels };
+  const publicEntries = data.entries.filter((entry) => !entry.isAdminRow);
+  const averagePredictions =
+    publicEntries.length > 0
+      ? publicEntries.reduce((sum, entry) => sum + entry.finalizedPredictionCount, 0) /
+        publicEntries.length
+      : 0;
+  const highlightEligible = publicEntries.filter(
+    (entry) => entry.finalizedPredictionCount > averagePredictions
+  );
+  const bestAccuracy =
+    highlightEligible.length > 0
+      ? Math.max(
+          ...highlightEligible.map((entry) =>
+            entry.completedMatchCount > 0 ? entry.correctCalls / entry.completedMatchCount : -1
+          )
+        )
+      : -1;
+  const bestPoints =
+    highlightEligible.length > 0
+      ? Math.max(...highlightEligible.map((entry) => entry.totalPoints))
+      : -1;
+  const isAccuracyHighlighted = (entry: LeaderboardBoardEntry) =>
+    !entry.isAdminRow &&
+    bestAccuracy >= 0 &&
+    entry.finalizedPredictionCount > averagePredictions &&
+    entry.completedMatchCount > 0 &&
+    entry.correctCalls / entry.completedMatchCount === bestAccuracy;
+  const isPointsHighlighted = (entry: LeaderboardBoardEntry) =>
+    !entry.isAdminRow &&
+    bestPoints >= 0 &&
+    entry.finalizedPredictionCount > averagePredictions &&
+    entry.totalPoints === bestPoints;
 
   return (
     <div>
@@ -288,6 +345,8 @@ export function LeaderboardBoard({
                   key={`${entry.userId}-${entry.competitionId}-mobile`}
                   entry={entry}
                   labels={mergedLabels}
+                  highlightAccuracy={isAccuracyHighlighted(entry)}
+                  highlightPoints={isPointsHighlighted(entry)}
                 />
               ))}
             </ul>
@@ -317,7 +376,10 @@ export function LeaderboardBoard({
                   </tr>
                 </thead>
                 <tbody>
-                  {data.entries.map((entry) => (
+                  {data.entries.map((entry) => {
+                    const highlightAccuracy = isAccuracyHighlighted(entry);
+                    const highlightPoints = isPointsHighlighted(entry);
+                    return (
                     <tr
                       key={`${entry.userId}-${entry.competitionId}`}
                       className={`border-b border-nord-polarLighter/50 ${
@@ -351,11 +413,27 @@ export function LeaderboardBoard({
                       <td className="py-3 pr-4 tabular-nums text-nord-polarLight">
                         {entry.correctCalls}
                       </td>
-                      <td className="py-3 pr-4 text-nord-polar">
-                        {entry.accuracyLabel}
+                      <td className="py-3 pr-4">
+                        <span
+                          className={`inline-flex rounded-full px-2.5 py-1 tabular-nums ${
+                            highlightAccuracy
+                              ? "border border-emerald-200 bg-emerald-50 font-extrabold text-emerald-700 shadow-[0_8px_18px_rgba(16,185,129,0.10)] ring-1 ring-emerald-100"
+                              : "text-nord-polar"
+                          }`}
+                        >
+                          {entry.accuracyLabel}
+                        </span>
                       </td>
-                      <td className="py-3 pr-4 font-medium text-nord-polar">
-                        {entry.totalPoints}
+                      <td className="py-3 pr-4">
+                        <span
+                          className={`inline-flex rounded-full px-2.5 py-1 tabular-nums ${
+                            highlightPoints
+                              ? "border border-amber-200 bg-amber-50 font-extrabold text-amber-700 shadow-[0_8px_18px_rgba(245,158,11,0.12)] ring-1 ring-amber-100"
+                              : "font-medium text-nord-polar"
+                          }`}
+                        >
+                          {entry.totalPoints}
+                        </span>
                       </td>
                       <td className="py-3">
                         <RecentPredictionsStrip
@@ -363,10 +441,15 @@ export function LeaderboardBoard({
                         />
                       </td>
                     </tr>
-                  ))}
+                  )})}
                 </tbody>
               </table>
             </div>
+            {highlightEligible.length > 0 ? (
+              <p className="mt-3 rounded-full border border-nord-polarLighter/25 bg-white/75 px-4 py-2 text-[11px] leading-5 text-nord-polarLight shadow-[0_10px_28px_rgba(46,52,64,0.04)]">
+                Highlighted Accuracy and Points belong to users above the average prediction count, then show the best rate and score within that active group.
+              </p>
+            ) : null}
           </>
         )}
       </div>

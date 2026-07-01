@@ -288,6 +288,7 @@ model UserPowerPickBalance {
   userId        String   @map("user_id")
   competitionId String   @map("competition_id")
   totalGranted  Int      @default(0) @map("total_granted")
+  multiplier    Int      @default(3)
   createdAt     DateTime @default(now()) @map("created_at")
   updatedAt     DateTime @updatedAt @map("updated_at")
 
@@ -307,6 +308,7 @@ model PowerPickSelection {
   userId        String          @map("user_id")
   matchId       String          @map("match_id")
   competitionId String          @map("competition_id")
+  multiplier    Int             @default(3)
   status        PowerPickStatus @default(active)
   selectedAt    DateTime        @default(now()) @map("selected_at")
   lockedAt      DateTime?       @map("locked_at")
@@ -332,6 +334,7 @@ model AdminPowerPickGrantLog {
   targetUserIds String?  @map("target_user_ids") // JSON array of affected user ids (null = all)
   competitionId String   @map("competition_id")
   amountGranted Int      @map("amount_granted") // positive for grants, negative for removals
+  multiplier    Int      @default(3)
   actionType    String   @map("action_type") // grant | remove_unused | force_remove
   affectedUsers Int      @default(0) @map("affected_users")
   createdAt     DateTime @default(now()) @map("created_at")

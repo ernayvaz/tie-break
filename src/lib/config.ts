@@ -50,8 +50,17 @@ export const POWER_PICK_PACKAGE_SIZE = 3;
 export const POWER_PICK_MAX_PER_USER = 10;
 /** Power Pick x3: total points awarded for a correct boosted prediction (replaces the normal 1). */
 export const POWER_PICK_POINTS = 3;
+export const POWER_PICK_MULTIPLIERS = [3, 4, 5, 6, 10] as const;
+export type PowerPickMultiplier = (typeof POWER_PICK_MULTIPLIERS)[number];
 /** Power Pick x3 is only offered on the World Cup competition. */
 export const POWER_PICK_COMPETITION_ID = WORLD_CUP_2026_COMPETITION_ID;
+
+export function normalizePowerPickMultiplier(value: unknown): PowerPickMultiplier {
+  const numeric = Math.floor(Number(value));
+  return POWER_PICK_MULTIPLIERS.includes(numeric as PowerPickMultiplier)
+    ? (numeric as PowerPickMultiplier)
+    : POWER_PICK_POINTS;
+}
 
 // Match Center bulk-sync window. Kept tight (15 days back + 15 days ahead) so each
 // background/admin stats sync only writes JSON for fixtures that are actually

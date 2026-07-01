@@ -24,6 +24,8 @@ import {
   adminSetPredictionForUserAction,
 } from "./actions";
 
+const POWER_PICK_ADMIN_OPTIONS = [-1, 0, 3, 4, 5, 6, 10] as const;
+
 export type PredictionRow = AdminPredictionHistoryRow;
 
 export type MatchOption = { id: string; competitionId: string | null; label: string };
@@ -155,6 +157,7 @@ export function PredictionManagementClient({
   const [impUserId, setImpUserId] = useState("");
   const [impMatchId, setImpMatchId] = useState("");
   const [impPick, setImpPick] = useState<"1" | "X" | "2">("1");
+  const [impPowerPickMultiplier, setImpPowerPickMultiplier] = useState<number>(-1);
   const [impFinalize, setImpFinalize] = useState(true);
   const [impEnteredAtLocal, setImpEnteredAtLocal] = useState(() => formatDatetimeLocalValue(new Date()));
   const [impBusy, setImpBusy] = useState(false);
@@ -292,7 +295,8 @@ export function PredictionManagementClient({
       impMatchId,
       impPick,
       impFinalize,
-      parsedEntered.toISOString()
+      parsedEntered.toISOString(),
+      impPowerPickMultiplier
     );
     setImpBusy(false);
     if (result.ok) {
@@ -347,7 +351,7 @@ export function PredictionManagementClient({
         <p className="mt-1 text-xs leading-relaxed text-nord-polarLight">
           Match lock time does not apply. Pick a user and match, choose <strong className="text-nord-polar">1</strong>,{" "}
           <strong className="text-nord-polar">X</strong>, or <strong className="text-nord-polar">2</strong>, then save as
-          draft or finalize. Set <strong className="text-nord-polar">Entered at</strong> to control the timestamp shown on
+          draft or finalize. Optionally attach Power Pick x3/x4/x5/x6/x10, even for started or completed matches. Set <strong className="text-nord-polar">Entered at</strong> to control the timestamp shown on
           the site (finalized time if locked, or “Saved …” for drafts). If the match already has an official result and you
           finalize, points are recalculated for that fixture and the leaderboard is refreshed.
         </p>
@@ -398,6 +402,20 @@ export function PredictionManagementClient({
                 </label>
               ))}
             </div>
+          </div>
+          <div className="flex min-w-[125px] flex-col gap-1">
+            <label className="text-xs font-medium text-nord-polar">Power Pick</label>
+            <select
+              value={impPowerPickMultiplier}
+              onChange={(e) => setImpPowerPickMultiplier(Number(e.target.value))}
+              className="rounded-lg border border-nord-polarLighter bg-white px-3 py-2 text-sm font-semibold text-nord-polar"
+            >
+              {POWER_PICK_ADMIN_OPTIONS.map((value) => (
+                <option key={value} value={value}>
+                  {value === -1 ? "Leave unchanged" : value === 0 ? "None / remove" : `x${value}`}
+                </option>
+              ))}
+            </select>
           </div>
           <label className="flex cursor-pointer items-center gap-2 text-sm text-nord-polar">
             <input

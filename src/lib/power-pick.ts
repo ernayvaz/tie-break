@@ -1,7 +1,9 @@
 import { prisma } from "@/lib/db";
 import {
-  POWER_PICK_POINTS,
+  normalizePowerPickMultiplier,
   POWER_PICK_COMPETITION_ID,
+  POWER_PICK_POINTS,
+  type PowerPickMultiplier,
 } from "@/lib/config";
 import type { PowerPickStatus } from "@prisma/client";
 
@@ -17,6 +19,8 @@ export type PowerPickMatchState = {
   matchId: string;
   /** Stored intent: the user has this match marked as a Power Pick. */
   isOn: boolean;
+  /** Points awarded for a correct boosted pick on this match. */
+  multiplier: PowerPickMultiplier;
   /** The match has passed its lock time, so the toggle can no longer change. */
   isLocked: boolean;
 };
@@ -25,6 +29,8 @@ export type PowerPickMatchState = {
 export type PowerPickBalanceSummary = {
   competitionId: string;
   totalGranted: number;
+  /** Multiplier assigned to currently available rights. Existing match selections keep their own multiplier. */
+  multiplier: PowerPickMultiplier;
   /** Rights consumed by matches that already locked with the booster ON. */
   usedLocked: number;
   /** Rights currently committed to unlocked matches (can still be freed up). */
@@ -43,9 +49,16 @@ const POINTS_NORMAL_CORRECT = 1;
 /**
  * Points a finalized prediction earns. Power Pick correct = exactly 3 (never 1 + 3).
  */
-export function pointsForPrediction(isCorrect: boolean, isPowerPick: boolean): number {
+export function pointsForPrediction(
+  isCorrect: boolean,
+  powerPickMultiplier: number | boolean | null | undefined
+): number {
   if (!isCorrect) return 0;
-  return isPowerPick ? POWER_PICK_POINTS : POINTS_NORMAL_CORRECT;
+  if (powerPickMultiplier === true) return POWER_PICK_POINTS;
+  if (typeof powerPickMultiplier === "number") {
+    return normalizePowerPickMultiplier(powerPickMultiplier);
+  }
+  return POINTS_NORMAL_CORRECT;
 }
 
 /** A match is locked for Power Pick purposes once its lock time has passed. */
@@ -56,12 +69,14 @@ function isMatchLocked(match: { lockAt: Date; isLocked: boolean }, now: Date): b
 function summarize(
   competitionId: string,
   totalGranted: number,
+  multiplier: PowerPickMultiplier,
   usedLocked: number,
   selectedUnlocked: number
 ): PowerPickBalanceSummary {
   return {
     competitionId,
     totalGranted,
+    multiplier,
     usedLocked,
     selectedUnlocked,
     remainingAvailable: Math.max(0, totalGranted - usedLocked - selectedUnlocked),
@@ -80,12 +95,13 @@ export async function getUserPowerPickState(
   const [balance, selections] = await Promise.all([
     prisma.userPowerPickBalance.findUnique({
       where: { userId_competitionId: { userId, competitionId } },
-      select: { totalGranted: true },
+      select: { totalGranted: true, multiplier: true },
     }),
     prisma.powerPickSelection.findMany({
       where: { userId, competitionId, status: { not: "revoked" } },
       select: {
         matchId: true,
+        multiplier: true,
         status: true,
         match: { select: { lockAt: true, isLocked: true } },
       },
@@ -93,6 +109,7 @@ export async function getUserPowerPickState(
   ]);
 
   const totalGranted = balance?.totalGranted ?? 0;
+  const balanceMultiplier = normalizePowerPickMultiplier(balance?.multiplier ?? POWER_PICK_POINTS);
 
   // Only a finalized prediction truly consumes a right. A selection that reaches
   // lock time while its prediction is still a draft never committed the pick, so
@@ -124,11 +141,16 @@ export async function getUserPowerPickState(
     } else {
       selectedUnlocked += 1;
     }
-    byMatchId[sel.matchId] = { matchId: sel.matchId, isOn: true, isLocked: locked };
+    byMatchId[sel.matchId] = {
+      matchId: sel.matchId,
+      isOn: true,
+      multiplier: normalizePowerPickMultiplier(sel.multiplier),
+      isLocked: locked,
+    };
   }
 
   return {
-    balance: summarize(competitionId, totalGranted, usedLocked, selectedUnlocked),
+    balance: summarize(competitionId, totalGranted, balanceMultiplier, usedLocked, selectedUnlocked),
     byMatchId,
   };
 }
@@ -140,7 +162,7 @@ export async function setUserPowerPick(
   userId: string,
   matchId: string,
   on: boolean,
-  options?: { isAdmin?: boolean }
+  options?: { isAdmin?: boolean; multiplier?: number }
 ): Promise<{ ok: true; state: PowerPickUserState } | { ok: false; error: PowerPickError }> {
   const now = new Date();
   const isAdmin = options?.isAdmin === true;
@@ -163,6 +185,10 @@ export async function setUserPowerPick(
   if (on) {
     // Already committed to this match → idempotent success.
     const alreadyActive = existing && existing.status !== "revoked";
+    const state = await getUserPowerPickState(userId, competitionId, now);
+    const multiplier = normalizePowerPickMultiplier(
+      options?.isAdmin && options.multiplier ? options.multiplier : state.balance.multiplier
+    );
     if (!alreadyActive) {
       const prediction = await prisma.prediction.findUnique({
         where: { userId_matchId: { userId, matchId } },
@@ -170,8 +196,7 @@ export async function setUserPowerPick(
       });
       if (!prediction) return { ok: false, error: "no_prediction" };
 
-      const state = await getUserPowerPickState(userId, competitionId, now);
-      if (state.balance.remainingAvailable <= 0) {
+      if (!isAdmin && state.balance.remainingAvailable <= 0) {
         return { ok: false, error: "no_rights_remaining" };
       }
 
@@ -181,14 +206,31 @@ export async function setUserPowerPick(
           userId,
           matchId,
           competitionId,
+          multiplier,
           status: "active",
           selectedAt: now,
         },
-        update: { status: "active", revokedAt: null, selectedAt: now },
+        update: { status: "active", multiplier, revokedAt: null, selectedAt: now },
+      });
+      if (isAdmin && state.balance.remainingAvailable <= 0) {
+        const minimumTotal =
+          state.balance.usedLocked + state.balance.selectedUnlocked + 1;
+        if (state.balance.totalGranted < minimumTotal) {
+          await prisma.userPowerPickBalance.upsert({
+            where: { userId_competitionId: { userId, competitionId } },
+            create: { userId, competitionId, totalGranted: minimumTotal, multiplier },
+            update: { totalGranted: minimumTotal, multiplier },
+          });
+        }
+      }
+    } else if (isAdmin && options?.multiplier) {
+      await prisma.powerPickSelection.update({
+        where: { userId_matchId: { userId, matchId } },
+        data: { multiplier },
       });
     }
   } else {
-    if (existing && existing.status === "active") {
+    if (existing && (existing.status === "active" || (isAdmin && existing.status !== "revoked"))) {
       await prisma.powerPickSelection.update({
         where: { id: existing.id },
         data: { status: "revoked", revokedAt: now },
@@ -242,22 +284,22 @@ export async function lockPowerPickSelectionsForMatch(matchId: string): Promise<
  * Map of matchId → userId set that has an effective (non-revoked) Power Pick on that match.
  * Used by scoring to award 3 points instead of 1.
  */
-export async function getPowerPickUserIdsByMatch(
+export async function getPowerPickMultipliersByMatch(
   matchIds: string[]
-): Promise<Map<string, Set<string>>> {
-  const result = new Map<string, Set<string>>();
+): Promise<Map<string, Map<string, PowerPickMultiplier>>> {
+  const result = new Map<string, Map<string, PowerPickMultiplier>>();
   if (matchIds.length === 0) return result;
   const selections = await prisma.powerPickSelection.findMany({
     where: { matchId: { in: matchIds }, status: { not: "revoked" } },
-    select: { matchId: true, userId: true },
+    select: { matchId: true, userId: true, multiplier: true },
   });
   for (const sel of selections) {
-    let set = result.get(sel.matchId);
-    if (!set) {
-      set = new Set<string>();
-      result.set(sel.matchId, set);
+    let map = result.get(sel.matchId);
+    if (!map) {
+      map = new Map<string, PowerPickMultiplier>();
+      result.set(sel.matchId, map);
     }
-    set.add(sel.userId);
+    map.set(sel.userId, normalizePowerPickMultiplier(sel.multiplier));
   }
   return result;
 }

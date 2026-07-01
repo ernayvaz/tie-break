@@ -42,6 +42,7 @@ import {
 const EMPTY_POWER_PICK_BALANCE: PowerPickBalanceSummary = {
   competitionId: WORLD_CUP_2026_COMPETITION_ID,
   totalGranted: 0,
+  multiplier: 3,
   usedLocked: 0,
   selectedUnlocked: 0,
   remainingAvailable: 0,
@@ -119,6 +120,7 @@ export type OtherPrediction = {
   selectedPrediction: string;
   finalizedAt: string;
   isPowerPick: boolean;
+  powerPickMultiplier: number | null;
 };
 
 function isSameCalendarDay(iso1: string, iso2: string): boolean {
@@ -683,6 +685,7 @@ export function ScheduleTabs({
       [matchId]: {
         matchId,
         isOn: nextOn,
+        multiplier: prev[matchId]?.multiplier ?? powerPickBalanceState.multiplier,
         isLocked: prev[matchId]?.isLocked ?? false,
       },
     }));
@@ -711,7 +714,12 @@ export function ScheduleTabs({
         setPowerPickBalanceState(result.balance);
         setLocalPowerPickByMatch((prev) => ({
           ...prev,
-          [matchId]: result.matchState ?? { matchId, isOn: false, isLocked: false },
+          [matchId]: result.matchState ?? {
+            matchId,
+            isOn: false,
+            multiplier: powerPickBalanceState.multiplier,
+            isLocked: false,
+          },
         }));
         return;
       }
@@ -1000,6 +1008,7 @@ export function ScheduleTabs({
     const powerPickFeatureOn = powerPickBalanceState.totalGranted > 0;
     const ppMatch = localPowerPickByMatch[m.id];
     const ppOn = ppMatch?.isOn ?? false;
+    const ppMultiplier = ppMatch?.multiplier ?? powerPickBalanceState.multiplier;
     const lockPassedForPP = now.getTime() >= new Date(m.lockAt).getTime();
     const ppPending = !!pendingPowerPickMatchIds[m.id];
     const hasPrediction = displaySelectionIsAllowed;
@@ -1015,8 +1024,8 @@ export function ScheduleTabs({
       ppLockedVisual ||
       (!ppOn && remainingPicks <= 0) ||
       (!ppOn && !hasPrediction);
-    let ppTitle = "Correct Power Pick x3 predictions are worth 3 points.";
-    if (ppLockedVisual) ppTitle = "Power Pick x3 is locked for this match.";
+    let ppTitle = `Correct Power Pick x${ppMultiplier} predictions are worth ${ppMultiplier} points.`;
+    if (ppLockedVisual) ppTitle = `Power Pick x${ppMultiplier} is locked for this match.`;
     else if (!ppOn && !hasPrediction) ppTitle = "Please select a prediction first.";
     else if (!ppOn && remainingPicks <= 0) ppTitle = "No Power Pick x3 picks remaining.";
 
@@ -1026,11 +1035,11 @@ export function ScheduleTabs({
           title={
             ppLockedVisual
               ? "Power Pick x3 is locked for this match."
-              : "Correct Power Pick x3 predictions are worth 3 points."
+              : `Correct Power Pick x${ppMultiplier} predictions are worth ${ppMultiplier} points.`
           }
           className="inline-flex shrink-0 items-center gap-1 rounded-full border border-amber-300/70 bg-[linear-gradient(135deg,#fde9b8,#f6c560)] px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.08em] text-[#7a4a00] shadow-[0_1px_3px_rgba(224,138,30,0.25)]"
         >
-          ★ x3
+          ★ x{ppMultiplier}
         </span>
       ) : null;
 
@@ -1041,6 +1050,7 @@ export function ScheduleTabs({
         disabled={ppDisabled}
         pending={ppPending}
         title={ppTitle}
+        multiplier={ppMultiplier}
         onToggle={() => handleTogglePowerPick(m.id, !ppOn)}
         className="mb-2"
       />
@@ -1467,10 +1477,10 @@ export function ScheduleTabs({
                         </span>
                         {o.isPowerPick ? (
                           <span
-                            title="Armed Power Pick x3 on this match"
+                            title={`Armed Power Pick x${o.powerPickMultiplier ?? 3} on this match`}
                             className="inline-flex shrink-0 items-center rounded-full border border-amber-300/70 bg-[linear-gradient(135deg,#fde9b8,#f6c560)] px-1 py-0.5 text-[8px] font-bold uppercase tracking-[0.06em] text-[#7a4a00] shadow-[0_1px_3px_rgba(224,138,30,0.25)] sm:px-1.5 sm:text-[9px] sm:tracking-[0.08em]"
                           >
-                            ★ x3
+                            ★ x{o.powerPickMultiplier ?? 3}
                           </span>
                         ) : null}
                       </div>
@@ -1733,14 +1743,14 @@ export function ScheduleTabs({
           )}
           {isWorldCupTab && powerPickBalanceState.totalGranted > 0 && (
             <div
-              title="Correct Power Pick x3 predictions are worth 3 points."
+              title={`Correct Power Pick x${powerPickBalanceState.multiplier} predictions are worth ${powerPickBalanceState.multiplier} points.`}
               className="flex w-full items-center justify-between gap-2 rounded-full border border-amber-300/60 bg-[linear-gradient(135deg,rgba(253,233,184,0.55),rgba(255,255,255,0.92))] px-3 py-1.5 shadow-[0_2px_8px_rgba(224,138,30,0.12)] sm:ml-auto sm:w-auto sm:justify-start"
             >
               <span className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.1em] text-[#7a4a00]">
                 <span className="flex h-4 w-4 items-center justify-center rounded-full bg-[linear-gradient(135deg,#f7c948,#e08a1e)] text-[9px] text-white shadow-sm">
                   ★
                 </span>
-                Power Pick x3 left
+                Power Pick x{powerPickBalanceState.multiplier} left
               </span>
               <span className="text-sm font-bold tabular-nums text-[#7a4a00]">
                 {powerPickBalanceState.remainingAvailable}/{powerPickBalanceState.totalGranted}

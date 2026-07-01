@@ -92,18 +92,19 @@ export default async function RulesPage() {
         </section>
 
         <section className="space-y-3 pt-1">
-          <h2 className={sectionTitle}>Power Pick x3</h2>
+          <h2 className={sectionTitle}>Power Pick multipliers</h2>
           <p className="text-nord-polarLight">
-            Power Pick x3 is a special booster available only in the{" "}
+            Power Pick is a special booster available only in the{" "}
             <strong className="font-semibold text-nord-polar">World Cup</strong>{" "}
-            competition. It lets you triple the value of one match prediction.
+            competition. Admins can assign x3, x4, x5, x6 or x10 rights.
           </p>
           <ul className="list-disc space-y-1.5 pl-5 text-nord-polarLight">
             <li>
               Each Power Pick applies to a{" "}
               <strong className="font-semibold text-nord-polar">single match</strong>. If that
-              boosted prediction is correct, it scores{" "}
-              <strong className="font-semibold text-nord-polar">3 points</strong> instead of 1.
+              boosted prediction is correct, it scores the assigned multiplier value
+              (for example x6 ={" "}
+              <strong className="font-semibold text-nord-polar">6 points</strong>) instead of 1.
               A wrong boosted prediction still scores 0.
             </li>
             <li>

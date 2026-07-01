@@ -10,6 +10,7 @@ type StripItem = {
   id: string;
   status: MarkerStatus;
   isPowerPick: boolean;
+  powerPickMultiplier?: number | null;
   pick?: string;
   matchLabel?: string;
   stageLabel?: string;
@@ -145,7 +146,7 @@ function PredictionTooltip({
           ) : null}
           {item.isPowerPick ? (
             <span className="inline-flex items-center gap-1 rounded-lg bg-[linear-gradient(135deg,#f7c948,#e08a1e)] px-2 py-1 text-xs font-bold text-white shadow-sm">
-              ★ x3
+              ★ x{item.powerPickMultiplier ?? 3}
             </span>
           ) : null}
           {item.scoreLabel ? (

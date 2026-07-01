@@ -145,6 +145,12 @@ function WidgetFrame({
   useScoreBatEmbedScript();
   const [loaded, setLoaded] = useState(false);
 
+  useEffect(() => {
+    setLoaded(false);
+    const timeoutId = window.setTimeout(() => setLoaded(true), 3500);
+    return () => window.clearTimeout(timeoutId);
+  }, [embedUrl]);
+
   return (
     <section className="overflow-hidden rounded-[1.4rem] border border-nord-polarLighter/12 bg-white/90 shadow-[0_18px_50px_rgba(46,52,64,0.07)]">
       <div className="flex items-center justify-between gap-3 border-b border-nord-polarLighter/12 px-4 py-3">
@@ -163,7 +169,7 @@ function WidgetFrame({
         <div className="relative w-full overflow-hidden rounded-[1rem] bg-white" style={{ minHeight: 420 }}>
           {!loaded ? (
             <div
-              className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-[linear-gradient(180deg,rgba(248,250,252,0.95),rgba(236,239,244,0.85))]"
+              className="pointer-events-none absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-[linear-gradient(180deg,rgba(248,250,252,0.86),rgba(236,239,244,0.72))]"
               aria-hidden
             >
               <span className="h-7 w-7 animate-spin rounded-full border-2 border-nord-polarLighter/40 border-t-nord-frostDark" />

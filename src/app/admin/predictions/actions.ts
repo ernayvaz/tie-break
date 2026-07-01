@@ -11,6 +11,8 @@ import {
   unfinalizePrediction,
   resetAllPredictionsUpcoming,
 } from "@/lib/predictions";
+import { setUserPowerPick } from "@/lib/power-pick";
+import { normalizePowerPickMultiplier } from "@/lib/config";
 import { isValidDisplay, type PredictionDisplay } from "@/lib/prediction-values";
 
 export type PredictionActionState = { ok: true; message?: string } | { ok: false; error: string };
@@ -91,7 +93,8 @@ export async function adminSetPredictionForUserAction(
   pick: PredictionDisplay,
   finalize: boolean,
   /** ISO 8601; omit or empty = now. Shown on site as finalized time (if final) or “entered” / created time (draft). */
-  enteredAtIso?: string | null
+  enteredAtIso?: string | null,
+  powerPickMultiplier?: number | null
 ): Promise<PredictionActionState> {
   const admin = await requireAdmin();
 
@@ -135,6 +138,12 @@ export async function adminSetPredictionForUserAction(
   const oldSummary = before
     ? `${before.selectedPrediction}/${before.isFinal ? "final" : "draft"}/pts:${before.awardedPoints}`
     : "(none)";
+  const powerPickSummary =
+    powerPickMultiplier == null || powerPickMultiplier < 0
+      ? "unchanged"
+      : powerPickMultiplier > 0
+        ? `x${normalizePowerPickMultiplier(powerPickMultiplier)}`
+        : "none";
 
   const upsert = await createOrUpdatePrediction(targetUserId, matchId, pick, {
     isAdmin: true,
@@ -150,6 +159,20 @@ export async function adminSetPredictionForUserAction(
             ? "Could not update prediction."
             : upsert.error;
     return { ok: false, error: msg };
+  }
+
+  if (powerPickMultiplier != null && powerPickMultiplier >= 0) {
+    const multiplier = Number(powerPickMultiplier);
+    if (multiplier > 0) {
+      const powerPick = await setUserPowerPick(targetUserId, matchId, true, {
+        isAdmin: true,
+        multiplier: normalizePowerPickMultiplier(multiplier),
+      });
+      if (!powerPick.ok) return { ok: false, error: `Power Pick could not be assigned: ${powerPick.error}` };
+    } else {
+      const powerPick = await setUserPowerPick(targetUserId, matchId, false, { isAdmin: true });
+      if (!powerPick.ok) return { ok: false, error: `Power Pick could not be removed: ${powerPick.error}` };
+    }
   }
 
   if (finalize) {
@@ -188,7 +211,7 @@ export async function adminSetPredictionForUserAction(
     "prediction",
     predictionRow?.id ?? `${targetUserId}:${matchId}`,
     oldSummary,
-    `${pick}/${finalize ? "final" : "draft"}/at:${effectiveEnteredAt.toISOString()}`
+    `${pick}/${finalize ? "final" : "draft"}/at:${effectiveEnteredAt.toISOString()}/pp:${powerPickSummary}`
   );
 
   revalidatePath("/admin/predictions");

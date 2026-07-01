@@ -11,6 +11,7 @@ export type LeaderboardRecentPredictionItem = {
   id: string;
   status: RecentPredictionStatus;
   isPowerPick: boolean;
+  powerPickMultiplier: number | null;
   /** The user's 1 / X / 2 pick. */
   pick: string;
   /** "Home vs Away" of the predicted match. */
@@ -189,11 +190,11 @@ export async function getLeaderboardBoardData(
             userId: { in: entryUserIds },
             status: { not: "revoked" },
           },
-          select: { userId: true, matchId: true },
+          select: { userId: true, matchId: true, multiplier: true },
         })
       : [];
-  const boostedKeys = new Set(
-    boostedSelections.map((s) => `${s.userId}:${s.matchId}`)
+  const boostedByKey = new Map(
+    boostedSelections.map((s) => [`${s.userId}:${s.matchId}`, s.multiplier])
   );
 
   // Group every finalized prediction per user (rows already arrive ordered by
@@ -217,13 +218,13 @@ export async function getLeaderboardBoardData(
             ? "correct"
             : "incorrect";
 
-      const isPowerPick = boostedKeys.has(
-        `${prediction.userId}:${prediction.matchId}`
-      );
+      const powerPickMultiplier =
+        boostedByKey.get(`${prediction.userId}:${prediction.matchId}`) ?? null;
+      const isPowerPick = powerPickMultiplier != null;
       const statusLabel =
         status === "correct"
           ? isPowerPick
-            ? "Correct (+3)"
+            ? `Correct (+${powerPickMultiplier})`
             : "Correct"
           : status === "incorrect"
             ? "Incorrect"
@@ -242,12 +243,13 @@ export async function getLeaderboardBoardData(
         prediction.match.homeScore != null && prediction.match.awayScore != null
           ? `${prediction.match.homeScore} – ${prediction.match.awayScore}`
           : null;
-      const powerPickTag = isPowerPick ? " · x3" : "";
+      const powerPickTag = isPowerPick ? ` · x${powerPickMultiplier}` : "";
       return {
         item: {
           id: prediction.id,
           status,
           isPowerPick,
+          powerPickMultiplier,
           pick,
           matchLabel,
           stageLabel,

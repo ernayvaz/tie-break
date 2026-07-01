@@ -31,6 +31,7 @@ export type ScheduleActionState =
         selectedPrediction: string;
         finalizedAt: string;
         isPowerPick: boolean;
+        powerPickMultiplier: number | null;
       }[];
     }
   | { ok: false; error: string };
@@ -114,10 +115,10 @@ export type PowerPickActionState =
 
 const powerPickErrorMessages: Record<PowerPickError, string> = {
   match_not_found: "Match not found.",
-  match_locked: "Power Pick x3 is locked for this match.",
+  match_locked: "Power Pick is locked for this match.",
   no_prediction: "Please select a prediction first.",
-  no_rights_remaining: "You have already used all available Power Pick x3 picks.",
-  not_available: "Power Pick x3 is not available for this match.",
+  no_rights_remaining: "You have already used all available Power Pick rights.",
+  not_available: "Power Pick is not available for this match.",
 };
 
 export async function togglePowerPickAction(

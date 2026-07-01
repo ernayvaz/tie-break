@@ -29,6 +29,8 @@ const ACTION_LABELS: Record<string, string> = {
   reset_next_round: "Next-round reset",
 };
 
+const POWER_PICK_MULTIPLIER_OPTIONS = [3, 4, 5, 6, 10] as const;
+
 function formatDateTime(iso: string | null): string {
   if (!iso) return "–";
   return new Date(iso).toLocaleString("en-GB", {
@@ -47,6 +49,7 @@ export function PowerPickAdminClient({ users, logs, packageSize, maxPerUser }: P
   const [grantAmount, setGrantAmount] = useState<number>(
     Math.min(maxPerUser, Math.max(1, packageSize))
   );
+  const [grantMultiplier, setGrantMultiplier] = useState<number>(3);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -169,34 +172,47 @@ export function PowerPickAdminClient({ users, logs, packageSize, maxPerUser }: P
         ))}
       </div>
 
-      {/* Amount selector */}
+      {/* Amount + multiplier selector */}
       <div className="rounded-xl border border-amber-300/50 bg-amber-50/60 p-4">
-        <label
-          htmlFor="grant-amount"
-          className="text-sm font-semibold text-nord-polar"
-        >
-          Amount to grant
-        </label>
+        <h2 className="text-sm font-semibold text-nord-polar">Allowance setup</h2>
         <p className="mt-0.5 text-xs text-nord-polarLight">
-          Choose how many Power Pick x3 rights to grant (1–{maxPerUser}). No user can exceed{" "}
-          {maxPerUser} total.
+          Choose how many Power Pick rights to grant and how strong each correct boosted pick
+          will be. Existing active/locked picks keep the multiplier they were armed with.
         </p>
         <div className="mt-3 flex flex-wrap items-center gap-3">
-          <select
-            id="grant-amount"
-            value={grantAmount}
-            onChange={(e) => setGrantAmount(Number(e.target.value))}
-            disabled={busy}
-            className="rounded-lg border border-nord-polarLighter bg-white px-3 py-2 text-sm font-semibold text-nord-polar tabular-nums focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-300/40"
-          >
-            {Array.from({ length: maxPerUser }, (_, i) => i + 1).map((n) => (
-              <option key={n} value={n}>
-                {n}
-              </option>
-            ))}
-          </select>
+          <label className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.12em] text-nord-polarLight">
+            Rights
+            <select
+              id="grant-amount"
+              value={grantAmount}
+              onChange={(e) => setGrantAmount(Number(e.target.value))}
+              disabled={busy}
+              className="rounded-lg border border-nord-polarLighter bg-white px-3 py-2 text-sm font-semibold text-nord-polar tabular-nums focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-300/40"
+            >
+              {Array.from({ length: maxPerUser }, (_, i) => i + 1).map((n) => (
+                <option key={n} value={n}>
+                  {n}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.12em] text-nord-polarLight">
+            Multiplier
+            <select
+              value={grantMultiplier}
+              onChange={(e) => setGrantMultiplier(Number(e.target.value))}
+              disabled={busy}
+              className="rounded-lg border border-nord-polarLighter bg-white px-3 py-2 text-sm font-semibold text-nord-polar tabular-nums focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-300/40"
+            >
+              {POWER_PICK_MULTIPLIER_OPTIONS.map((n) => (
+                <option key={n} value={n}>
+                  x{n}
+                </option>
+              ))}
+            </select>
+          </label>
           <span className="text-xs text-nord-polarLight">
-            right{grantAmount === 1 ? "" : "s"} per granted user
+            {grantAmount} right{grantAmount === 1 ? "" : "s"} at x{grantMultiplier} per granted user
           </span>
         </div>
       </div>
@@ -209,7 +225,7 @@ export function PowerPickAdminClient({ users, logs, packageSize, maxPerUser }: P
             <h2 className="text-sm font-semibold text-nord-polar">Start a new round</h2>
             <p className="mt-0.5 text-xs text-nord-polarLight">
               Clears each user&apos;s leftover <strong>unused</strong> rights from the previous round
-              and gives them exactly <strong>{grantAmount}</strong> fresh Power Pick x3 right
+              and gives them exactly <strong>{grantAmount}</strong> fresh Power Pick x{grantMultiplier} right
               {grantAmount === 1 ? "" : "s"} for the next round. Used (locked) picks and rights
               already armed on upcoming matches are kept untouched.
             </p>
@@ -220,7 +236,7 @@ export function PowerPickAdminClient({ users, logs, packageSize, maxPerUser }: P
             disabled={busy}
             onClick={() => setResetModal({ scope: "all_users" })}
           >
-            Reset &amp; grant {grantAmount} to all users
+            Reset &amp; grant {grantAmount} x{grantMultiplier} to all users
           </Button>
           <Button
             variant="secondary"
@@ -230,7 +246,7 @@ export function PowerPickAdminClient({ users, logs, packageSize, maxPerUser }: P
               setResetModal({ scope: "selected_users" });
             }}
           >
-            Reset &amp; grant {grantAmount} to selected
+            Reset &amp; grant {grantAmount} x{grantMultiplier} to selected
           </Button>
         </div>
       </div>
@@ -241,9 +257,9 @@ export function PowerPickAdminClient({ users, logs, packageSize, maxPerUser }: P
         <div className="mt-3 flex flex-wrap gap-2">
           <Button
             disabled={busy}
-            onClick={() => run(() => grantPowerPickAction("all_users", [], grantAmount))}
+            onClick={() => run(() => grantPowerPickAction("all_users", [], grantAmount, grantMultiplier))}
           >
-            Grant {grantAmount} to all users
+            Grant {grantAmount} x{grantMultiplier} to all users
           </Button>
           <Button
             variant="secondary"
@@ -283,10 +299,10 @@ export function PowerPickAdminClient({ users, logs, packageSize, maxPerUser }: P
             disabled={busy}
             onClick={() => {
               if (!requireSelection()) return;
-              run(() => grantPowerPickAction("selected_users", selectedIds, grantAmount));
+              run(() => grantPowerPickAction("selected_users", selectedIds, grantAmount, grantMultiplier));
             }}
           >
-            Grant {grantAmount} to selected
+            Grant {grantAmount} x{grantMultiplier} to selected
           </Button>
           <Button
             variant="secondary"
@@ -343,6 +359,7 @@ export function PowerPickAdminClient({ users, logs, packageSize, maxPerUser }: P
                   <th className="px-3 py-3 text-center font-semibold">Used / locked</th>
                   <th className="px-3 py-3 text-center font-semibold">Active (unlocked)</th>
                   <th className="px-3 py-3 text-center font-semibold">Remaining</th>
+                  <th className="px-3 py-3 text-center font-semibold">Current x</th>
                   <th className="px-3 py-3 font-semibold">Last updated</th>
                 </tr>
               </thead>
@@ -386,6 +403,11 @@ export function PowerPickAdminClient({ users, logs, packageSize, maxPerUser }: P
                         {u.remainingAvailable}
                       </span>
                     </td>
+                    <td className="px-3 py-2.5 text-center">
+                      <span className="inline-flex rounded-full border border-amber-300/60 bg-amber-50 px-2 py-0.5 text-xs font-bold text-amber-800">
+                        x{u.multiplier}
+                      </span>
+                    </td>
                     <td className="px-3 py-2.5 text-xs text-nord-polarLight">
                       {formatDateTime(u.updatedAt)}
                     </td>
@@ -403,7 +425,7 @@ export function PowerPickAdminClient({ users, logs, packageSize, maxPerUser }: P
         <div className="mt-3 overflow-x-auto rounded-lg border border-nord-polarLighter/50">
           {logs.length === 0 ? (
             <div className="px-4 py-6 text-center text-sm text-nord-polarLight">
-              No Power Pick x3 admin actions yet.
+              No Power Pick admin actions yet.
             </div>
           ) : (
             <table className="w-full text-sm">
@@ -414,6 +436,7 @@ export function PowerPickAdminClient({ users, logs, packageSize, maxPerUser }: P
                   <th className="px-3 py-3 font-semibold">Action</th>
                   <th className="px-3 py-3 font-semibold">Scope</th>
                   <th className="px-3 py-3 text-center font-semibold">Amount</th>
+                  <th className="px-3 py-3 text-center font-semibold">x</th>
                   <th className="px-3 py-3 text-center font-semibold">Users</th>
                 </tr>
               </thead>
@@ -437,6 +460,9 @@ export function PowerPickAdminClient({ users, logs, packageSize, maxPerUser }: P
                       {l.amountGranted > 0 ? `+${l.amountGranted}` : l.amountGranted}
                     </td>
                     <td className="px-3 py-2.5 text-center tabular-nums text-nord-polarLight">
+                      {l.amountGranted > 0 ? `x${l.multiplier}` : "–"}
+                    </td>
+                    <td className="px-3 py-2.5 text-center tabular-nums text-nord-polarLight">
                       {l.affectedUsers}
                     </td>
                   </tr>
@@ -452,7 +478,7 @@ export function PowerPickAdminClient({ users, logs, packageSize, maxPerUser }: P
         open={!!resetModal}
         onClose={() => !busy && setResetModal(null)}
         title="Start a new round?"
-        confirmLabel={`Yes, reset & grant ${grantAmount}`}
+        confirmLabel={`Yes, reset & grant ${grantAmount} x${grantMultiplier}`}
         cancelLabel="Cancel"
         loading={busy}
         onConfirm={() => {
@@ -463,14 +489,15 @@ export function PowerPickAdminClient({ users, logs, packageSize, maxPerUser }: P
             resetForNextRoundPowerPickAction(
               scope,
               scope === "selected_users" ? selectedIds : [],
-              grantAmount
+              grantAmount,
+              grantMultiplier
             )
           );
         }}
       >
         <p>
-          This will remove all <strong>unused</strong> Power Pick x3 rights and set exactly{" "}
-          <strong>{grantAmount}</strong> fresh right{grantAmount === 1 ? "" : "s"} for{" "}
+          This will remove all <strong>unused</strong> Power Pick rights and set exactly{" "}
+          <strong>{grantAmount}</strong> fresh x{grantMultiplier} right{grantAmount === 1 ? "" : "s"} for{" "}
           <strong>
             {resetModal?.scope === "all_users"
               ? "all users"
@@ -484,7 +511,7 @@ export function PowerPickAdminClient({ users, logs, packageSize, maxPerUser }: P
       <Modal
         open={!!forceModal}
         onClose={() => !busy && setForceModal(null)}
-        title="Force reset Power Pick x3?"
+        title="Force reset Power Pick?"
         confirmLabel="Yes, force reset"
         cancelLabel="Cancel"
         variant="danger"
@@ -502,7 +529,7 @@ export function PowerPickAdminClient({ users, logs, packageSize, maxPerUser }: P
         }}
       >
         <p>
-          This will revoke all <strong>active (unlocked)</strong> Power Pick x3 selections and
+          This will revoke all <strong>active (unlocked)</strong> Power Pick selections and
           zero out granted rights for{" "}
           <strong>
             {forceModal?.scope === "all_users"
