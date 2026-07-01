@@ -101,28 +101,6 @@ body.halisaha-app-route {
   }
 }
 
-/* Gentle golden halo around a Perfect-5 Last-5 strip. */
-@keyframes perfect-five-halo {
-  0%,
-  100% {
-    box-shadow: 0 4px 16px rgba(224, 138, 30, 0.18);
-  }
-
-  50% {
-    box-shadow: 0 6px 22px rgba(224, 138, 30, 0.34);
-  }
-}
-
-.perfect-five-glow {
-  animation: perfect-five-halo 2.6s ease-in-out infinite;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .perfect-five-glow {
-    animation: none;
-  }
-}
-
 @keyframes halisaha-swipe-cue-dot {
   0% {
     opacity: 0;

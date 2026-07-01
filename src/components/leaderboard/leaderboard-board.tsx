@@ -104,7 +104,7 @@ function VsInfoButton() {
         onClick={() => setOpen((prev) => !prev)}
         aria-expanded={open}
         aria-label="How head-to-head comparison works"
-        className={`inline-flex items-center gap-1.5 rounded-full border py-1 pl-1 pr-2.5 text-[11px] font-semibold transition-colors ${
+        className={`inline-flex items-center gap-1.5 rounded-full border py-1 pl-1 pr-2 transition-colors ${
           open
             ? "border-nord-frostDark/40 bg-nord-frostDark/[0.06] text-nord-polar"
             : "border-nord-polarLighter/40 bg-white/80 text-nord-polarLight hover:text-nord-polar"
@@ -113,8 +113,7 @@ function VsInfoButton() {
         <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[linear-gradient(135deg,#5E81AC,#4C566A)] text-[8.5px] font-black uppercase tracking-tight text-white">
           VS
         </span>
-        How it works
-        <svg viewBox="0 0 16 16" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+        <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
           <circle cx="8" cy="8" r="6.5" />
           <path d="M8 7.4v3.2M8 5.1h.01" />
         </svg>
@@ -156,6 +155,28 @@ function SelectionBadge({ order }: { order: number }) {
       aria-label={`Selected for comparison, position ${order}`}
     >
       {order}
+    </span>
+  );
+}
+
+function isPerfectFive(entry: LeaderboardBoardEntry): boolean {
+  return (
+    entry.recentPredictions.length === 5 &&
+    entry.recentPredictions.every((prediction) => prediction.status === "correct")
+  );
+}
+
+/** Golden Perfect-5 star shown next to a player's name when their Last 5 is flawless. */
+function PerfectFiveStar() {
+  return (
+    <span
+      className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[linear-gradient(135deg,#f7c948,#e08a1e)] text-white shadow-[0_2px_8px_rgba(224,138,30,0.4)] ring-1 ring-amber-200/70"
+      title="Perfect 5 — five correct in a row"
+      aria-label="Perfect 5 — five correct in a row"
+    >
+      <svg viewBox="0 0 16 16" className="h-3 w-3" fill="currentColor" aria-hidden>
+        <path d="M8 1.2l1.7 3.9 4.2.4-3.2 2.8 1 4.1L8 10.9 4.3 12.4l1-4.1L2.1 5.5l4.2-.4L8 1.2z" />
+      </svg>
     </span>
   );
 }
@@ -261,6 +282,7 @@ function LeaderboardMobileCard({
             <div className="min-w-0 truncate font-semibold text-nord-polar">
               {entry.name} {entry.surname}
             </div>
+            {!entry.isAdminRow && isPerfectFive(entry) ? <PerfectFiveStar /> : null}
             {selectionOrder != null ? <SelectionBadge order={selectionOrder} /> : null}
             {!entry.isAdminRow ? (
               <TopPlacementBadge place={entry.podiumPlace} />
@@ -541,6 +563,9 @@ export function LeaderboardBoard({
                           <span>
                             {entry.name} {entry.surname}
                           </span>
+                          {!entry.isAdminRow && isPerfectFive(entry) ? (
+                            <PerfectFiveStar />
+                          ) : null}
                           {selectionOrder != null ? (
                             <SelectionBadge order={selectionOrder} />
                           ) : null}

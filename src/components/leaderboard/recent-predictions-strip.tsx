@@ -93,19 +93,6 @@ function markerVisuals(
   };
 }
 
-function PerfectStarIcon({ className }: { className?: string }) {
-  return (
-    <svg
-      className={className}
-      viewBox="0 0 16 16"
-      fill="currentColor"
-      aria-hidden
-    >
-      <path d="M8 1.2l1.7 3.9 4.2.4-3.2 2.8 1 4.1L8 10.9 4.3 12.4l1-4.1L2.1 5.5l4.2-.4L8 1.2z" />
-    </svg>
-  );
-}
-
 function statusPillClass(status: MarkerStatus): string {
   if (status === "correct") return "bg-emerald-500/12 text-emerald-700 ring-emerald-500/25";
   if (status === "incorrect") return "bg-rose-500/10 text-rose-600 ring-rose-500/20";
@@ -220,10 +207,6 @@ export function RecentPredictionsStrip({
     ...visiblePredictions,
   ];
 
-  const isPerfectFive =
-    visiblePredictions.length === 5 &&
-    visiblePredictions.every((p) => p.status === "correct");
-
   const [active, setActive] = useState<{ item: StripItem; rect: DOMRect } | null>(null);
   const closeTimer = useRef<number | null>(null);
 
@@ -248,21 +231,9 @@ export function RecentPredictionsStrip({
 
   return (
     <div
-      className={`flex items-center gap-1.5 whitespace-nowrap ${
-        isPerfectFive
-          ? "perfect-five-glow rounded-full border border-amber-300/60 bg-[linear-gradient(135deg,rgba(247,201,72,0.2),rgba(224,138,30,0.12),rgba(255,255,255,0.35))] px-1.5 py-0.5 shadow-[0_4px_16px_rgba(224,138,30,0.22)] ring-1 ring-amber-200/50"
-          : ""
-      }`}
-      aria-label={
-        isPerfectFive
-          ? "Perfect 5 — all five recent predictions correct, newest to oldest"
-          : "Last 5 predictions, left to right from newest to oldest"
-      }
-      title={isPerfectFive ? "Perfect 5 — five correct in a row" : undefined}
+      className="flex items-center gap-1.5 whitespace-nowrap"
+      aria-label="Last 5 predictions, left to right from newest to oldest"
     >
-      {isPerfectFive ? (
-        <PerfectStarIcon className="h-3.5 w-3.5 shrink-0 animate-pulse text-amber-500 drop-shadow-[0_1px_2px_rgba(224,138,30,0.4)]" />
-      ) : null}
       {items.map((item, index) => {
         const visuals = markerVisuals(item.status, item.isPowerPick, item.powerPickMultiplier);
         const isInteractive = item.status !== "empty";
@@ -284,9 +255,6 @@ export function RecentPredictionsStrip({
           </span>
         );
       })}
-      {isPerfectFive ? (
-        <PerfectStarIcon className="h-3.5 w-3.5 shrink-0 animate-pulse text-amber-500 drop-shadow-[0_1px_2px_rgba(224,138,30,0.4)]" />
-      ) : null}
       {active ? <PredictionTooltip item={active.item} anchor={active.rect} /> : null}
     </div>
   );
