@@ -1071,6 +1071,7 @@ export function ScheduleTabs({
 
     return (
       <li
+        key={m.id}
         className={`relative bg-white/60 transition-colors hover:bg-white/80 ${
           isLive ? "ring-1 ring-rose-300/30" : ""
         }`}
@@ -1540,22 +1541,25 @@ export function ScheduleTabs({
           const sameDayAsNext = nextMatch ? isSameCalendarDay(m.matchDatetime, nextMatch.matchDatetime) : false;
           const separatorVariant = isLast ? "none" : sameDayAsNext ? "same-day" : "new-day";
 
-          return (
-            <MatchCard
-              key={m.id}
-              m={m}
-              canPredict={canPredict}
-              userPred={userPred}
-              others={others}
-              stats={stats}
-              liveState={liveState}
-              displaySelection={displaySelection}
-              isUndoing={undoingMatchId === m.id}
-              onUndo={handleUndo}
-              onOpenLive={setLiveSheetMatchId}
-              separatorVariant={separatorVariant}
-            />
-          );
+          // Rendered as a plain function call (not <MatchCard/>) so that the
+          // per-second/45s/60s re-renders of ScheduleTabs do NOT remount every card.
+          // A nested component used as JSX gets a fresh function identity each render,
+          // which forces React to unmount+remount the whole card (replaying the
+          // players'-picks fade-in and blanking Match Center). Inlining reconciles by
+          // the <li key={m.id}> instead, keeping the DOM stable.
+          return MatchCard({
+            m,
+            canPredict,
+            userPred,
+            others,
+            stats,
+            liveState,
+            displaySelection,
+            isUndoing: undoingMatchId === m.id,
+            onUndo: handleUndo,
+            onOpenLive: setLiveSheetMatchId,
+            separatorVariant,
+          });
         })}
         </ul>
       </>
@@ -1786,7 +1790,7 @@ export function ScheduleTabs({
             No matches match the selected filters.
           </div>
         ) : (
-          <MatchList list={sortedList} />
+          MatchList({ list: sortedList })
         )}
       </div>
       )}
