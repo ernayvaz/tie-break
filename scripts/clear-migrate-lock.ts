@@ -6,6 +6,8 @@
  */
 import { PrismaClient } from "@prisma/client";
 
+const PRISMA_MIGRATE_LOCK_ID = 72707369;
+
 const directUrl =
   process.env.DIRECT_DATABASE_URL || process.env.DATABASE_URL || "";
 
@@ -20,11 +22,12 @@ async function main() {
     `SELECT l.pid, l.objid, l.granted, a.state
      FROM pg_locks l
      LEFT JOIN pg_stat_activity a ON a.pid = l.pid
-     WHERE l.locktype = 'advisory'`
+     WHERE l.locktype = 'advisory'
+       AND l.objid = ${PRISMA_MIGRATE_LOCK_ID}`
   );
 
   console.log(
-    "[lock] advisory lock rows:",
+    "[lock] Prisma migrate advisory lock rows:",
     holders.map((h) => `pid=${h.pid} objid=${h.objid} granted=${h.granted} state=${h.state}`)
   );
 

@@ -20,7 +20,7 @@
     "db:generate:raw": "prisma generate",
     "db:push": "prisma db push",
     "db:migrate": "prisma migrate dev",
-    "db:migrate:deploy": "prisma migrate deploy",
+    "db:migrate:deploy": "tsx scripts/clear-migrate-lock.ts && prisma migrate deploy",
     "db:studio": "prisma studio",
     "db:seed": "tsx prisma/seed.ts",
     "db:clear-tbd": "tsx prisma/clear-tbd-predictions.ts"
