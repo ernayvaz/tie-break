@@ -174,7 +174,7 @@ function RankHistoryChart({ data }: { data: HeadToHeadData }) {
           <p className="text-[9px] leading-tight text-[#8a5a12]">
             {withPowerPick
               ? "Real ranks — Power Picks counted"
-              : "Hypothetical — as if neither used Power Picks"}
+              : "Hypothetical — as if no one used Power Picks"}
           </p>
         </div>
         <button
@@ -340,7 +340,7 @@ function RankHistoryChart({ data }: { data: HeadToHeadData }) {
       <p className="mt-1 text-center text-[9px] text-nord-polarLight">
         {withPowerPick
           ? "Tap a point to see both ranks · position after N completed matches (top = better)."
-          : "Power Picks removed for both players · tap a point to compare their would-be ranks."}
+          : "Power Picks removed league-wide · tap a point to compare their would-be ranks."}
       </p>
     </div>
   );

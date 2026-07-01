@@ -47,10 +47,9 @@ export type HeadToHeadRankPoint = {
   rankA: number | null;
   rankB: number | null;
   /**
-   * Hypothetical rank if the two compared users had NOT used Power Picks
-   * (each boosted correct pick counts as a normal 1-point pick). Every other
-   * player keeps their real points, so this isolates the effect of the two
-   * compared users' Power Picks on their standings.
+   * Hypothetical rank if NOBODY in the competition had used Power Picks — every
+   * user's boosted correct pick collapses to a normal 1-point pick. This shows
+   * where the two compared users would stand in a Power-Pick-free league.
    */
   rankANoPp: number | null;
   rankBNoPp: number | null;
@@ -129,8 +128,11 @@ export async function getHeadToHeadData(
         select: { id: true, matchDatetime: true },
         orderBy: { matchDatetime: "asc" },
       }),
+      // Every active Power Pick in this competition (all users). The "no Power
+      // Pick" scenario neutralises the whole league's boosters, so it needs the
+      // full set — not just the two compared users'.
       prisma.powerPickSelection.findMany({
-        where: { userId: { in: [userIdA, userIdB] }, status: { not: "revoked" } },
+        where: { competitionId, status: { not: "revoked" } },
         select: { userId: true, matchId: true, multiplier: true },
       }),
     ]);
@@ -139,8 +141,17 @@ export async function getHeadToHeadData(
   if (!userById.has(userIdA) || !userById.has(userIdB)) return null;
 
   const rankByUser = new Map(entries.map((e) => [e.userId, e.currentRank]));
+  // Every user's boosted (userId:matchId) keys — used to strip the whole league's
+  // Power Picks in the "no Power Pick" rank scenario.
+  const allBoostedKeys = new Set(
+    boostedSelections.map((s) => `${s.userId}:${s.matchId}`),
+  );
+  // Only the two compared users' boosters — used for their per-player stats
+  // (Power Pick hits) and Last-10 badges, which stay unchanged by the toggle.
   const boostedByKey = new Map(
-    boostedSelections.map((s) => [`${s.userId}:${s.matchId}`, s.multiplier]),
+    boostedSelections
+      .filter((s) => s.userId === userIdA || s.userId === userIdB)
+      .map((s) => [`${s.userId}:${s.matchId}`, s.multiplier]),
   );
 
   // ---- Per-match contributions (for cumulative rank history) ----
@@ -151,11 +162,11 @@ export async function getHeadToHeadData(
   const population = new Set<string>();
   for (const p of predictions) {
     population.add(p.userId);
-    // Power Pick data is only fetched for the two compared users, so only their
-    // boosted picks are neutralised in the "no Power Pick" scenario. A boosted
-    // correct pick (points > 0) becomes a normal 1-point pick; everything else
-    // (non-boosted picks, and every other player) keeps its real awarded points.
-    const isBoosted = boostedByKey.has(`${p.userId}:${p.matchId}`);
+    // "No Power Pick" scenario: strip EVERY user's boosters league-wide so the two
+    // compared users are ranked against a field where nobody used Power Picks. Any
+    // player's boosted correct pick (points > 0) collapses to a normal 1-point pick;
+    // non-boosted picks keep their real awarded points.
+    const isBoosted = allBoostedKeys.has(`${p.userId}:${p.matchId}`);
     const awardedPoints = p.awardedPoints ?? 0;
     const awardedPointsNoPp = isBoosted ? (awardedPoints > 0 ? 1 : 0) : awardedPoints;
     const list = contributionsByMatch.get(p.matchId) ?? [];
