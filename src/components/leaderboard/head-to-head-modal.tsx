@@ -450,7 +450,11 @@ export function HeadToHeadModal({
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[130] flex items-end justify-center bg-nord-polar/50 p-0 backdrop-blur-sm sm:items-center sm:p-4"
+      // Height is pinned to the DYNAMIC viewport (dvh) rather than inset-0 (which
+      // resolves to the large viewport). On mobile the browser toolbar shrinks the
+      // visible area; using dvh keeps the bottom-sheet aligned to the *visible*
+      // bottom so the header (names + close) never overflows above the screen.
+      className="fixed inset-x-0 top-0 z-[130] flex h-[100dvh] items-end justify-center bg-nord-polar/50 p-0 backdrop-blur-sm sm:items-center sm:p-4"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
@@ -458,7 +462,7 @@ export function HeadToHeadModal({
       aria-modal="true"
       aria-label="Head to head comparison"
     >
-      <div className="flex max-h-[92vh] w-full max-w-2xl flex-col overflow-hidden rounded-t-3xl border border-white/70 bg-[linear-gradient(180deg,rgba(255,255,255,0.99),rgba(241,245,252,0.97))] shadow-[0_30px_90px_rgba(46,52,64,0.3)] sm:rounded-3xl">
+      <div className="flex max-h-[92dvh] w-full max-w-2xl flex-col overflow-hidden rounded-t-3xl border border-white/70 bg-[linear-gradient(180deg,rgba(255,255,255,0.99),rgba(241,245,252,0.97))] shadow-[0_30px_90px_rgba(46,52,64,0.3)] sm:rounded-3xl">
         {/* Header */}
         <div className="relative shrink-0 overflow-hidden border-b border-nord-polarLighter/25 px-4 py-4 sm:px-6">
           <div
