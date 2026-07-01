@@ -96,6 +96,56 @@ export function IconAdmin() {
   );
 }
 
+/** Schedule tab icons — premium, content-matched, inherit currentColor. */
+const iconTab = "shrink-0 h-4 w-4";
+
+/** Upcoming matches — calendar with a forward-facing clock. */
+export function IconTabUpcoming() {
+  return (
+    <svg className={iconTab} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M21 11V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h6" />
+      <path d="M16 2v4M8 2v4M3 10h18" />
+      <circle cx="17.5" cy="16.5" r="3.5" />
+      <path d="M17.5 15v1.6l1.1 1" />
+    </svg>
+  );
+}
+
+/** Past matches — calendar with a completed check. */
+export function IconTabPast() {
+  return (
+    <svg className={iconTab} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M21 11V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h6.5" />
+      <path d="M16 2v4M8 2v4M3 10h18" />
+      <circle cx="17.5" cy="16.5" r="3.5" />
+      <path d="m16 16.6 1.1 1.1 1.9-2" />
+    </svg>
+  );
+}
+
+/** Standings — ranked table bars, tallest first. */
+export function IconTabStandings() {
+  return (
+    <svg className={iconTab} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M4 20h16" />
+      <rect x="4" y="4" width="4.5" height="16" rx="1" />
+      <rect x="10" y="8" width="4.5" height="12" rx="1" />
+      <rect x="16" y="12" width="4.5" height="8" rx="1" />
+    </svg>
+  );
+}
+
+/** Knockout — tournament bracket tree. */
+export function IconTabKnockout() {
+  return (
+    <svg className={iconTab} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M4 5h4v5H4M4 14h4v5H4" />
+      <path d="M8 7.5h3v9h3M14 12h6" />
+      <path d="M20 12l-2-2M20 12l-2 2" />
+    </svg>
+  );
+}
+
 /** Compact icons for admin sidebar links (inherits currentColor). */
 const iconSm = "shrink-0 h-[15px] w-[15px]";
 

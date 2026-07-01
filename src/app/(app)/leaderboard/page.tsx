@@ -48,7 +48,7 @@ export default async function LeaderboardPage({
         ]}
         footerNote={
           <>
-            Username is never shown. Last 5 reads left to right from oldest to newest.
+            Username is never shown. Last 5 reads left to right, from the most recently completed match to older ones.
             {data?.isAdmin && data.hasAdminRows && (
               <span className="mt-1 block text-nord-polarLight/95">
                 Admin entries are shown at the bottom for testing only; other users do not see them.

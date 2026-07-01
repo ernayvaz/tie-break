@@ -1,8 +1,14 @@
+"use client";
+
+import { useCallback, useState } from "react";
 import type {
   LeaderboardBoardData,
   LeaderboardBoardEntry,
 } from "@/lib/leaderboard";
+import type { HeadToHeadData } from "@/lib/head-to-head";
+import { getHeadToHeadAction } from "@/app/(app)/leaderboard/actions";
 import { RecentPredictionsStrip } from "./recent-predictions-strip";
+import { HeadToHeadModal } from "./head-to-head-modal";
 
 type ColumnLabels = {
   rank: string;
@@ -89,6 +95,17 @@ function TopPlacementBadge({ place }: { place?: 1 | 2 | 3 }) {
   );
 }
 
+function SelectionBadge({ order }: { order: number }) {
+  return (
+    <span
+      className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[linear-gradient(135deg,#5E81AC,#4C566A)] text-[10px] font-bold text-white shadow-[0_3px_8px_rgba(46,52,64,0.25)]"
+      aria-label={`Selected for comparison, position ${order}`}
+    >
+      {order}
+    </span>
+  );
+}
+
 function ordinalPrizeLabel(place: number): string {
   const suffix =
     place % 10 === 1 && place % 100 !== 11
@@ -156,18 +173,30 @@ function LeaderboardMobileCard({
   labels,
   highlightAccuracy,
   highlightPoints,
+  selectionOrder,
+  selectable,
+  onSelect,
 }: {
   entry: LeaderboardBoardEntry;
   labels: ColumnLabels;
   highlightAccuracy: boolean;
   highlightPoints: boolean;
+  selectionOrder: number | null;
+  selectable: boolean;
+  onSelect: (userId: string) => void;
 }) {
+  const isSelected = selectionOrder != null;
   return (
     <li
       key={`${entry.userId}-${entry.competitionId}-mobile`}
-      className={`rounded-xl border border-nord-polarLighter/35 bg-white/85 px-4 py-3 shadow-sm ${
+      onClick={selectable ? () => onSelect(entry.userId) : undefined}
+      className={`rounded-xl border bg-white/85 px-4 py-3 shadow-sm transition-shadow ${
         entry.isAdminRow ? "bg-nord-snow/80" : ""
-      }`}
+      } ${
+        isSelected
+          ? "border-nord-frostDark/60 ring-2 ring-nord-frostDark/30 shadow-[0_10px_28px_rgba(94,129,172,0.18)]"
+          : "border-nord-polarLighter/35"
+      } ${selectable ? "cursor-pointer active:scale-[0.995]" : ""}`}
     >
       <div className="flex items-start gap-3">
         <div className="min-w-0 flex-1">
@@ -178,6 +207,7 @@ function LeaderboardMobileCard({
             <div className="min-w-0 truncate font-semibold text-nord-polar">
               {entry.name} {entry.surname}
             </div>
+            {selectionOrder != null ? <SelectionBadge order={selectionOrder} /> : null}
             {!entry.isAdminRow ? (
               <TopPlacementBadge place={entry.podiumPlace} />
             ) : null}
@@ -313,6 +343,51 @@ export function LeaderboardBoard({
     entry.finalizedPredictionCount > averagePredictions &&
     entry.totalPoints === bestPoints;
 
+  const nameByUserId = new Map(
+    data.entries.map((entry) => [entry.userId, `${entry.name} ${entry.surname}`.trim()]),
+  );
+  const [selected, setSelected] = useState<string[]>([]);
+  const [h2hOpen, setH2hOpen] = useState(false);
+  const [h2hLoading, setH2hLoading] = useState(false);
+  const [h2hError, setH2hError] = useState<string | null>(null);
+  const [h2hData, setH2hData] = useState<HeadToHeadData | null>(null);
+
+  const toggleSelect = useCallback((userId: string) => {
+    setSelected((prev) => {
+      if (prev.includes(userId)) return prev.filter((id) => id !== userId);
+      if (prev.length >= 2) return [userId];
+      return [...prev, userId];
+    });
+  }, []);
+
+  const selectionOrderOf = (userId: string): number | null => {
+    const index = selected.indexOf(userId);
+    return index === -1 ? null : index + 1;
+  };
+
+  const clearSelection = useCallback(() => setSelected([]), []);
+
+  const openHeadToHead = useCallback(async () => {
+    if (selected.length !== 2) return;
+    const [a, b] = selected;
+    setH2hOpen(true);
+    setH2hLoading(true);
+    setH2hError(null);
+    setH2hData(null);
+    try {
+      const result = await getHeadToHeadAction(a, b, data.competitionId);
+      if (result.ok) {
+        setH2hData(result.data);
+      } else {
+        setH2hError(result.error);
+      }
+    } catch {
+      setH2hError("Could not load the comparison. Please try again.");
+    } finally {
+      setH2hLoading(false);
+    }
+  }, [selected, data.competitionId]);
+
   return (
     <div>
       {showAdminNotes && data.hasAdminRows ? (
@@ -347,6 +422,9 @@ export function LeaderboardBoard({
                   labels={mergedLabels}
                   highlightAccuracy={isAccuracyHighlighted(entry)}
                   highlightPoints={isPointsHighlighted(entry)}
+                  selectable={!entry.isAdminRow}
+                  selectionOrder={selectionOrderOf(entry.userId)}
+                  onSelect={toggleSelect}
                 />
               ))}
             </ul>
@@ -379,12 +457,21 @@ export function LeaderboardBoard({
                   {data.entries.map((entry) => {
                     const highlightAccuracy = isAccuracyHighlighted(entry);
                     const highlightPoints = isPointsHighlighted(entry);
+                    const selectable = !entry.isAdminRow;
+                    const selectionOrder = selectionOrderOf(entry.userId);
                     return (
                     <tr
                       key={`${entry.userId}-${entry.competitionId}`}
-                      className={`border-b border-nord-polarLighter/50 ${
+                      onClick={selectable ? () => toggleSelect(entry.userId) : undefined}
+                      className={`border-b border-nord-polarLighter/50 transition-colors ${
                         entry.isAdminRow ? "bg-nord-snow/60" : ""
-                      }`}
+                      } ${
+                        selectionOrder != null
+                          ? "bg-nord-frostDark/[0.06] ring-1 ring-inset ring-nord-frostDark/25"
+                          : selectable
+                            ? "hover:bg-nord-snow/50"
+                            : ""
+                      } ${selectable ? "cursor-pointer" : ""}`}
                     >
                       <td className="py-3 pr-4 font-medium text-nord-polar">
                         {entry.rank ?? "–"}
@@ -394,6 +481,9 @@ export function LeaderboardBoard({
                           <span>
                             {entry.name} {entry.surname}
                           </span>
+                          {selectionOrder != null ? (
+                            <SelectionBadge order={selectionOrder} />
+                          ) : null}
                           {!entry.isAdminRow ? (
                             <TopPlacementBadge place={entry.podiumPlace} />
                           ) : null}
@@ -450,9 +540,78 @@ export function LeaderboardBoard({
                 Highlighted Accuracy and Points belong to users above the average prediction count, then show the best rate and score within that active group.
               </p>
             ) : null}
+            <p className="mt-3 rounded-full border border-nord-frostDark/15 bg-nord-frostDark/[0.04] px-4 py-2 text-center text-[11px] leading-5 text-nord-frostDark">
+              Tip: tap any two players to compare them head to head.
+            </p>
           </>
         )}
       </div>
+
+      {selected.length > 0 ? (
+        <div className="pointer-events-none fixed inset-x-0 bottom-4 z-[90] flex justify-center px-4 sm:bottom-6">
+          <div className="pointer-events-auto flex items-center gap-3 rounded-full border border-white/70 bg-white/95 py-2 pl-3 pr-2 shadow-[0_18px_48px_rgba(46,52,64,0.22)] ring-1 ring-nord-polarLighter/30 backdrop-blur">
+            <button
+              type="button"
+              onClick={openHeadToHead}
+              disabled={selected.length !== 2}
+              className={`group flex items-center gap-2 rounded-full py-1 pl-1 pr-3 transition ${
+                selected.length === 2
+                  ? "cursor-pointer hover:bg-nord-snow/70"
+                  : "cursor-not-allowed opacity-70"
+              }`}
+              aria-label="Open head to head comparison"
+            >
+              <span className="flex flex-col items-center leading-tight">
+                <span className="max-w-[7rem] truncate text-[10px] font-semibold text-nord-polar">
+                  {nameByUserId.get(selected[0]) ?? "Player 1"}
+                </span>
+                <span className="text-base font-black uppercase tracking-tight text-nord-frostDark">
+                  VS
+                </span>
+                <span className="max-w-[7rem] truncate text-[10px] font-semibold text-nord-polarLight">
+                  {selected.length === 2
+                    ? nameByUserId.get(selected[1]) ?? "Player 2"
+                    : "Pick a rival"}
+                </span>
+              </span>
+              <span
+                className={`flex h-9 w-9 items-center justify-center rounded-full text-white shadow-[0_8px_20px_rgba(46,52,64,0.28)] ${
+                  selected.length === 2
+                    ? "bg-[linear-gradient(135deg,#5E81AC,#4C566A)]"
+                    : "bg-nord-polarLighter"
+                }`}
+                aria-hidden
+              >
+                <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M5 12h14M13 6l6 6-6 6" />
+                </svg>
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={clearSelection}
+              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-nord-polarLighter/40 bg-white text-nord-polarLight transition-colors hover:text-nord-polar"
+              aria-label="Clear selection"
+            >
+              <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                <path d="M4 4l8 8M12 4l-8 8" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      ) : null}
+
+      <HeadToHeadModal
+        open={h2hOpen}
+        onClose={() => setH2hOpen(false)}
+        loading={h2hLoading}
+        error={h2hError}
+        data={h2hData}
+        fallbackNames={{
+          a: nameByUserId.get(selected[0] ?? "") ?? "Player 1",
+          b: nameByUserId.get(selected[1] ?? "") ?? "Player 2",
+        }}
+      />
     </div>
   );
 }

@@ -177,6 +177,7 @@ export async function getLeaderboardBoardData(
                 homeScore: true,
                 awayScore: true,
                 stage: true,
+                matchDatetime: true,
               },
             },
           },
@@ -259,15 +260,25 @@ export async function getLeaderboardBoardData(
           label: `${matchLabel} — ${pick}${powerPickTag} · ${statusLabel} · ${finalizedLabel}`,
         } satisfies LeaderboardRecentPredictionItem,
         status,
+        // Completion time drives the Last 5 order: the most recently *played*
+        // match sits leftmost, regardless of when the prediction was finalized.
+        matchTime: prediction.match.matchDatetime.getTime(),
       };
     });
 
-    // Decided picks first (most-recent-first), then pending picks; keep 5.
-    const decided = built.filter((entry) => entry.status !== "pending");
-    const pending = built.filter((entry) => entry.status === "pending");
+    // Decided picks first (correct/incorrect), then still-pending ones. Inside
+    // each group the most recently completed match comes first (leftmost), so the
+    // strip reads newest-result → oldest-result left to right.
+    const byMatchTimeDesc = (a: { matchTime: number }, b: { matchTime: number }) =>
+      b.matchTime - a.matchTime;
+    const decided = built
+      .filter((entry) => entry.status !== "pending")
+      .sort(byMatchTimeDesc);
+    const pending = built
+      .filter((entry) => entry.status === "pending")
+      .sort(byMatchTimeDesc);
     const selected = [...decided, ...pending].slice(0, 5).map((entry) => entry.item);
 
-    // Display newest → oldest, left to right.
     recentPredictionsByUser.set(userId, selected);
   }
 

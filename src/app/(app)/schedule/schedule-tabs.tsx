@@ -26,6 +26,12 @@ import {
   WORLD_CUP_2026_COMPETITION_ID,
 } from "@/lib/config";
 import { formatStageLabel, STAGE_ORDER } from "@/lib/stages";
+import {
+  IconTabUpcoming,
+  IconTabPast,
+  IconTabStandings,
+  IconTabKnockout,
+} from "@/components/icons/nav-icons";
 import { MatchCenter, type CenterTab } from "./match-center";
 import { LiveMatchSheet } from "./live-match-sheet";
 import {
@@ -1465,7 +1471,8 @@ export function ScheduleTabs({
                 {others.map((o, i) => (
                   <li
                     key={i}
-                    className="flex items-center gap-2 rounded-lg border border-nord-polarLighter/30 bg-white/88 px-2 py-1.5 shadow-[0_4px_14px_rgba(46,52,64,0.04)] sm:gap-3 sm:rounded-xl sm:px-3 sm:py-2"
+                    className="pick-reveal-item flex items-center gap-2 rounded-lg border border-nord-polarLighter/30 bg-white/88 px-2 py-1.5 shadow-[0_4px_14px_rgba(46,52,64,0.04)] sm:gap-3 sm:rounded-xl sm:px-3 sm:py-2"
+                    style={{ animationDelay: `${Math.min(i, 12) * 0.1}s` }}
                   >
                     <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[linear-gradient(135deg,rgba(94,129,172,0.16),rgba(76,86,106,0.12))] text-[10px] font-bold text-nord-frostDark ring-1 ring-white/70 sm:h-8 sm:w-8 sm:text-[11px]">
                       {initialsOf(o.name, o.surname)}
@@ -1577,24 +1584,26 @@ export function ScheduleTabs({
         <button
           type="button"
           onClick={() => { setActiveTab("upcoming"); resetFilters(); }}
-          className={`rounded-lg px-3 py-2 text-sm font-medium transition-colors sm:rounded-none sm:px-4 sm:py-3 sm:border-b-2 sm:-mb-px ${
+          className={`inline-flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors sm:rounded-none sm:px-4 sm:py-3 sm:border-b-2 sm:-mb-px ${
             activeTab === "upcoming"
               ? "bg-white text-nord-polar shadow-sm sm:bg-transparent sm:shadow-none sm:border-nord-frostDark"
               : "text-nord-polarLight hover:text-nord-polar sm:border-transparent"
           }`}
         >
-          Upcoming matches
+          <IconTabUpcoming />
+          <span>Upcoming matches</span>
         </button>
         <button
           type="button"
           onClick={() => { setActiveTab("past"); resetFilters(); }}
-          className={`rounded-lg px-3 py-2 text-sm font-medium transition-colors sm:rounded-none sm:px-4 sm:py-3 sm:border-b-2 sm:-mb-px ${
+          className={`inline-flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors sm:rounded-none sm:px-4 sm:py-3 sm:border-b-2 sm:-mb-px ${
             activeTab === "past"
               ? "bg-white text-nord-polar shadow-sm sm:bg-transparent sm:shadow-none sm:border-nord-frostDark"
               : "text-nord-polarLight hover:text-nord-polar sm:border-transparent"
           }`}
         >
-          Past matches
+          <IconTabPast />
+          <span>Past matches</span>
         </button>
         {isWorldCupTab ? (
           <>
@@ -1604,13 +1613,14 @@ export function ScheduleTabs({
                 setActiveTab("standings");
                 resetFilters();
               }}
-              className={`rounded-lg px-3 py-2 text-sm font-medium transition-colors sm:rounded-none sm:px-4 sm:py-3 sm:border-b-2 sm:-mb-px ${
+              className={`inline-flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors sm:rounded-none sm:px-4 sm:py-3 sm:border-b-2 sm:-mb-px ${
                 activeTab === "standings"
                   ? "bg-white text-nord-polar shadow-sm sm:bg-transparent sm:shadow-none sm:border-nord-frostDark"
                   : "text-nord-polarLight hover:text-nord-polar sm:border-transparent"
               }`}
             >
-              Standings
+              <IconTabStandings />
+              <span>Standings</span>
             </button>
             <button
               type="button"
@@ -1618,13 +1628,14 @@ export function ScheduleTabs({
                 setActiveTab("knockout");
                 resetFilters();
               }}
-              className={`rounded-lg px-3 py-2 text-sm font-medium transition-colors sm:rounded-none sm:px-4 sm:py-3 sm:border-b-2 sm:-mb-px ${
+              className={`inline-flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors sm:rounded-none sm:px-4 sm:py-3 sm:border-b-2 sm:-mb-px ${
                 activeTab === "knockout"
                   ? "bg-white text-nord-polar shadow-sm sm:bg-transparent sm:shadow-none sm:border-nord-frostDark"
                   : "text-nord-polarLight hover:text-nord-polar sm:border-transparent"
               }`}
             >
-              Knockout
+              <IconTabKnockout />
+              <span>Knockout</span>
             </button>
           </>
         ) : null}
