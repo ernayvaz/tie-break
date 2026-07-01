@@ -106,22 +106,6 @@ function PerfectStarIcon({ className }: { className?: string }) {
   );
 }
 
-/**
- * Premium banner shown above a Last-5 strip when the player nailed all five of
- * their most-recent completed matches. Sits centred over the five markers.
- */
-function PerfectFiveBanner() {
-  return (
-    <div className="flex justify-center">
-      <span className="group inline-flex items-center gap-1 rounded-full border border-amber-300/60 bg-[linear-gradient(135deg,rgba(247,201,72,0.9),rgba(224,138,30,0.92))] px-2 py-[3px] text-[8.5px] font-extrabold uppercase tracking-[0.16em] text-white shadow-[0_6px_16px_rgba(224,138,30,0.32)] ring-1 ring-white/50">
-        <PerfectStarIcon className="h-2.5 w-2.5 animate-pulse text-white drop-shadow-[0_1px_1px_rgba(0,0,0,0.15)]" />
-        Perfect 5
-        <PerfectStarIcon className="h-2.5 w-2.5 animate-pulse text-white drop-shadow-[0_1px_1px_rgba(0,0,0,0.15)]" />
-      </span>
-    </div>
-  );
-}
-
 function statusPillClass(status: MarkerStatus): string {
   if (status === "correct") return "bg-emerald-500/12 text-emerald-700 ring-emerald-500/25";
   if (status === "incorrect") return "bg-rose-500/10 text-rose-600 ring-rose-500/20";
@@ -263,35 +247,47 @@ export function RecentPredictionsStrip({
   }, []);
 
   return (
-    <div className="inline-flex flex-col gap-1">
-      {isPerfectFive ? <PerfectFiveBanner /> : null}
-      <div
-        className="flex items-center gap-1.5 whitespace-nowrap"
-        aria-label="Last 5 predictions, left to right from newest to oldest"
-      >
-        {items.map((item, index) => {
-          const visuals = markerVisuals(item.status, item.isPowerPick, item.powerPickMultiplier);
-          const isInteractive = item.status !== "empty";
-          return (
-            <span
-              key={`${item.id}-${index}`}
-              className={`inline-flex h-6 w-6 items-center justify-center rounded-full ring-1 ${visuals.className} ${
-                isInteractive ? "cursor-default transition-transform hover:scale-110" : ""
-              }`}
-              tabIndex={isInteractive ? 0 : undefined}
-              aria-label={item.label}
-              title={undefined}
-              onMouseEnter={(e) => show(item, e.currentTarget)}
-              onMouseLeave={hide}
-              onFocus={(e) => show(item, e.currentTarget)}
-              onBlur={hide}
-            >
-              {visuals.content}
-            </span>
-          );
-        })}
-        {active ? <PredictionTooltip item={active.item} anchor={active.rect} /> : null}
-      </div>
+    <div
+      className={`flex items-center gap-1.5 whitespace-nowrap ${
+        isPerfectFive
+          ? "perfect-five-glow rounded-full border border-amber-300/60 bg-[linear-gradient(135deg,rgba(247,201,72,0.2),rgba(224,138,30,0.12),rgba(255,255,255,0.35))] px-1.5 py-0.5 shadow-[0_4px_16px_rgba(224,138,30,0.22)] ring-1 ring-amber-200/50"
+          : ""
+      }`}
+      aria-label={
+        isPerfectFive
+          ? "Perfect 5 — all five recent predictions correct, newest to oldest"
+          : "Last 5 predictions, left to right from newest to oldest"
+      }
+      title={isPerfectFive ? "Perfect 5 — five correct in a row" : undefined}
+    >
+      {isPerfectFive ? (
+        <PerfectStarIcon className="h-3.5 w-3.5 shrink-0 animate-pulse text-amber-500 drop-shadow-[0_1px_2px_rgba(224,138,30,0.4)]" />
+      ) : null}
+      {items.map((item, index) => {
+        const visuals = markerVisuals(item.status, item.isPowerPick, item.powerPickMultiplier);
+        const isInteractive = item.status !== "empty";
+        return (
+          <span
+            key={`${item.id}-${index}`}
+            className={`inline-flex h-6 w-6 items-center justify-center rounded-full ring-1 ${visuals.className} ${
+              isInteractive ? "cursor-default transition-transform hover:scale-110" : ""
+            }`}
+            tabIndex={isInteractive ? 0 : undefined}
+            aria-label={item.label}
+            title={undefined}
+            onMouseEnter={(e) => show(item, e.currentTarget)}
+            onMouseLeave={hide}
+            onFocus={(e) => show(item, e.currentTarget)}
+            onBlur={hide}
+          >
+            {visuals.content}
+          </span>
+        );
+      })}
+      {isPerfectFive ? (
+        <PerfectStarIcon className="h-3.5 w-3.5 shrink-0 animate-pulse text-amber-500 drop-shadow-[0_1px_2px_rgba(224,138,30,0.4)]" />
+      ) : null}
+      {active ? <PredictionTooltip item={active.item} anchor={active.rect} /> : null}
     </div>
   );
 }

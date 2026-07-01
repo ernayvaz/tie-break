@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import type {
   HeadToHeadData,
@@ -70,6 +70,9 @@ function StatRow({
 
 function RankHistoryChart({ data }: { data: HeadToHeadData }) {
   const points = data.rankHistory;
+  const [activeIndex, setActiveIndex] = useState<number | null>(
+    points.length > 0 ? points.length - 1 : null,
+  );
   if (points.length === 0) {
     return (
       <p className="rounded-xl border border-nord-polarLighter/30 bg-white/70 px-4 py-6 text-center text-xs text-nord-polarLight">
@@ -79,10 +82,10 @@ function RankHistoryChart({ data }: { data: HeadToHeadData }) {
   }
 
   const width = 340;
-  const height = 176;
-  const padLeft = 30;
-  const padRight = 14;
-  const padTop = 16;
+  const height = 188;
+  const padLeft = 34;
+  const padRight = 16;
+  const padTop = 18;
   const padBottom = 30;
   const innerW = width - padLeft - padRight;
   const innerH = height - padTop - padBottom;
@@ -101,6 +104,20 @@ function RankHistoryChart({ data }: { data: HeadToHeadData }) {
   // Lower rank number is better → placed higher (smaller y).
   const yFor = (rank: number) => padTop + ((rank - minRank) / rankSpan) * innerH;
 
+  // Evenly spaced integer rank ticks between best and worst (e.g. #1 … #6 … #11).
+  const desiredTicks = Math.min(5, maxRank - minRank + 1);
+  const tickRanks: number[] = [];
+  if (maxRank === minRank) {
+    tickRanks.push(minRank);
+  } else {
+    const step = (maxRank - minRank) / (desiredTicks - 1);
+    for (let t = 0; t < desiredTicks; t++) {
+      const value = Math.round(minRank + step * t);
+      if (!tickRanks.includes(value)) tickRanks.push(value);
+    }
+    if (!tickRanks.includes(maxRank)) tickRanks.push(maxRank);
+  }
+
   const buildPath = (key: "rankA" | "rankB") =>
     points
       .map((p, i) => {
@@ -112,6 +129,13 @@ function RankHistoryChart({ data }: { data: HeadToHeadData }) {
 
   const pathA = buildPath("rankA");
   const pathB = buildPath("rankB");
+
+  const columnLeft = (i: number) =>
+    i === 0 ? padLeft - 4 : (xFor(i - 1) + xFor(i)) / 2;
+  const columnRight = (i: number) =>
+    i === points.length - 1 ? padLeft + innerW + 4 : (xFor(i) + xFor(i + 1)) / 2;
+
+  const activePoint = activeIndex != null ? points[activeIndex] : null;
 
   return (
     <div className="rounded-2xl border border-nord-polarLighter/30 bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(244,247,252,0.92))] p-3 shadow-[0_10px_28px_rgba(46,52,64,0.05)]">
@@ -136,6 +160,28 @@ function RankHistoryChart({ data }: { data: HeadToHeadData }) {
         role="img"
         aria-label="Rank history comparison chart"
       >
+        {/* Horizontal rank gridlines + ticks */}
+        {tickRanks.map((rank) => (
+          <g key={`tick-${rank}`}>
+            <line
+              x1={padLeft}
+              y1={yFor(rank)}
+              x2={padLeft + innerW}
+              y2={yFor(rank)}
+              stroke="rgba(76,86,106,0.1)"
+              strokeWidth="1"
+            />
+            <text
+              x={padLeft - 6}
+              y={yFor(rank) + 3}
+              textAnchor="end"
+              className="fill-nord-polarLight"
+              fontSize="9"
+            >
+              #{rank}
+            </text>
+          </g>
+        ))}
         <line
           x1={padLeft}
           y1={padTop}
@@ -144,27 +190,19 @@ function RankHistoryChart({ data }: { data: HeadToHeadData }) {
           stroke="rgba(76,86,106,0.18)"
           strokeWidth="1"
         />
-        <line
-          x1={padLeft}
-          y1={padTop + innerH}
-          x2={padLeft + innerW}
-          y2={padTop + innerH}
-          stroke="rgba(76,86,106,0.18)"
-          strokeWidth="1"
-        />
-        {/* Best / worst rank guides */}
-        <text x={padLeft - 6} y={padTop + 4} textAnchor="end" className="fill-nord-polarLight" fontSize="9">
-          #{minRank}
-        </text>
-        <text
-          x={padLeft - 6}
-          y={padTop + innerH + 3}
-          textAnchor="end"
-          className="fill-nord-polarLight"
-          fontSize="9"
-        >
-          #{maxRank}
-        </text>
+
+        {/* Active guide line */}
+        {activeIndex != null ? (
+          <line
+            x1={xFor(activeIndex)}
+            y1={padTop}
+            x2={xFor(activeIndex)}
+            y2={padTop + innerH}
+            stroke="rgba(76,86,106,0.3)"
+            strokeWidth="1"
+            strokeDasharray="3 3"
+          />
+        ) : null}
 
         {pathB.length > 1 ? (
           <polyline
@@ -187,28 +225,74 @@ function RankHistoryChart({ data }: { data: HeadToHeadData }) {
           />
         ) : null}
 
-        {points.map((p, i) => (
-          <g key={`${p.label}-${i}`}>
-            {p.rankB != null ? (
-              <circle cx={xFor(i)} cy={yFor(p.rankB)} r="3.2" fill={COLOR_B} />
-            ) : null}
-            {p.rankA != null ? (
-              <circle cx={xFor(i)} cy={yFor(p.rankA)} r="3.2" fill={COLOR_A} />
-            ) : null}
-            <text
-              x={xFor(i)}
-              y={height - 10}
-              textAnchor="middle"
-              className="fill-nord-polarLight"
-              fontSize="9"
-            >
-              {p.matchIndex}
-            </text>
-          </g>
-        ))}
+        {points.map((p, i) => {
+          const isActive = i === activeIndex;
+          return (
+            <g key={`${p.label}-${i}`}>
+              {p.rankB != null ? (
+                <circle
+                  cx={xFor(i)}
+                  cy={yFor(p.rankB)}
+                  r={isActive ? 4.6 : 3.2}
+                  fill={COLOR_B}
+                  stroke="#fff"
+                  strokeWidth={isActive ? 1.4 : 0}
+                />
+              ) : null}
+              {p.rankA != null ? (
+                <circle
+                  cx={xFor(i)}
+                  cy={yFor(p.rankA)}
+                  r={isActive ? 4.6 : 3.2}
+                  fill={COLOR_A}
+                  stroke="#fff"
+                  strokeWidth={isActive ? 1.4 : 0}
+                />
+              ) : null}
+              <text
+                x={xFor(i)}
+                y={height - 10}
+                textAnchor="middle"
+                className={isActive ? "fill-nord-polar" : "fill-nord-polarLight"}
+                fontSize="9"
+                fontWeight={isActive ? 700 : 400}
+              >
+                {p.matchIndex}
+              </text>
+              {/* Wide invisible hit area for tapping this milestone. */}
+              <rect
+                x={columnLeft(i)}
+                y={padTop}
+                width={Math.max(1, columnRight(i) - columnLeft(i))}
+                height={innerH}
+                fill="transparent"
+                style={{ cursor: "pointer" }}
+                onClick={() => setActiveIndex((prev) => (prev === i ? null : i))}
+              />
+            </g>
+          );
+        })}
       </svg>
+
+      {/* Selected-point rank readout */}
+      {activePoint ? (
+        <div className="mt-1 flex items-center justify-center gap-4 rounded-lg border border-nord-polarLighter/25 bg-white/80 px-3 py-1.5 text-[11px]">
+          <span className="font-semibold text-nord-polarLight">
+            After {activePoint.matchIndex} matches
+          </span>
+          <span className="inline-flex items-center gap-1 font-semibold text-nord-polar">
+            <span className="h-2 w-2 rounded-full" style={{ background: COLOR_A }} />
+            {data.a.name}: {activePoint.rankA != null ? `#${activePoint.rankA}` : "–"}
+          </span>
+          <span className="inline-flex items-center gap-1 font-semibold text-nord-polar">
+            <span className="h-2 w-2 rounded-full" style={{ background: COLOR_B }} />
+            {data.b.name}: {activePoint.rankB != null ? `#${activePoint.rankB}` : "–"}
+          </span>
+        </div>
+      ) : null}
+
       <p className="mt-1 text-center text-[9px] text-nord-polarLight">
-        Leaderboard position after N completed matches (top = better).
+        Tap a point to see both ranks · position after N completed matches (top = better).
       </p>
     </div>
   );

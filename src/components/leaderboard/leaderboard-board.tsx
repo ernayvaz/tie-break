@@ -95,6 +95,60 @@ function TopPlacementBadge({ place }: { place?: 1 | 2 | 3 }) {
   );
 }
 
+function VsInfoButton() {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((prev) => !prev)}
+        aria-expanded={open}
+        aria-label="How head-to-head comparison works"
+        className={`inline-flex items-center gap-1.5 rounded-full border py-1 pl-1 pr-2.5 text-[11px] font-semibold transition-colors ${
+          open
+            ? "border-nord-frostDark/40 bg-nord-frostDark/[0.06] text-nord-polar"
+            : "border-nord-polarLighter/40 bg-white/80 text-nord-polarLight hover:text-nord-polar"
+        }`}
+      >
+        <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[linear-gradient(135deg,#5E81AC,#4C566A)] text-[8.5px] font-black uppercase tracking-tight text-white">
+          VS
+        </span>
+        How it works
+        <svg viewBox="0 0 16 16" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+          <circle cx="8" cy="8" r="6.5" />
+          <path d="M8 7.4v3.2M8 5.1h.01" />
+        </svg>
+      </button>
+      {open ? (
+        <>
+          <div className="fixed inset-0 z-[70]" onClick={() => setOpen(false)} aria-hidden />
+          <div className="absolute right-0 z-[80] mt-2 w-72 overflow-hidden rounded-2xl border border-white/70 bg-[linear-gradient(180deg,rgba(255,255,255,0.99),rgba(244,247,252,0.97))] p-3.5 shadow-[0_22px_60px_rgba(46,52,64,0.22)] ring-1 ring-nord-polarLighter/20">
+            <div className="flex items-center gap-2">
+              <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[linear-gradient(135deg,#5E81AC,#4C566A)] text-[10px] font-black uppercase text-white shadow-[0_6px_16px_rgba(46,52,64,0.25)]">
+                VS
+              </span>
+              <span className="text-sm font-bold text-nord-polar">Head-to-head</span>
+            </div>
+            <p className="mt-2 text-[12px] leading-5 text-nord-polarLight">
+              Compare any two players side by side. Tap one player&apos;s row, then a
+              second row — a <span className="font-semibold text-nord-polar">VS</span> button
+              appears at the bottom. Open it to see total predictions, correct calls,
+              accuracy, Power Pick hits, points, each player&apos;s last 10 results, and a
+              rank-journey chart of how their standings changed over the tournament.
+            </p>
+            <div className="mt-2.5 flex items-center gap-2 rounded-lg border border-nord-frostDark/15 bg-nord-frostDark/[0.04] px-2.5 py-1.5 text-[11px] text-nord-frostDark">
+              <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-nord-frostDark/12 text-[9px] font-bold">
+                1
+              </span>
+              Tap two players, then hit VS to compare.
+            </div>
+          </div>
+        </>
+      ) : null}
+    </div>
+  );
+}
+
 function SelectionBadge({ order }: { order: number }) {
   return (
     <span
@@ -414,6 +468,12 @@ export function LeaderboardBoard({
           </p>
         ) : (
           <>
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-nord-polarLight">
+                Rankings
+              </span>
+              <VsInfoButton />
+            </div>
             <ul className="space-y-3 sm:hidden">
               {data.entries.map((entry) => (
                 <LeaderboardMobileCard

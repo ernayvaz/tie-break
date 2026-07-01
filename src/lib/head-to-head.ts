@@ -230,6 +230,9 @@ export async function getHeadToHeadData(
     }
 
     const recent = [...own]
+      // Only decided predictions (correct/incorrect) belong in the last-10 list;
+      // not-yet-played fixtures (pending) are excluded.
+      .filter((p) => p.match.officialResultType !== null)
       .sort(
         (x, y) =>
           y.match.matchDatetime.getTime() - x.match.matchDatetime.getTime(),
