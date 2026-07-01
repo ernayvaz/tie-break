@@ -43,8 +43,17 @@ export type HeadToHeadPlayer = {
 export type HeadToHeadRankPoint = {
   label: string;
   matchIndex: number;
+  /** Rank with Power Pick bonuses applied (the real leaderboard state). */
   rankA: number | null;
   rankB: number | null;
+  /**
+   * Hypothetical rank if the two compared users had NOT used Power Picks
+   * (each boosted correct pick counts as a normal 1-point pick). Every other
+   * player keeps their real points, so this isolates the effect of the two
+   * compared users' Power Picks on their standings.
+   */
+  rankANoPp: number | null;
+  rankBNoPp: number | null;
 };
 
 export type HeadToHeadData = {
@@ -137,13 +146,20 @@ export async function getHeadToHeadData(
   // ---- Per-match contributions (for cumulative rank history) ----
   const contributionsByMatch = new Map<
     string,
-    { userId: string; awardedPoints: number }[]
+    { userId: string; awardedPoints: number; awardedPointsNoPp: number }[]
   >();
   const population = new Set<string>();
   for (const p of predictions) {
     population.add(p.userId);
+    // Power Pick data is only fetched for the two compared users, so only their
+    // boosted picks are neutralised in the "no Power Pick" scenario. A boosted
+    // correct pick (points > 0) becomes a normal 1-point pick; everything else
+    // (non-boosted picks, and every other player) keeps its real awarded points.
+    const isBoosted = boostedByKey.has(`${p.userId}:${p.matchId}`);
+    const awardedPoints = p.awardedPoints ?? 0;
+    const awardedPointsNoPp = isBoosted ? (awardedPoints > 0 ? 1 : 0) : awardedPoints;
     const list = contributionsByMatch.get(p.matchId) ?? [];
-    list.push({ userId: p.userId, awardedPoints: p.awardedPoints ?? 0 });
+    list.push({ userId: p.userId, awardedPoints, awardedPointsNoPp });
     contributionsByMatch.set(p.matchId, list);
   }
   population.add(userIdA);
@@ -152,6 +168,7 @@ export async function getHeadToHeadData(
 
   // ---- Cumulative walk over completed matches ----
   const cumPoints = new Map<string, number>();
+  const cumPointsNoPp = new Map<string, number>();
   const cumCorrect = new Map<string, number>();
   const cumFinalized = new Map<string, number>();
 
@@ -162,14 +179,17 @@ export async function getHeadToHeadData(
   const milestoneSet = new Set<number>(namedMilestones);
   if (totalCompleted > 0) milestoneSet.add(totalCompleted);
 
-  const rankAt = (userId: string): number => {
-    const myPoints = cumPoints.get(userId) ?? 0;
+  // Accuracy (correct/finalized counts) is identical across scenarios — only the
+  // points value of a boosted correct pick changes — so the same cumCorrect /
+  // cumFinalized maps feed both rankings; only the points map differs.
+  const rankAt = (userId: string, pointsMap: Map<string, number>): number => {
+    const myPoints = pointsMap.get(userId) ?? 0;
     const myFinal = cumFinalized.get(userId) ?? 0;
     const myAcc = myFinal > 0 ? (cumCorrect.get(userId) ?? 0) / myFinal : 0;
     let rank = 1;
     for (const uid of populationIds) {
       if (uid === userId) continue;
-      const points = cumPoints.get(uid) ?? 0;
+      const points = pointsMap.get(uid) ?? 0;
       const finalized = cumFinalized.get(uid) ?? 0;
       const acc = finalized > 0 ? (cumCorrect.get(uid) ?? 0) / finalized : 0;
       if (points > myPoints || (points === myPoints && acc > myAcc)) rank++;
@@ -182,6 +202,10 @@ export async function getHeadToHeadData(
     const contributions = contributionsByMatch.get(completedMatches[i].id) ?? [];
     for (const c of contributions) {
       cumPoints.set(c.userId, (cumPoints.get(c.userId) ?? 0) + c.awardedPoints);
+      cumPointsNoPp.set(
+        c.userId,
+        (cumPointsNoPp.get(c.userId) ?? 0) + c.awardedPointsNoPp,
+      );
       cumFinalized.set(c.userId, (cumFinalized.get(c.userId) ?? 0) + 1);
       if (c.awardedPoints > 0) {
         cumCorrect.set(c.userId, (cumCorrect.get(c.userId) ?? 0) + 1);
@@ -195,8 +219,10 @@ export async function getHeadToHeadData(
             ? `Now (${matchNumber})`
             : `Match ${matchNumber}`,
         matchIndex: matchNumber,
-        rankA: rankAt(userIdA),
-        rankB: rankAt(userIdB),
+        rankA: rankAt(userIdA, cumPoints),
+        rankB: rankAt(userIdB, cumPoints),
+        rankANoPp: rankAt(userIdA, cumPointsNoPp),
+        rankBNoPp: rankAt(userIdB, cumPointsNoPp),
       });
     }
   }

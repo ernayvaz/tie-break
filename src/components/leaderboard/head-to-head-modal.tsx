@@ -6,6 +6,7 @@ import type {
   HeadToHeadData,
   HeadToHeadPlayer,
   HeadToHeadPrediction,
+  HeadToHeadRankPoint,
   HeadToHeadStatus,
 } from "@/lib/head-to-head";
 
@@ -70,6 +71,10 @@ function StatRow({
 
 function RankHistoryChart({ data }: { data: HeadToHeadData }) {
   const points = data.rankHistory;
+  // Default ON: chart shows the real ranks (Power Picks counted). Toggling off
+  // shows how the two players would rank had neither used Power Picks. State lives
+  // here so it persists for as long as the modal (and this chart) stays mounted.
+  const [withPowerPick, setWithPowerPick] = useState(true);
   const [activeIndex, setActiveIndex] = useState<number | null>(
     points.length > 0 ? points.length - 1 : null,
   );
@@ -81,6 +86,11 @@ function RankHistoryChart({ data }: { data: HeadToHeadData }) {
     );
   }
 
+  const rankOf = (p: HeadToHeadRankPoint, side: "a" | "b"): number | null => {
+    if (side === "a") return withPowerPick ? p.rankA : p.rankANoPp;
+    return withPowerPick ? p.rankB : p.rankBNoPp;
+  };
+
   const width = 340;
   const height = 188;
   const padLeft = 34;
@@ -91,10 +101,10 @@ function RankHistoryChart({ data }: { data: HeadToHeadData }) {
   const innerH = height - padTop - padBottom;
 
   const rankValues = points.flatMap((p) =>
-    [p.rankA, p.rankB].filter((n): n is number => n != null),
+    [rankOf(p, "a"), rankOf(p, "b")].filter((n): n is number => n != null),
   );
-  const minRank = Math.min(...rankValues);
-  const maxRank = Math.max(...rankValues);
+  const minRank = rankValues.length > 0 ? Math.min(...rankValues) : 1;
+  const maxRank = rankValues.length > 0 ? Math.max(...rankValues) : 1;
   const rankSpan = maxRank - minRank || 1;
 
   const xFor = (index: number) =>
@@ -118,17 +128,17 @@ function RankHistoryChart({ data }: { data: HeadToHeadData }) {
     if (!tickRanks.includes(maxRank)) tickRanks.push(maxRank);
   }
 
-  const buildPath = (key: "rankA" | "rankB") =>
+  const buildPath = (side: "a" | "b") =>
     points
       .map((p, i) => {
-        const rank = p[key];
+        const rank = rankOf(p, side);
         if (rank == null) return null;
         return `${xFor(i)},${yFor(rank)}`;
       })
       .filter((v): v is string => v != null);
 
-  const pathA = buildPath("rankA");
-  const pathB = buildPath("rankB");
+  const pathA = buildPath("a");
+  const pathB = buildPath("b");
 
   const columnLeft = (i: number) =>
     i === 0 ? padLeft - 4 : (xFor(i - 1) + xFor(i)) / 2;
@@ -153,6 +163,38 @@ function RankHistoryChart({ data }: { data: HeadToHeadData }) {
             {data.b.name}
           </span>
         </div>
+      </div>
+
+      {/* Power Pick impact toggle (default ON = real ranks with Power Picks) */}
+      <div className="mb-2 flex items-center justify-between gap-2 rounded-xl border border-amber-300/40 bg-[linear-gradient(180deg,rgba(255,251,240,0.9),rgba(253,244,222,0.8))] px-3 py-1.5">
+        <div className="min-w-0">
+          <p className="flex items-center gap-1 text-[10px] font-semibold text-[#7a4a00]">
+            <span aria-hidden>★</span> Power Pick impact
+          </p>
+          <p className="text-[9px] leading-tight text-[#8a5a12]">
+            {withPowerPick
+              ? "Real ranks — Power Picks counted"
+              : "Hypothetical — as if neither used Power Picks"}
+          </p>
+        </div>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={withPowerPick}
+          aria-label="Toggle Power Pick impact on the rank chart"
+          onClick={() => setWithPowerPick((v) => !v)}
+          className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors ${
+            withPowerPick
+              ? "bg-[linear-gradient(135deg,#e08a1e,#f7c948)]"
+              : "bg-nord-polarLighter/60"
+          }`}
+        >
+          <span
+            className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
+              withPowerPick ? "translate-x-[1.15rem]" : "translate-x-0.5"
+            }`}
+          />
+        </button>
       </div>
       <svg
         viewBox={`0 0 ${width} ${height}`}
@@ -227,22 +269,24 @@ function RankHistoryChart({ data }: { data: HeadToHeadData }) {
 
         {points.map((p, i) => {
           const isActive = i === activeIndex;
+          const rA = rankOf(p, "a");
+          const rB = rankOf(p, "b");
           return (
             <g key={`${p.label}-${i}`}>
-              {p.rankB != null ? (
+              {rB != null ? (
                 <circle
                   cx={xFor(i)}
-                  cy={yFor(p.rankB)}
+                  cy={yFor(rB)}
                   r={isActive ? 4.6 : 3.2}
                   fill={COLOR_B}
                   stroke="#fff"
                   strokeWidth={isActive ? 1.4 : 0}
                 />
               ) : null}
-              {p.rankA != null ? (
+              {rA != null ? (
                 <circle
                   cx={xFor(i)}
-                  cy={yFor(p.rankA)}
+                  cy={yFor(rA)}
                   r={isActive ? 4.6 : 3.2}
                   fill={COLOR_A}
                   stroke="#fff"
@@ -282,17 +326,21 @@ function RankHistoryChart({ data }: { data: HeadToHeadData }) {
           </span>
           <span className="inline-flex items-center gap-1 font-semibold text-nord-polar">
             <span className="h-2 w-2 rounded-full" style={{ background: COLOR_A }} />
-            {data.a.name}: {activePoint.rankA != null ? `#${activePoint.rankA}` : "–"}
+            {data.a.name}:{" "}
+            {rankOf(activePoint, "a") != null ? `#${rankOf(activePoint, "a")}` : "–"}
           </span>
           <span className="inline-flex items-center gap-1 font-semibold text-nord-polar">
             <span className="h-2 w-2 rounded-full" style={{ background: COLOR_B }} />
-            {data.b.name}: {activePoint.rankB != null ? `#${activePoint.rankB}` : "–"}
+            {data.b.name}:{" "}
+            {rankOf(activePoint, "b") != null ? `#${rankOf(activePoint, "b")}` : "–"}
           </span>
         </div>
       ) : null}
 
       <p className="mt-1 text-center text-[9px] text-nord-polarLight">
-        Tap a point to see both ranks · position after N completed matches (top = better).
+        {withPowerPick
+          ? "Tap a point to see both ranks · position after N completed matches (top = better)."
+          : "Power Picks removed for both players · tap a point to compare their would-be ranks."}
       </p>
     </div>
   );
