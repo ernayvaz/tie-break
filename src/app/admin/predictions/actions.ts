@@ -12,7 +12,8 @@ import {
   resetAllPredictionsUpcoming,
 } from "@/lib/predictions";
 import { setUserPowerPick } from "@/lib/power-pick";
-import { normalizePowerPickMultiplier } from "@/lib/config";
+import { reclaimUnusedPowerPick } from "@/lib/power-pick-admin";
+import { normalizePowerPickMultiplier, POWER_PICK_COMPETITION_ID } from "@/lib/config";
 import { isValidDisplay, type PredictionDisplay } from "@/lib/prediction-values";
 
 export type PredictionActionState = { ok: true; message?: string } | { ok: false; error: string };
@@ -224,5 +225,101 @@ export async function adminSetPredictionForUserAction(
     message: finalize
       ? "Prediction saved and finalized. Leaderboard refreshed."
       : "Prediction saved as draft.",
+  };
+}
+
+/**
+ * Admin: assign or remove a Power Pick on a single user's prediction for one match.
+ * `multiplier > 0` arms the booster with that multiplier (topping up the user's
+ * balance if needed, bypassing lock); `multiplier <= 0` removes it and frees the
+ * right back into the user's available pool. World Cup matches only. If the match
+ * already has an official result the fixture is rescored, then the leaderboard is
+ * rebuilt.
+ */
+export async function adminSetMatchPowerPickAction(
+  targetUserId: string,
+  matchId: string,
+  multiplier: number
+): Promise<PredictionActionState> {
+  const admin = await requireAdmin();
+
+  const match = await prisma.match.findUnique({
+    where: { id: matchId },
+    select: { id: true, competitionId: true, officialResultType: true },
+  });
+  if (!match) return { ok: false, error: "Match not found." };
+  if ((match.competitionId ?? null) !== POWER_PICK_COMPETITION_ID) {
+    return { ok: false, error: "Power Pick applies to World Cup matches only." };
+  }
+
+  const enable = multiplier > 0;
+  if (enable) {
+    const normalized = normalizePowerPickMultiplier(multiplier);
+    const res = await setUserPowerPick(targetUserId, matchId, true, {
+      isAdmin: true,
+      multiplier: normalized,
+    });
+    if (!res.ok) {
+      const msg =
+        res.error === "no_prediction"
+          ? "User has no prediction on this match yet — set a prediction first."
+          : `Power Pick could not be assigned: ${res.error}`;
+      return { ok: false, error: msg };
+    }
+  } else {
+    const res = await setUserPowerPick(targetUserId, matchId, false, { isAdmin: true });
+    if (!res.ok) return { ok: false, error: `Power Pick could not be removed: ${res.error}` };
+  }
+
+  // Points depend on the multiplier, so rescore completed fixtures before rebuilding.
+  if (match.officialResultType !== null) {
+    await scoreMatch(matchId);
+  }
+  await rebuildLeaderboard();
+
+  await createAdminLog(
+    admin.id,
+    "admin_set_match_power_pick",
+    "prediction",
+    `${targetUserId}:${matchId}`,
+    "power_pick",
+    enable ? `x${normalizePowerPickMultiplier(multiplier)}` : "none"
+  );
+
+  revalidatePath("/admin/predictions");
+  revalidatePath("/schedule");
+  revalidatePath("/leaderboard");
+
+  return {
+    ok: true,
+    message: enable
+      ? `Power Pick x${normalizePowerPickMultiplier(multiplier)} assigned. Leaderboard refreshed.`
+      : "Power Pick removed. Right returned to the user's pool.",
+  };
+}
+
+/**
+ * Admin: reclaim `amount` of a user's *unused* Power Pick rights (from the freed-up
+ * / available pool only — committed and locked picks are never touched). Used after
+ * an admin removes a Power Pick from a match to also drop the granted right.
+ */
+export async function adminReclaimUnusedPowerPickAction(
+  targetUserId: string,
+  amount: number
+): Promise<PredictionActionState> {
+  const admin = await requireAdmin();
+  const res = await reclaimUnusedPowerPick({
+    adminUserId: admin.id,
+    userId: targetUserId,
+    amount,
+  });
+  if (!res.ok) return { ok: false, error: res.error };
+
+  revalidatePath("/admin/predictions");
+  revalidatePath("/schedule");
+
+  return {
+    ok: true,
+    message: `Reclaimed ${res.reclaimed} unused right(s). ${res.remainingAvailable} available remaining.`,
   };
 }

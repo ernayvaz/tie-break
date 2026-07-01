@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { PredictionPickDisplay } from "@/components/prediction-pick-display";
 import { Button, Card, CardContent } from "@/components/ui";
-import { COMPETITIONS, UCL_COMPETITION_ID } from "@/lib/config";
+import { COMPETITIONS, UCL_COMPETITION_ID, POWER_PICK_COMPETITION_ID } from "@/lib/config";
 import { formatStageLabel } from "@/lib/stages";
 import {
   applyAdminPredictionHistoryFilters,
@@ -22,14 +22,26 @@ import {
   adminResetUserPredictionAction,
   adminResetUserUpcomingPredictionsAction,
   adminSetPredictionForUserAction,
+  adminSetMatchPowerPickAction,
+  adminReclaimUnusedPowerPickAction,
 } from "./actions";
 
 const POWER_PICK_ADMIN_OPTIONS = [-1, 0, 3, 4, 5, 6, 10] as const;
+/** Per-row inline Power Pick selector: 0 = none/remove, then the valid multipliers. */
+const POWER_PICK_ROW_OPTIONS = [0, 3, 4, 5, 6, 10] as const;
 
 export type PredictionRow = AdminPredictionHistoryRow;
 
 export type MatchOption = { id: string; competitionId: string | null; label: string };
 export type UserOption = { id: string; label: string; username: string };
+export type PowerPickSelectionInfo = { multiplier: number; status: string };
+export type PowerPickBalanceInfo = {
+  totalGranted: number;
+  usedLocked: number;
+  selectedUnlocked: number;
+  remainingAvailable: number;
+  multiplier: number;
+};
 
 const TIMELINE_FILTERS = [
   { value: "all", label: "All matches" },
@@ -123,11 +135,15 @@ export function PredictionManagementClient({
   predictions,
   matchOptions,
   userOptions,
+  powerPickByUserMatch = {},
+  powerPickBalances = {},
   initialFilters = DEFAULT_ADMIN_PREDICTION_HISTORY_FILTERS,
 }: {
   predictions: PredictionRow[];
   matchOptions: MatchOption[];
   userOptions: UserOption[];
+  powerPickByUserMatch?: Record<string, PowerPickSelectionInfo>;
+  powerPickBalances?: Record<string, PowerPickBalanceInfo>;
   initialFilters?: AdminPredictionHistoryFilters;
 }) {
   const router = useRouter();
@@ -153,6 +169,9 @@ export function PredictionManagementClient({
   const [success, setSuccess] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [resettingUserId, setResettingUserId] = useState<string | null>(null);
+  const [ppBusyKey, setPpBusyKey] = useState<string | null>(null);
+  const [reclaimBusy, setReclaimBusy] = useState(false);
+  const [reclaimAmount, setReclaimAmount] = useState(1);
 
   const [impUserId, setImpUserId] = useState("");
   const [impMatchId, setImpMatchId] = useState("");
@@ -301,6 +320,35 @@ export function PredictionManagementClient({
     setImpBusy(false);
     if (result.ok) {
       setSuccess(result.message ?? "Saved.");
+      router.refresh();
+    } else setError(result.error);
+  };
+
+  const runSetMatchPowerPick = async (
+    userId: string,
+    matchId: string,
+    multiplier: number
+  ) => {
+    const key = `${userId}__${matchId}`;
+    setPpBusyKey(key);
+    setError(null);
+    setSuccess(null);
+    const result = await adminSetMatchPowerPickAction(userId, matchId, multiplier);
+    setPpBusyKey(null);
+    if (result.ok) {
+      setSuccess(result.message ?? "Power Pick updated.");
+      router.refresh();
+    } else setError(result.error);
+  };
+
+  const runReclaimUnused = async (userId: string, amount: number) => {
+    setReclaimBusy(true);
+    setError(null);
+    setSuccess(null);
+    const result = await adminReclaimUnusedPowerPickAction(userId, amount);
+    setReclaimBusy(false);
+    if (result.ok) {
+      setSuccess(result.message ?? "Reclaimed.");
       router.refresh();
     } else setError(result.error);
   };
@@ -483,6 +531,25 @@ export function PredictionManagementClient({
             </Link>
           </div>
         </div>
+
+        {selectedUser && powerPickBalances[selectedUser.id] ? (
+          <PowerPickReclaimPanel
+            userLabel={selectedUser.label}
+            balance={powerPickBalances[selectedUser.id]}
+            amount={reclaimAmount}
+            onAmountChange={setReclaimAmount}
+            busy={reclaimBusy}
+            onReclaim={() =>
+              runReclaimUnused(
+                selectedUser.id,
+                Math.min(
+                  reclaimAmount,
+                  powerPickBalances[selectedUser.id].remainingAvailable
+                )
+              )
+            }
+          />
+        ) : null}
 
         <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           <div className="flex flex-col gap-1">
@@ -685,6 +752,7 @@ export function PredictionManagementClient({
                 <th className="px-4 py-3 font-semibold">Prediction timeline</th>
                 <th className="px-4 py-3 font-semibold">Result detail</th>
                 <th className="px-4 py-3 font-semibold">Points</th>
+                <th className="px-4 py-3 font-semibold">Power Pick</th>
                 <th className="px-4 py-3 font-semibold text-right">Actions</th>
               </tr>
             </thead>
@@ -808,6 +876,20 @@ export function PredictionManagementClient({
                     <td className="px-4 py-3 font-medium text-nord-polar align-top">
                       {p.isFinal ? p.awardedPoints : "–"}
                     </td>
+                    <td className="px-4 py-3 align-top">
+                      <PowerPickCell
+                        isWorldCup={
+                          p.match.competitionId === POWER_PICK_COMPETITION_ID
+                        }
+                        selection={
+                          powerPickByUserMatch[`${p.userId}__${p.matchId}`] ?? null
+                        }
+                        busy={ppBusyKey === `${p.userId}__${p.matchId}`}
+                        onChange={(multiplier) =>
+                          runSetMatchPowerPick(p.userId, p.matchId, multiplier)
+                        }
+                      />
+                    </td>
                     <td className="px-4 py-3 text-right align-top">
                       <div className="flex flex-wrap justify-end gap-1">
                         {p.isFinal && (
@@ -848,5 +930,163 @@ export function PredictionManagementClient({
         )}
       </div>
     </div>
+  );
+}
+
+function powerPickStatusLabel(status: string): string {
+  if (status === "locked") return "Used";
+  if (status === "active") return "Armed";
+  return "On";
+}
+
+/** Per-row Power Pick badge + inline assign/remove selector (World Cup only). */
+function PowerPickCell({
+  isWorldCup,
+  selection,
+  busy,
+  onChange,
+}: {
+  isWorldCup: boolean;
+  selection: PowerPickSelectionInfo | null;
+  busy: boolean;
+  onChange: (multiplier: number) => void;
+}) {
+  if (!isWorldCup) {
+    return (
+      <span
+        className="text-xs text-nord-polarLight"
+        title="Power Pick applies to World Cup matches only."
+      >
+        —
+      </span>
+    );
+  }
+
+  const current = selection?.multiplier ?? 0;
+  const isLocked = selection?.status === "locked";
+
+  return (
+    <div className="flex flex-col gap-1.5">
+      {selection ? (
+        <span className="inline-flex w-fit items-center gap-1 rounded-full border border-amber-300/70 bg-[linear-gradient(135deg,#fde9b8,#f6c560)] px-2 py-0.5 text-[11px] font-bold text-[#7a4a00] shadow-[0_1px_3px_rgba(224,138,30,0.25)]">
+          ★ x{selection.multiplier}
+          <span className="font-semibold uppercase tracking-[0.06em] opacity-80">
+            · {powerPickStatusLabel(selection.status)}
+          </span>
+        </span>
+      ) : (
+        <span className="inline-flex w-fit items-center rounded-full border border-nord-polarLighter/60 bg-nord-snow/70 px-2 py-0.5 text-[11px] font-medium text-nord-polarLight">
+          No Power Pick
+        </span>
+      )}
+      <select
+        value={current}
+        disabled={busy}
+        onChange={(e) => onChange(Number(e.target.value))}
+        className="w-[7.5rem] rounded-lg border border-nord-polarLighter bg-white px-2 py-1 text-xs font-semibold text-nord-polar disabled:opacity-50"
+        aria-label="Set Power Pick multiplier"
+      >
+        {POWER_PICK_ROW_OPTIONS.map((value) => (
+          <option key={value} value={value}>
+            {value === 0 ? "None / remove" : `x${value}`}
+          </option>
+        ))}
+      </select>
+      {isLocked ? (
+        <span className="text-[10px] text-nord-polarLight">
+          Locked pick · editing rescopes points
+        </span>
+      ) : null}
+    </div>
+  );
+}
+
+/** Reclaim a focused user's unused (freed-up) Power Pick rights. */
+function PowerPickReclaimPanel({
+  userLabel,
+  balance,
+  amount,
+  onAmountChange,
+  busy,
+  onReclaim,
+}: {
+  userLabel: string;
+  balance: PowerPickBalanceInfo;
+  amount: number;
+  onAmountChange: (value: number) => void;
+  busy: boolean;
+  onReclaim: () => void;
+}) {
+  const available = balance.remainingAvailable;
+  const canReclaim = available > 0 && !busy;
+
+  return (
+    <div className="mt-4 rounded-xl border border-amber-300/50 bg-[linear-gradient(180deg,rgba(255,251,240,0.95),rgba(253,244,222,0.85))] p-4 shadow-[0_10px_26px_rgba(224,138,30,0.08)]">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+        <div>
+          <h3 className="text-sm font-semibold text-[#7a4a00]">
+            Power Pick balance · {userLabel}
+          </h3>
+          <div className="mt-2 flex flex-wrap gap-2">
+            <BalanceChip label="Granted" value={balance.totalGranted} />
+            <BalanceChip label="Used" value={balance.usedLocked} />
+            <BalanceChip label="Armed" value={balance.selectedUnlocked} />
+            <BalanceChip label="Unused" value={available} highlight />
+          </div>
+          <p className="mt-2 max-w-xl text-[11px] leading-relaxed text-[#8a5a12]">
+            Only <strong>unused</strong> rights can be reclaimed — committed picks
+            (used on locked matches and armed on open matches) are never touched.
+            Remove a Power Pick from a match above to free its right, then reclaim it
+            here.
+          </p>
+        </div>
+        <div className="flex items-end gap-2">
+          <div className="flex flex-col gap-1">
+            <label className="text-[11px] font-medium text-[#7a4a00]">Amount</label>
+            <input
+              type="number"
+              min={1}
+              max={Math.max(1, available)}
+              value={amount}
+              disabled={available === 0}
+              onChange={(e) => onAmountChange(Math.max(1, Math.floor(Number(e.target.value) || 1)))}
+              className="w-20 rounded-lg border border-amber-300/70 bg-white px-2 py-1.5 text-sm font-semibold text-nord-polar disabled:opacity-50"
+            />
+          </div>
+          <Button
+            type="button"
+            variant="primary"
+            size="sm"
+            disabled={!canReclaim}
+            onClick={onReclaim}
+          >
+            {busy ? "Reclaiming…" : "Reclaim unused"}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function BalanceChip({
+  label,
+  value,
+  highlight = false,
+}: {
+  label: string;
+  value: number;
+  highlight?: boolean;
+}) {
+  return (
+    <span
+      className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-semibold ${
+        highlight
+          ? "border-amber-400/70 bg-white text-[#7a4a00]"
+          : "border-nord-polarLighter/60 bg-white/70 text-nord-polar"
+      }`}
+    >
+      <span className="uppercase tracking-[0.08em] opacity-70">{label}</span>
+      <span className="tabular-nums">{value}</span>
+    </span>
   );
 }

@@ -308,6 +308,68 @@ export async function resetForNextRound(params: {
 }
 
 /**
+ * Reclaim a specific number of a single user's *unused* Power Pick rights.
+ *
+ * Only the available (unused) balance can ever be pulled back: rights already
+ * committed to a match — locked historical picks and active selections armed on
+ * still-unlocked matches — are always preserved. The reclaimed amount is clamped
+ * to the currently available pool, so it can never touch a right the user has
+ * actually spent or armed. This is the per-user counterpart the admin uses after
+ * removing a Power Pick from a match to also drop the freed-up right from the
+ * user's balance.
+ */
+export async function reclaimUnusedPowerPick(params: {
+  adminUserId: string;
+  userId: string;
+  amount?: number;
+  competitionId?: string;
+}): Promise<
+  | { ok: true; reclaimed: number; totalGranted: number; remainingAvailable: number }
+  | { ok: false; error: string }
+> {
+  const competitionId = params.competitionId ?? POWER_PICK_COMPETITION_ID;
+  const now = new Date();
+  const amount = Math.max(1, Math.floor(params.amount ?? 1));
+
+  const balance = await prisma.userPowerPickBalance.findUnique({
+    where: { userId_competitionId: { userId: params.userId, competitionId } },
+    select: { totalGranted: true },
+  });
+  if (!balance) return { ok: false, error: "User has no Power Pick balance yet." };
+
+  const committed = await committedByUser([params.userId], competitionId, now);
+  const c = committed.get(params.userId) ?? { locked: 0, activeUnlocked: 0 };
+  const keep = c.locked + c.activeUnlocked; // never strip committed rights
+  const available = Math.max(0, balance.totalGranted - keep);
+  const reclaimed = Math.min(amount, available);
+  if (reclaimed <= 0) {
+    return { ok: false, error: "No unused rights available to reclaim." };
+  }
+
+  const newTotal = balance.totalGranted - reclaimed;
+  await prisma.userPowerPickBalance.update({
+    where: { userId_competitionId: { userId: params.userId, competitionId } },
+    data: { totalGranted: newTotal },
+  });
+
+  await logAdminAction(
+    params.adminUserId,
+    "selected_users",
+    "remove_unused",
+    reclaimed,
+    POWER_PICK_POINTS,
+    [params.userId],
+    competitionId
+  );
+  return {
+    ok: true,
+    reclaimed,
+    totalGranted: newTotal,
+    remainingAvailable: Math.max(0, newTotal - keep),
+  };
+}
+
+/**
  * Dangerous: revoke all active (unlocked) selections and zero out granted rights.
  * Locked historical picks are kept so past scoring stays intact.
  */

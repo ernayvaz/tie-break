@@ -2,8 +2,16 @@ import { PageHeroBand } from "@/components/page-hero-band";
 import { requireAdmin } from "@/lib/auth/get-user";
 import { prisma } from "@/lib/db";
 import { sanitizeAdminPredictionHistoryFilters } from "@/lib/admin-prediction-history";
+import { getPowerPickAdminOverview } from "@/lib/power-pick-admin";
+import { POWER_PICK_COMPETITION_ID, normalizePowerPickMultiplier } from "@/lib/config";
 import { PredictionManagementClient } from "./prediction-management-client";
-import type { MatchOption, PredictionRow, UserOption } from "./prediction-management-client";
+import type {
+  MatchOption,
+  PredictionRow,
+  UserOption,
+  PowerPickBalanceInfo,
+  PowerPickSelectionInfo,
+} from "./prediction-management-client";
 
 type SearchParams = Promise<{
   league?: string;
@@ -23,7 +31,7 @@ export default async function AdminPredictionsPage({
   await requireAdmin();
   const initialFilters = sanitizeAdminPredictionHistoryFilters(await searchParams);
 
-  const [predictions, matches, users] = await Promise.all([
+  const [predictions, matches, users, powerPickOverview, powerPickSelections] = await Promise.all([
     prisma.prediction.findMany({
       orderBy: [{ match: { matchDatetime: "desc" } }, { updatedAt: "desc" }],
       include: {
@@ -59,6 +67,11 @@ export default async function AdminPredictionsPage({
     prisma.user.findMany({
       orderBy: [{ surname: "asc" }, { name: "asc" }],
       select: { id: true, name: true, surname: true, username: true },
+    }),
+    getPowerPickAdminOverview(),
+    prisma.powerPickSelection.findMany({
+      where: { competitionId: POWER_PICK_COMPETITION_ID, status: { not: "revoked" } },
+      select: { userId: true, matchId: true, multiplier: true, status: true },
     }),
   ]);
 
@@ -106,6 +119,27 @@ export default async function AdminPredictionsPage({
     username: user.username,
   }));
 
+  // Power Pick state keyed by `${userId}__${matchId}` for per-row display/controls.
+  const powerPickByUserMatch: Record<string, PowerPickSelectionInfo> = {};
+  for (const sel of powerPickSelections) {
+    powerPickByUserMatch[`${sel.userId}__${sel.matchId}`] = {
+      multiplier: normalizePowerPickMultiplier(sel.multiplier),
+      status: sel.status,
+    };
+  }
+
+  // Per-user Power Pick balance (World Cup) for the reclaim-unused control.
+  const powerPickBalances: Record<string, PowerPickBalanceInfo> = {};
+  for (const row of powerPickOverview.users) {
+    powerPickBalances[row.userId] = {
+      totalGranted: row.totalGranted,
+      usedLocked: row.usedLocked,
+      selectedUnlocked: row.selectedUnlocked,
+      remainingAvailable: row.remainingAvailable,
+      multiplier: row.multiplier,
+    };
+  }
+
   return (
     <div className="space-y-6">
       <PageHeroBand
@@ -138,6 +172,8 @@ export default async function AdminPredictionsPage({
         predictions={rows}
         matchOptions={matchOptions}
         userOptions={userOptions}
+        powerPickByUserMatch={powerPickByUserMatch}
+        powerPickBalances={powerPickBalances}
         initialFilters={initialFilters}
       />
     </div>
