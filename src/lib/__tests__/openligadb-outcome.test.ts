@@ -79,6 +79,31 @@ describe("getOpenLigaDbOutcome", () => {
     expect(out2).toEqual({ team1: 0, team2: 0, winner: "team2" });
   });
 
+  it("ignores a bogus 0-0 extra-time row when the match was decided in 90 minutes", () => {
+    // Real case: Switzerland 2-0 Algeria in 90 min, with a spurious "nach
+    // Verlängerung 0-0" row. The ET row is cumulative so it can't be lower than
+    // the 90-min score → ignore it and use 2-0 (team1 win), never a 0-0 draw.
+    const out = getOpenLigaDbOutcome(
+      match([
+        [1, "Halbzeitergebnis", 1, 0, 1],
+        [2, "Endergebnis", 2, 0, 2],
+        [4, "nach Verlängerung", 0, 0, 3],
+      ])
+    );
+    expect(out).toEqual({ team1: 2, team2: 0, winner: "team1" });
+  });
+
+  it("keeps a valid extra-time row that adds goals to the 90-minute score", () => {
+    // 1-1 after 90, 1-2 after ET (away scored in ET) → away win, scoreline 1-2.
+    const out = getOpenLigaDbOutcome(
+      match([
+        [2, "Endergebnis", 1, 1, 2],
+        [4, "nach Verlängerung", 1, 2, 3],
+      ])
+    );
+    expect(out).toEqual({ team1: 1, team2: 2, winner: "team2" });
+  });
+
   it("ignores a spurious shootout row when the match was already decided in normal time", () => {
     // Real win 2-1 with a noisy duplicate id-5 row (no actual shootout) → still team1.
     const out = getOpenLigaDbOutcome(

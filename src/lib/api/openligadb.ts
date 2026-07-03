@@ -143,6 +143,12 @@ export function resolveEnglishTeamName(team: OpenLigaDbTeam): string | null {
  *     extra time / penalties — they simply duplicate the final score (noise). A
  *     shootout is only genuine when the score was level after 90/extra time, so we
  *     only trust id 5 when the base scoreline is a draw.
+ *   - The post-extra-time score is CUMULATIVE (it includes the 90-minute goals),
+ *     so a genuine id-4 row is never lower than the 90-minute score on either
+ *     side. OpenLigaDB sometimes carries a bogus 0-0 (or otherwise smaller) id-4
+ *     row for a match that was actually decided in 90 minutes (e.g. Switzerland
+ *     2-0 Algeria showing a "nach Verlängerung 0-0"). Such rows are ignored and
+ *     the 90-minute score is used instead.
  */
 type OpenLigaDbOutcome = {
   /** Displayed goal scoreline (after extra time if played, else 90 min). */
@@ -170,12 +176,23 @@ export function getOpenLigaDbOutcome(match: OpenLigaDbMatch): OpenLigaDbOutcome 
   if (results.length === 0) return null;
 
   const byType = (id: number) => results.find((r) => r.resultTypeID === id);
-  const afterEt = readResult(byType(4));
+  const afterEtRaw = readResult(byType(4));
   const after90 = readResult(byType(2));
   const shootout = readResult(byType(5));
   const fallback = readResult(
     [...results].sort((a, b) => (b.resultOrderID ?? 0) - (a.resultOrderID ?? 0))[0]
   );
+
+  // Guard against bogus extra-time rows: a real post-ET score is cumulative and can
+  // never be lower than the 90-minute score on either side. If it is (e.g. a 0-0
+  // "nach Verlängerung" after a 2-0 in 90 minutes), treat the id-4 row as noise and
+  // ignore it so the 90-minute score wins.
+  const afterEt =
+    afterEtRaw && after90
+      ? afterEtRaw.team1 >= after90.team1 && afterEtRaw.team2 >= after90.team2
+        ? afterEtRaw
+        : null
+      : afterEtRaw;
 
   // Base scoreline: after extra time if it was played, else 90 min, else newest row.
   const base = afterEt ?? after90 ?? fallback;
