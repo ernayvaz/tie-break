@@ -1,17 +1,21 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button, Modal, Input } from "@/components/ui";
 import type {
   PowerPickAdminUserRow,
   PowerPickAdminLogRow,
+  UserPowerPickMatchRow,
 } from "@/lib/power-pick-admin";
 import {
   grantPowerPickAction,
   removeUnusedPowerPickAction,
   forceRemovePowerPickAction,
   resetForNextRoundPowerPickAction,
+  removeActivePowerPickAction,
+  getUserPowerPickMatchesAction,
+  removeUserMatchPowerPickAction,
   type PowerPickAdminActionState,
 } from "./actions";
 
@@ -27,6 +31,7 @@ const ACTION_LABELS: Record<string, string> = {
   remove_unused: "Remove unused",
   force_remove: "Force reset",
   reset_next_round: "Next-round reset",
+  remove_active: "Remove in-use",
 };
 
 const POWER_PICK_MULTIPLIER_OPTIONS = [3, 4, 5, 6, 10] as const;
@@ -40,6 +45,12 @@ function formatDateTime(iso: string | null): string {
     hour: "2-digit",
     minute: "2-digit",
   });
+}
+
+function powerPickStatusLabel(status: string, isLocked: boolean): string {
+  if (status === "locked" || isLocked) return "Locked / used";
+  if (status === "active") return "Active";
+  return status;
 }
 
 export function PowerPickAdminClient({ users, logs, packageSize, maxPerUser }: Props) {
@@ -59,6 +70,48 @@ export function PowerPickAdminClient({ users, logs, packageSize, maxPerUser }: P
   const [resetModal, setResetModal] = useState<{
     scope: "all_users" | "selected_users";
   } | null>(null);
+  // Per-user expandable Power Pick match list (madde 3).
+  const [expandedUserId, setExpandedUserId] = useState<string | null>(null);
+  const [userMatches, setUserMatches] = useState<UserPowerPickMatchRow[]>([]);
+  const [matchesLoading, setMatchesLoading] = useState(false);
+  const [matchesError, setMatchesError] = useState<string | null>(null);
+  const [removingMatchId, setRemovingMatchId] = useState<string | null>(null);
+
+  const loadUserMatches = async (userId: string) => {
+    setMatchesLoading(true);
+    setMatchesError(null);
+    setUserMatches([]);
+    const result = await getUserPowerPickMatchesAction(userId);
+    setMatchesLoading(false);
+    if (result.ok) setUserMatches(result.matches);
+    else setMatchesError(result.error);
+  };
+
+  const toggleExpandUser = (userId: string) => {
+    if (expandedUserId === userId) {
+      setExpandedUserId(null);
+      setUserMatches([]);
+      setMatchesError(null);
+      return;
+    }
+    setExpandedUserId(userId);
+    void loadUserMatches(userId);
+  };
+
+  const removeOneMatch = async (userId: string, matchId: string) => {
+    setRemovingMatchId(matchId);
+    setError(null);
+    setSuccess(null);
+    const result = await removeUserMatchPowerPickAction(userId, matchId);
+    setRemovingMatchId(null);
+    if (result.ok) {
+      setSuccess(result.message);
+      await loadUserMatches(userId);
+      router.refresh();
+    } else {
+      setError(result.error);
+    }
+  };
 
   const filteredUsers = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -269,6 +322,13 @@ export function PowerPickAdminClient({ users, logs, packageSize, maxPerUser }: P
             Remove unused from all users
           </Button>
           <Button
+            variant="secondary"
+            disabled={busy}
+            onClick={() => run(() => removeActivePowerPickAction("all_users"))}
+          >
+            Remove in-use from all users
+          </Button>
+          <Button
             variant="ghost"
             className="text-red-600 hover:text-red-700"
             disabled={busy}
@@ -313,6 +373,16 @@ export function PowerPickAdminClient({ users, logs, packageSize, maxPerUser }: P
             }}
           >
             Remove unused from selected
+          </Button>
+          <Button
+            variant="secondary"
+            disabled={busy}
+            onClick={() => {
+              if (!requireSelection()) return;
+              run(() => removeActivePowerPickAction("selected_users", selectedIds));
+            }}
+          >
+            Remove in-use from selected
           </Button>
           <Button
             variant="ghost"
@@ -364,55 +434,174 @@ export function PowerPickAdminClient({ users, logs, packageSize, maxPerUser }: P
                 </tr>
               </thead>
               <tbody>
-                {filteredUsers.map((u) => (
-                  <tr
-                    key={u.userId}
-                    className="border-b border-nord-polarLighter/30 hover:bg-nord-snow/50"
-                  >
-                    <td className="px-3 py-2.5">
-                      <input
-                        type="checkbox"
-                        checked={selected.has(u.userId)}
-                        onChange={() => toggleSelected(u.userId)}
-                        aria-label={`Select ${u.name} ${u.surname}`}
-                      />
-                    </td>
-                    <td className="px-3 py-2.5">
-                      <span className="font-medium text-nord-polar">
-                        {u.name} {u.surname}
-                      </span>
-                      <span className="block text-xs text-nord-polarLight">@{u.username}</span>
-                    </td>
-                    <td className="px-3 py-2.5 text-center tabular-nums text-nord-polar">
-                      {u.totalGranted}
-                    </td>
-                    <td className="px-3 py-2.5 text-center tabular-nums text-nord-polarLight">
-                      {u.usedLocked}
-                    </td>
-                    <td className="px-3 py-2.5 text-center tabular-nums text-nord-polarLight">
-                      {u.selectedUnlocked}
-                    </td>
-                    <td className="px-3 py-2.5 text-center">
-                      <span
-                        className={`inline-flex min-w-[1.75rem] justify-center rounded-full px-2 py-0.5 text-xs font-bold tabular-nums ${
-                          u.remainingAvailable > 0
-                            ? "bg-amber-100 text-amber-800"
-                            : "bg-nord-snow text-nord-polarLight"
+                {filteredUsers.map((u) => {
+                  const isExpanded = expandedUserId === u.userId;
+                  return (
+                    <Fragment key={u.userId}>
+                      <tr
+                        className={`border-b border-nord-polarLighter/30 hover:bg-nord-snow/50 ${
+                          isExpanded ? "bg-amber-50/35" : ""
                         }`}
                       >
-                        {u.remainingAvailable}
-                      </span>
-                    </td>
-                    <td className="px-3 py-2.5 text-center">
-                      <span className="inline-flex rounded-full border border-amber-300/60 bg-amber-50 px-2 py-0.5 text-xs font-bold text-amber-800">
-                        x{u.multiplier}
-                      </span>
-                    </td>
-                    <td className="px-3 py-2.5 text-xs text-nord-polarLight">
-                      {formatDateTime(u.updatedAt)}
-                    </td>
-                  </tr>
-                ))}
+                        <td className="px-3 py-2.5">
+                          <input
+                            type="checkbox"
+                            checked={selected.has(u.userId)}
+                            onChange={() => toggleSelected(u.userId)}
+                            aria-label={`Select ${u.name} ${u.surname}`}
+                          />
+                        </td>
+                        <td className="px-3 py-2.5">
+                          <button
+                            type="button"
+                            onClick={() => toggleExpandUser(u.userId)}
+                            className="group flex w-full items-center gap-2 text-left"
+                            aria-expanded={isExpanded}
+                          >
+                            <span
+                              className={`inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border text-[10px] transition-colors ${
+                                isExpanded
+                                  ? "border-amber-300 bg-amber-100 text-amber-800"
+                                  : "border-nord-polarLighter bg-white text-nord-polarLight group-hover:border-amber-300 group-hover:text-amber-700"
+                              }`}
+                              aria-hidden
+                            >
+                              {isExpanded ? "−" : "+"}
+                            </span>
+                            <span className="min-w-0">
+                              <span className="block font-medium text-nord-polar">
+                                {u.name} {u.surname}
+                              </span>
+                              <span className="block text-xs text-nord-polarLight">
+                                @{u.username} · click to view match picks
+                              </span>
+                            </span>
+                          </button>
+                        </td>
+                        <td className="px-3 py-2.5 text-center tabular-nums text-nord-polar">
+                          {u.totalGranted}
+                        </td>
+                        <td className="px-3 py-2.5 text-center tabular-nums text-nord-polarLight">
+                          {u.usedLocked}
+                        </td>
+                        <td className="px-3 py-2.5 text-center tabular-nums text-nord-polarLight">
+                          {u.selectedUnlocked}
+                        </td>
+                        <td className="px-3 py-2.5 text-center">
+                          <span
+                            className={`inline-flex min-w-[1.75rem] justify-center rounded-full px-2 py-0.5 text-xs font-bold tabular-nums ${
+                              u.remainingAvailable > 0
+                                ? "bg-amber-100 text-amber-800"
+                                : "bg-nord-snow text-nord-polarLight"
+                            }`}
+                          >
+                            {u.remainingAvailable}
+                          </span>
+                        </td>
+                        <td className="px-3 py-2.5 text-center">
+                          <span className="inline-flex rounded-full border border-amber-300/60 bg-amber-50 px-2 py-0.5 text-xs font-bold text-amber-800">
+                            x{u.multiplier}
+                          </span>
+                        </td>
+                        <td className="px-3 py-2.5 text-xs text-nord-polarLight">
+                          {formatDateTime(u.updatedAt)}
+                        </td>
+                      </tr>
+                      {isExpanded ? (
+                        <tr className="border-b border-amber-200/60 bg-[linear-gradient(180deg,rgba(255,251,240,0.75),rgba(255,255,255,0.92))]">
+                          <td colSpan={8} className="px-3 py-3">
+                            <div className="rounded-xl border border-amber-200/70 bg-white/85 p-3 shadow-[0_8px_22px_rgba(224,138,30,0.06)]">
+                              <div className="mb-2 flex items-center justify-between gap-3">
+                                <div>
+                                  <p className="text-xs font-semibold uppercase tracking-[0.12em] text-amber-800">
+                                    {u.name} {u.surname} · Power Pick matches
+                                  </p>
+                                  <p className="mt-0.5 text-[11px] text-nord-polarLight">
+                                    Remove an individual match pick here if it was assigned by mistake.
+                                  </p>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => void loadUserMatches(u.userId)}
+                                  disabled={matchesLoading}
+                                  className="text-xs font-medium text-nord-frostDark hover:underline disabled:opacity-50"
+                                >
+                                  Refresh
+                                </button>
+                              </div>
+
+                              {matchesLoading ? (
+                                <div className="rounded-lg border border-nord-polarLighter/40 bg-nord-snow/50 px-3 py-4 text-center text-sm text-nord-polarLight">
+                                  Loading Power Pick matches…
+                                </div>
+                              ) : matchesError ? (
+                                <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-3 text-sm text-red-800">
+                                  {matchesError}
+                                </div>
+                              ) : userMatches.length === 0 ? (
+                                <div className="rounded-lg border border-nord-polarLighter/40 bg-nord-snow/50 px-3 py-4 text-center text-sm text-nord-polarLight">
+                                  No active or locked Power Picks for this user.
+                                </div>
+                              ) : (
+                                <div className="grid gap-2 md:grid-cols-2">
+                                  {userMatches.map((match) => (
+                                    <div
+                                      key={match.matchId}
+                                      className="rounded-lg border border-nord-polarLighter/40 bg-white px-3 py-2 shadow-[0_3px_10px_rgba(46,52,64,0.03)]"
+                                    >
+                                      <div className="flex items-start justify-between gap-3">
+                                        <div className="min-w-0">
+                                          <p className="truncate text-sm font-semibold text-nord-polar">
+                                            {match.matchLabel}
+                                          </p>
+                                          <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px] text-nord-polarLight">
+                                            <span className="rounded bg-nord-frostDark/8 px-1.5 py-0.5 font-semibold text-nord-frostDark">
+                                              {match.stageLabel}
+                                            </span>
+                                            <span>{formatDateTime(match.matchDatetime)}</span>
+                                          </div>
+                                          <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                                            <span className="inline-flex rounded-full border border-amber-300/70 bg-amber-50 px-2 py-0.5 text-[11px] font-bold text-amber-800">
+                                              ★ x{match.multiplier}
+                                            </span>
+                                            <span
+                                              className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+                                                match.isLocked
+                                                  ? "bg-nord-snow text-nord-polarLight"
+                                                  : "bg-emerald-50 text-emerald-700"
+                                              }`}
+                                            >
+                                              {powerPickStatusLabel(match.status, match.isLocked)}
+                                            </span>
+                                            {match.isCompleted ? (
+                                              <span className="inline-flex rounded-full bg-blue-50 px-2 py-0.5 text-[11px] font-semibold text-blue-700">
+                                                Scored
+                                              </span>
+                                            ) : null}
+                                          </div>
+                                        </div>
+                                        <Button
+                                          type="button"
+                                          variant="ghost"
+                                          size="sm"
+                                          className="shrink-0 text-red-600 hover:text-red-700"
+                                          disabled={removingMatchId === match.matchId}
+                                          onClick={() => void removeOneMatch(u.userId, match.matchId)}
+                                        >
+                                          {removingMatchId === match.matchId ? "Removing…" : "Remove"}
+                                        </Button>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      ) : null}
+                    </Fragment>
+                  );
+                })}
               </tbody>
             </table>
           )}

@@ -7,13 +7,15 @@ import {
   POWER_PICK_POINTS,
   type PowerPickMultiplier,
 } from "@/lib/config";
+import { formatStageLabel } from "@/lib/stages";
 
 export type PowerPickAdminScope = "all_users" | "selected_users";
 export type PowerPickAdminAction =
   | "grant"
   | "remove_unused"
   | "force_remove"
-  | "reset_next_round";
+  | "reset_next_round"
+  | "remove_active";
 
 export type PowerPickAdminUserRow = {
   userId: string;
@@ -132,9 +134,16 @@ async function logAdminAction(
 }
 
 /**
- * Grant Power Pick x3 rights to the target users, adding to any existing balance.
- * The requested amount is clamped to 1..POWER_PICK_MAX_PER_USER, and no user is
- * ever pushed above POWER_PICK_MAX_PER_USER total (extra is dropped per user).
+ * Grant Power Pick rights to the target users, adding to their currently *available*
+ * (unused) balance.
+ *
+ * The cap (POWER_PICK_MAX_PER_USER) applies to how many rights a user may hold
+ * AVAILABLE at once — not to the cumulative `totalGranted` counter. `totalGranted`
+ * grows across rounds as picks get used/locked, so capping it directly (the old
+ * behaviour) meant that once a user's cumulative counter reached the cap every
+ * later grant silently did nothing — which looked like "grant only works for some
+ * users". We now compute available = totalGranted − committed (locked + armed) and
+ * top it up by `amount`, capped at the max available. Committed picks are preserved.
  */
 export async function grantPowerPick(params: {
   adminUserId: string;
@@ -148,6 +157,7 @@ export async function grantPowerPick(params: {
   | { ok: false; error: string }
 > {
   const competitionId = params.competitionId ?? POWER_PICK_COMPETITION_ID;
+  const now = new Date();
   const amount = Math.min(
     POWER_PICK_MAX_PER_USER,
     Math.max(1, Math.floor(params.amount ?? POWER_PICK_PACKAGE_SIZE))
@@ -161,16 +171,22 @@ export async function grantPowerPick(params: {
     select: { userId: true, totalGranted: true },
   });
   const grantedByUser = new Map(existing.map((b) => [b.userId, b.totalGranted]));
+  const committed = await committedByUser(targets, competitionId, now);
 
   let affected = 0;
   let skippedAtMax = 0;
   for (const userId of targets) {
     const current = grantedByUser.get(userId) ?? 0;
-    const newTotal = Math.min(POWER_PICK_MAX_PER_USER, current + amount);
-    if (newTotal <= current) {
+    const c = committed.get(userId) ?? { locked: 0, activeUnlocked: 0 };
+    const inUse = c.locked + c.activeUnlocked;
+    const available = Math.max(0, current - inUse);
+    // Cap the simultaneously-holdable available rights, then top up by `amount`.
+    const newAvailable = Math.min(POWER_PICK_MAX_PER_USER, available + amount);
+    if (newAvailable <= available) {
       skippedAtMax += 1;
       continue;
     }
+    const newTotal = inUse + newAvailable;
     await prisma.userPowerPickBalance.upsert({
       where: { userId_competitionId: { userId, competitionId } },
       create: { userId, competitionId, totalGranted: newTotal, multiplier },
@@ -410,6 +426,169 @@ export async function forceRemovePowerPick(params: {
     competitionId
   );
   return { ok: true, affected: targets.length };
+}
+
+/**
+ * Remove the currently in-use, unlocked (armed) Power Pick selections for the target
+ * users: each `active` selection is revoked and its right returned to the user's
+ * available pool. `totalGranted` is left intact (unlike force reset) so the freed
+ * rights can be re-armed on other matches. Locked historical picks stay untouched.
+ *
+ * Returns the affected match ids so the caller can rescore any that were already
+ * completed (an armed pick on a finished match affects its points).
+ */
+export async function removeActivePowerPickSelections(params: {
+  adminUserId: string;
+  scope: PowerPickAdminScope;
+  userIds?: string[];
+  competitionId?: string;
+}): Promise<
+  | { ok: true; affectedUsers: number; revokedCount: number; matchIds: string[] }
+  | { ok: false; error: string }
+> {
+  const competitionId = params.competitionId ?? POWER_PICK_COMPETITION_ID;
+  const now = new Date();
+  const targets = await resolveTargetUserIds(params.scope, params.userIds);
+  if (targets.length === 0) return { ok: false, error: "No eligible users selected." };
+
+  const active = await prisma.powerPickSelection.findMany({
+    where: {
+      userId: { in: targets },
+      competitionId,
+      status: "active",
+      // Match the table's "Active (unlocked)" concept exactly: remove only picks
+      // that are still armed on not-yet-locked matches. Historical/locked picks can
+      // still be removed one-by-one from the expanded user match list.
+      match: { isLocked: false, lockAt: { gt: now } },
+    },
+    select: { id: true, userId: true, matchId: true },
+  });
+  if (active.length === 0) {
+    return { ok: true, affectedUsers: 0, revokedCount: 0, matchIds: [] };
+  }
+
+  await prisma.powerPickSelection.updateMany({
+    where: { id: { in: active.map((a) => a.id) } },
+    data: { status: "revoked", revokedAt: now },
+  });
+
+  const affectedUserIds = [...new Set(active.map((a) => a.userId))];
+  const matchIds = [...new Set(active.map((a) => a.matchId))];
+
+  await logAdminAction(
+    params.adminUserId,
+    params.scope,
+    "remove_active",
+    0,
+    POWER_PICK_POINTS,
+    affectedUserIds,
+    competitionId
+  );
+  return {
+    ok: true,
+    affectedUsers: affectedUserIds.length,
+    revokedCount: active.length,
+    matchIds,
+  };
+}
+
+export type UserPowerPickMatchRow = {
+  matchId: string;
+  matchLabel: string;
+  stageLabel: string;
+  matchDatetime: string;
+  multiplier: PowerPickMultiplier;
+  status: string;
+  /** Effective lock state (past lock time or explicitly locked). */
+  isLocked: boolean;
+  /** Match has an official result (points already scored). */
+  isCompleted: boolean;
+};
+
+/** List every non-revoked Power Pick a single user has on matches (newest first). */
+export async function listUserPowerPickMatches(
+  userId: string,
+  competitionId: string = POWER_PICK_COMPETITION_ID
+): Promise<UserPowerPickMatchRow[]> {
+  const now = new Date();
+  const selections = await prisma.powerPickSelection.findMany({
+    where: { userId, competitionId, status: { not: "revoked" } },
+    select: {
+      matchId: true,
+      multiplier: true,
+      status: true,
+      match: {
+        select: {
+          homeTeamName: true,
+          awayTeamName: true,
+          stage: true,
+          matchDatetime: true,
+          lockAt: true,
+          isLocked: true,
+          officialResultType: true,
+        },
+      },
+    },
+    orderBy: { match: { matchDatetime: "desc" } },
+  });
+
+  return selections.map((s) => ({
+    matchId: s.matchId,
+    matchLabel: `${s.match.homeTeamName} vs ${s.match.awayTeamName}`,
+    stageLabel: formatStageLabel(s.match.stage),
+    matchDatetime: s.match.matchDatetime.toISOString(),
+    multiplier: normalizePowerPickMultiplier(s.multiplier),
+    status: s.status,
+    isLocked: s.match.isLocked || now >= s.match.lockAt,
+    isCompleted: s.match.officialResultType !== null,
+  }));
+}
+
+/**
+ * Remove one user's Power Pick from a single match (revoke the selection and return
+ * the right to their pool). Returns whether that match was already completed so the
+ * caller can rescore it. Works regardless of lock/finished state (admin override).
+ */
+export async function removeUserMatchPowerPick(params: {
+  adminUserId: string;
+  userId: string;
+  matchId: string;
+  competitionId?: string;
+}): Promise<
+  | { ok: true; wasCompleted: boolean }
+  | { ok: false; error: string }
+> {
+  const competitionId = params.competitionId ?? POWER_PICK_COMPETITION_ID;
+  const now = new Date();
+
+  const selection = await prisma.powerPickSelection.findUnique({
+    where: { userId_matchId: { userId: params.userId, matchId: params.matchId } },
+    select: {
+      id: true,
+      status: true,
+      match: { select: { officialResultType: true } },
+    },
+  });
+  if (!selection || selection.status === "revoked") {
+    return { ok: false, error: "No active Power Pick on this match for that user." };
+  }
+
+  await prisma.powerPickSelection.update({
+    where: { id: selection.id },
+    data: { status: "revoked", revokedAt: now },
+  });
+
+  await logAdminAction(
+    params.adminUserId,
+    "selected_users",
+    "remove_active",
+    0,
+    POWER_PICK_POINTS,
+    [params.userId],
+    competitionId
+  );
+
+  return { ok: true, wasCompleted: selection.match.officialResultType !== null };
 }
 
 /** Admin overview: every approved player with their derived Power Pick counts, plus recent logs. */
