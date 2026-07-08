@@ -47,7 +47,7 @@ export type ScheduleResetActionState =
 
 const predictionErrorMessages: Record<PredictionError | "match_has_result" | "undo_not_allowed", string> = {
   match_locked: "Predictions are locked for this match.",
-  invalid_prediction: "Draw (X) is not available for World Cup knockout matches.",
+  invalid_prediction: "That prediction option is not available. Pick 1, 2, BTTS Yes or BTTS No.",
   match_not_found: "Match not found.",
   already_finalized: "You have already finalized your prediction.",
   match_has_result: "Cannot undo after the match result is in.",

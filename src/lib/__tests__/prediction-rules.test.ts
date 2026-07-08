@@ -3,19 +3,10 @@ import { WORLD_CUP_2026_COMPETITION_ID, UCL_COMPETITION_ID } from "@/lib/config"
 import { isPredictionValueAllowedForMatch } from "@/lib/predictions";
 
 describe("prediction availability rules", () => {
-  it("allows X in World Cup group-stage matches", () => {
+  it("removes X (draw) as a pick everywhere", () => {
     expect(
       isPredictionValueAllowedForMatch(
         { competitionId: WORLD_CUP_2026_COMPETITION_ID, stage: "GROUP_STAGE" },
-        "X"
-      )
-    ).toBe(true);
-  });
-
-  it("removes X from World Cup knockout matches", () => {
-    expect(
-      isPredictionValueAllowedForMatch(
-        { competitionId: WORLD_CUP_2026_COMPETITION_ID, stage: "LAST_32" },
         "X"
       )
     ).toBe(false);
@@ -25,20 +16,30 @@ describe("prediction availability rules", () => {
         "X"
       )
     ).toBe(false);
-  });
-
-  it("keeps 1 and 2 available for World Cup knockout matches", () => {
-    const match = { competitionId: WORLD_CUP_2026_COMPETITION_ID, stage: "ROUND_16" };
-    expect(isPredictionValueAllowedForMatch(match, "1")).toBe(true);
-    expect(isPredictionValueAllowedForMatch(match, "2")).toBe(true);
-  });
-
-  it("does not affect non-World-Cup competitions", () => {
     expect(
       isPredictionValueAllowedForMatch(
-        { competitionId: UCL_COMPETITION_ID, stage: "FINAL" },
+        { competitionId: UCL_COMPETITION_ID, stage: "GROUP_STAGE" },
         "X"
       )
-    ).toBe(true);
+    ).toBe(false);
+  });
+
+  it("keeps 1 and 2 available for all matches", () => {
+    const wc = { competitionId: WORLD_CUP_2026_COMPETITION_ID, stage: "ROUND_16" };
+    const ucl = { competitionId: UCL_COMPETITION_ID, stage: "GROUP_STAGE" };
+    expect(isPredictionValueAllowedForMatch(wc, "1")).toBe(true);
+    expect(isPredictionValueAllowedForMatch(wc, "2")).toBe(true);
+    expect(isPredictionValueAllowedForMatch(ucl, "1")).toBe(true);
+    expect(isPredictionValueAllowedForMatch(ucl, "2")).toBe(true);
+  });
+
+  it("allows BTTS Yes / BTTS No for all matches", () => {
+    const wcGroup = { competitionId: WORLD_CUP_2026_COMPETITION_ID, stage: "GROUP_STAGE" };
+    const wcKnockout = { competitionId: WORLD_CUP_2026_COMPETITION_ID, stage: "FINAL" };
+    const ucl = { competitionId: UCL_COMPETITION_ID, stage: "GROUP_STAGE" };
+    for (const match of [wcGroup, wcKnockout, ucl]) {
+      expect(isPredictionValueAllowedForMatch(match, "BTTS Yes")).toBe(true);
+      expect(isPredictionValueAllowedForMatch(match, "BTTS No")).toBe(true);
+    }
   });
 });

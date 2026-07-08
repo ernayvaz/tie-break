@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
 import { UCL_COMPETITION_ID } from "@/lib/config";
+import { isPredictionCorrect } from "@/lib/prediction-values";
 import {
   pointsForPrediction,
   getPowerPickMultipliersByMatch,
@@ -24,7 +25,7 @@ function matchCompetitionFilter(competitionId: string) {
 export async function scoreMatch(matchId: string): Promise<{ ok: true } | { ok: false; error: string }> {
   const match = await prisma.match.findUnique({
     where: { id: matchId },
-    select: { officialResultType: true },
+    select: { officialResultType: true, homeScore: true, awayScore: true },
   });
 
   if (!match) return { ok: false, error: "Match not found" };
@@ -35,48 +36,51 @@ export async function scoreMatch(matchId: string): Promise<{ ok: true } | { ok: 
 
   const boostedByMatch = await getPowerPickMultipliersByMatch([matchId]);
   const boostedUsers = boostedByMatch.get(matchId) ?? new Map<string, number>();
-  const boostedUserIds = [...boostedUsers.keys()];
 
-  // Incorrect predictions always score 0 (normal and boosted alike).
-  await prisma.prediction.updateMany({
-    where: {
-      matchId,
-      isFinal: true,
-      NOT: { selectedPrediction: match.officialResultType },
-    },
-    data: { awardedPoints: 0 },
+  // Correctness is evaluated per prediction because BTTS Yes/No picks are judged
+  // from the goal scoreline while 1/X/2 picks compare to the official winner result.
+  const predictions = await prisma.prediction.findMany({
+    where: { matchId, isFinal: true },
+    select: { id: true, userId: true, selectedPrediction: true },
   });
 
-  if (boostedUserIds.length > 0) {
-    for (const multiplier of [...new Set(boostedUsers.values())]) {
-      const userIds = boostedUserIds.filter((userId) => boostedUsers.get(userId) === multiplier);
-      await prisma.prediction.updateMany({
-        where: {
-          matchId,
-          isFinal: true,
-          selectedPrediction: match.officialResultType,
-          userId: { in: userIds },
-        },
-        data: { awardedPoints: pointsForPrediction(true, multiplier) },
-      });
+  const incorrectIds: string[] = [];
+  const normalCorrectIds: string[] = [];
+  const correctIdsByMultiplier = new Map<number, string[]>();
+
+  for (const p of predictions) {
+    if (!isPredictionCorrect(p.selectedPrediction, match)) {
+      incorrectIds.push(p.id);
+      continue;
     }
-    // Everyone else correct → normal 1 point.
+    const multiplier = boostedUsers.get(p.userId);
+    if (multiplier) {
+      const bucket = correctIdsByMultiplier.get(multiplier) ?? [];
+      bucket.push(p.id);
+      correctIdsByMultiplier.set(multiplier, bucket);
+    } else {
+      normalCorrectIds.push(p.id);
+    }
+  }
+
+  // Incorrect predictions always score 0 (normal and boosted alike).
+  if (incorrectIds.length > 0) {
     await prisma.prediction.updateMany({
-      where: {
-        matchId,
-        isFinal: true,
-        selectedPrediction: match.officialResultType,
-        userId: { notIn: boostedUserIds },
-      },
-      data: { awardedPoints: pointsForPrediction(true, false) },
+      where: { id: { in: incorrectIds } },
+      data: { awardedPoints: 0 },
     });
-  } else {
+  }
+  // Correct boosted picks → the assigned multiplier value.
+  for (const [multiplier, ids] of correctIdsByMultiplier) {
     await prisma.prediction.updateMany({
-      where: {
-        matchId,
-        isFinal: true,
-        selectedPrediction: match.officialResultType,
-      },
+      where: { id: { in: ids } },
+      data: { awardedPoints: pointsForPrediction(true, multiplier) },
+    });
+  }
+  // Everyone else correct → normal 1 point.
+  if (normalCorrectIds.length > 0) {
+    await prisma.prediction.updateMany({
+      where: { id: { in: normalCorrectIds } },
       data: { awardedPoints: pointsForPrediction(true, false) },
     });
   }
@@ -99,7 +103,11 @@ export async function getLeaderboardStatsForUser(
   const matchWhere = matchCompetitionFilter(competitionId);
   const predictions = await prisma.prediction.findMany({
     where: { userId, isFinal: true, match: matchWhere },
-    include: { match: { select: { officialResultType: true } } },
+    include: {
+      match: {
+        select: { officialResultType: true, homeScore: true, awayScore: true },
+      },
+    },
   });
   if (predictions.length === 0) return null;
 
@@ -116,7 +124,7 @@ export async function getLeaderboardStatsForUser(
   for (const p of predictions) {
     if (p.match.officialResultType !== null) {
       completedMatchCount++;
-      const isCorrect = p.selectedPrediction === p.match.officialResultType;
+      const isCorrect = isPredictionCorrect(p.selectedPrediction, p.match);
       const points = pointsForPrediction(isCorrect, boostedByMatchId.get(p.matchId) ?? false);
       totalPoints += points;
       if (isCorrect) correctCount++;

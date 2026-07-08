@@ -20,6 +20,8 @@ export default async function MyPredictionsPage() {
           homeTeamName: true,
           awayTeamName: true,
           officialResultType: true,
+          homeScore: true,
+          awayScore: true,
         },
       },
     },
@@ -40,6 +42,8 @@ export default async function MyPredictionsPage() {
       homeTeamName: p.match.homeTeamName,
       awayTeamName: p.match.awayTeamName,
       officialResultType: p.match.officialResultType,
+      homeScore: p.match.homeScore,
+      awayScore: p.match.awayScore,
     },
   }));
 

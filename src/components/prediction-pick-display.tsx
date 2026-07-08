@@ -2,9 +2,15 @@
 
 import { Button } from "@/components/ui";
 
-/** Normalize pick to display form "1" | "X" | "2" */
+/** Normalize a raw or display pick value to its label. */
 function displayPick(value: string): string {
-  const map: Record<string, string> = { ONE: "1", X: "X", TWO: "2" };
+  const map: Record<string, string> = {
+    ONE: "1",
+    X: "X",
+    TWO: "2",
+    BTTS_YES: "BTTS Yes",
+    BTTS_NO: "BTTS No",
+  };
   return map[value] ?? value;
 }
 

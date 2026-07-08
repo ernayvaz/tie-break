@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/db";
-import { UCL_COMPETITION_ID, WORLD_CUP_2026_COMPETITION_ID } from "@/lib/config";
+import { UCL_COMPETITION_ID } from "@/lib/config";
 import { fromDisplay, toDisplay, type PredictionDisplay } from "@/lib/prediction-values";
 import type { Match } from "@prisma/client";
 
@@ -29,19 +29,13 @@ export type PredictionOptions = {
   finalizedAt?: Date;
 };
 
-const WORLD_CUP_GROUP_STAGE_KEYS = new Set(["GROUP_STAGE", "LEAGUE_STAGE"]);
-
 export function isPredictionValueAllowedForMatch(
-  match: Pick<Match, "competitionId" | "stage">,
+  _match: Pick<Match, "competitionId" | "stage">,
   displayValue: PredictionDisplay
 ): boolean {
-  if (
-    displayValue === "X" &&
-    match.competitionId === WORLD_CUP_2026_COMPETITION_ID &&
-    !WORLD_CUP_GROUP_STAGE_KEYS.has(match.stage)
-  ) {
-    return false;
-  }
+  // Every match now uses the 1 / 2 / BTTS Yes / BTTS No option set. Draw (X) is no
+  // longer offered as a user pick (X can still be an official match result).
+  if (displayValue === "X") return false;
   return true;
 }
 

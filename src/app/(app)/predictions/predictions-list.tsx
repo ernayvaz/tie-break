@@ -7,10 +7,18 @@ import { Button, Modal } from "@/components/ui";
 import { CompetitionTabsClient } from "@/components/competition-tabs";
 import { DEFAULT_COMPETITION_ID, UCL_COMPETITION_ID } from "@/lib/config";
 import { PredictionPickDisplay } from "@/components/prediction-pick-display";
+import { isPredictionCorrect } from "@/lib/prediction-values";
+import type { PredictionValue } from "@prisma/client";
 import { unfinalizePredictionAction, resetAllPredictionsAction } from "./actions";
 
 function displayPick(value: string): string {
-  const map: Record<string, string> = { ONE: "1", X: "X", TWO: "2" };
+  const map: Record<string, string> = {
+    ONE: "1",
+    X: "X",
+    TWO: "2",
+    BTTS_YES: "BTTS Yes",
+    BTTS_NO: "BTTS No",
+  };
   return map[value] ?? value;
 }
 
@@ -47,6 +55,8 @@ export type PredictionRow = {
     homeTeamName: string;
     awayTeamName: string;
     officialResultType: string | null;
+    homeScore: number | null;
+    awayScore: number | null;
   };
 };
 
@@ -79,7 +89,15 @@ export function PredictionsList({
     return predictionsByCompetition.filter((p) => {
       const matchCompleted = p.match.officialResultType !== null;
       const result = p.match.officialResultType;
-      const correct = matchCompleted && p.isFinal && result !== null && p.selectedPrediction === result;
+      const correct =
+        matchCompleted &&
+        p.isFinal &&
+        result !== null &&
+        isPredictionCorrect(p.selectedPrediction as PredictionValue, {
+          officialResultType: result as PredictionValue | null,
+          homeScore: p.match.homeScore,
+          awayScore: p.match.awayScore,
+        });
 
       switch (statusFilter) {
         case "finalized":
@@ -235,7 +253,13 @@ export function PredictionsList({
               const result = m.officialResultType;
               const matchFinished = new Date(m.matchDatetime) < new Date();
               const correct =
-                result != null && p.isFinal && p.selectedPrediction === result;
+                result != null &&
+                p.isFinal &&
+                isPredictionCorrect(p.selectedPrediction as PredictionValue, {
+                  officialResultType: m.officialResultType as PredictionValue | null,
+                  homeScore: m.homeScore,
+                  awayScore: m.awayScore,
+                });
               const canUnfinalize = p.isFinal && result === null;
 
               return (

@@ -25,7 +25,7 @@ export default async function RulesPage() {
         highlights={[
           {
             label: "Scoring",
-            value: "Every correct 1/X/2 prediction gives 1 point.",
+            value: "Every correct pick (1, 2, BTTS Yes or BTTS No) gives 1 point.",
           },
           {
             label: "Prizes",
@@ -34,29 +34,39 @@ export default async function RulesPage() {
         ]}
       >
         <section className="space-y-4">
-          <h2 className={sectionTitle}>Prediction options (1 – X – 2)</h2>
+          <h2 className={sectionTitle}>Prediction options (1 – 2 – BTTS Yes – BTTS No)</h2>
+          <p className="text-nord-polarLight">
+            You choose exactly{" "}
+            <strong className="font-semibold text-nord-polar">one</strong> option per match from
+            the four below. Draw (X) is no longer a pick.
+          </p>
           <ul className="list-disc space-y-1.5 pl-5 text-nord-polarLight">
             <li>
               <strong className="font-semibold text-nord-polar">1</strong> – Home team wins.
             </li>
             <li>
-              <strong className="font-semibold text-nord-polar">X</strong> – Draw.
+              <strong className="font-semibold text-nord-polar">2</strong> – Away team wins.
             </li>
             <li>
-              <strong className="font-semibold text-nord-polar">2</strong> – Away team wins.
+              <strong className="font-semibold text-nord-polar">BTTS Yes</strong> – Both teams
+              score at least one goal.
+            </li>
+            <li>
+              <strong className="font-semibold text-nord-polar">BTTS No</strong> – At most one
+              team scores (including a goalless match).
             </li>
           </ul>
           <p className="text-nord-polarLight">
-            <strong className="font-semibold text-nord-polar">
-              X is correct only when the official result of the match is a draw.
-            </strong>{" "}
-            If the match goes to extra time or penalties and a winner is decided, the result is not X; it becomes 1 or 2. In two-legged ties, aggregate score does not matter. The winner of that specific match decides the result: 90 minutes, then extra time if played, and finally the penalty shootout if it is needed — the side that wins on penalties counts as 1 or 2.
+            <strong className="font-semibold text-nord-polar">1 and 2</strong> are decided by the
+            match winner: 90 minutes, then extra time if played, and finally the penalty shootout
+            if it is needed — the side that wins on penalties counts as 1 or 2.
           </p>
           <p className="text-nord-polarLight">
-            For World Cup 2026 knockout matches, X is not available as a pick because every tie
-            must produce a winner through extra time and, if needed, penalties. X remains
-            available for World Cup group-stage matches and other competitions where a draw can
-            be the final outcome.
+            <strong className="font-semibold text-nord-polar">
+              BTTS Yes / BTTS No are decided by goals only.
+            </strong>{" "}
+            Goals scored in 90 minutes and extra time count; the penalty shootout does not count
+            towards Both Teams To Score.
           </p>
         </section>
 
@@ -80,14 +90,17 @@ export default async function RulesPage() {
             You cannot see other users’ predictions for a match until you have finalized your own prediction for that match. After finalizing, you can see other users’ finalized predictions for that match. Draft or non-final predictions of others are never visible.
           </p>
           <p className="text-nord-polarLight">
-            Official results (score and 1/X/2) are shown only after the match has finished.
+            Official results (score and 1/X/2) are shown only after the match has finished. A draw
+            (X) can still be the official result of a match even though it is not a pick.
           </p>
         </section>
 
         <section className="space-y-3 pt-1">
           <h2 className={sectionTitle}>Scoring</h2>
           <p className="text-nord-polarLight">
-            A correct prediction (your pick equals the official result 1/X/2) gives 1 point. Wrong or missing prediction gives 0 points.
+            A correct prediction gives 1 point: a 1 or 2 pick that matches the official winner, or
+            a BTTS Yes / BTTS No pick that matches whether both teams scored. Wrong or missing
+            predictions give 0 points. A Power Pick multiplies a correct pick&rsquo;s points.
           </p>
         </section>
 

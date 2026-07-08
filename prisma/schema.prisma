@@ -29,8 +29,10 @@ enum UserRole {
 
 enum PredictionValue {
   ONE // 1 = home wins
-  X // draw
+  X // draw (still a valid official match result; no longer offered as a user pick)
   TWO // 2 = away wins
+  BTTS_YES // both teams to score: yes (both teams score >= 1 goal, penalties excluded)
+  BTTS_NO // both teams to score: no (at most one team scores, penalties excluded)
 }
 
 enum MatchSourceStatus {

@@ -163,19 +163,14 @@ const OTHER_PICK_PILL_CLASS: Record<string, string> = {
   "1": "bg-nord-frostDark/12 text-nord-frostDark ring-nord-frostDark/25",
   X: "bg-nord-polarLighter/20 text-nord-polar ring-nord-polarLighter/35",
   "2": "bg-violet-500/12 text-violet-600 ring-violet-500/25",
+  "BTTS Yes": "bg-emerald-500/12 text-emerald-700 ring-emerald-500/25",
+  "BTTS No": "bg-rose-500/12 text-rose-600 ring-rose-500/25",
 };
 
-const ALL_PREDICTION_CHOICES = ["1", "X", "2"] as const;
-const DECISIVE_ONLY_PREDICTION_CHOICES = ["1", "2"] as const;
-const WORLD_CUP_GROUP_STAGE_KEYS = new Set(["GROUP_STAGE", "LEAGUE_STAGE"]);
+// Every match now offers 1 / 2 / BTTS Yes / BTTS No. Draw (X) is no longer a pick.
+const ALL_PREDICTION_CHOICES = ["1", "2", "BTTS Yes", "BTTS No"] as const;
 
-function getPredictionChoices(match: ScheduleMatch): readonly PredictionDisplay[] {
-  if (
-    match.competitionId === WORLD_CUP_2026_COMPETITION_ID &&
-    !WORLD_CUP_GROUP_STAGE_KEYS.has(match.stage)
-  ) {
-    return DECISIVE_ONLY_PREDICTION_CHOICES;
-  }
+function getPredictionChoices(): readonly PredictionDisplay[] {
   return ALL_PREDICTION_CHOICES;
 }
 
@@ -645,7 +640,7 @@ export function ScheduleTabs({
     const previousPrediction = userPredictionByMatch[matchId];
     const previousSelectionAllowed =
       !previousPrediction ||
-      getPredictionChoices(match).includes(previousPrediction.selectedPrediction);
+      getPredictionChoices().includes(previousPrediction.selectedPrediction);
     setActionError(null);
     setOptimisticSelections((prev) => ({ ...prev, [matchId]: value }));
     setLocalPredictions((prev) => ({
@@ -1004,7 +999,7 @@ export function ScheduleTabs({
     const isStatsExpanded = expandedStats.has(m.id);
     const isLive = !!liveState?.isLive;
     const matchDate = new Date(m.matchDatetime);
-    const predictionChoices = getPredictionChoices(m);
+    const predictionChoices = getPredictionChoices();
     const displaySelectionIsAllowed =
       !!displaySelection && predictionChoices.includes(displaySelection);
     const showOthers = userPred?.isFinal && displaySelectionIsAllowed && others.length > 0;
@@ -1529,7 +1524,7 @@ export function ScheduleTabs({
           const liveState = liveStateByMatchId[m.id] ?? null;
           const displaySelection = optimisticSelections[m.id] ?? userPred?.selectedPrediction;
           const displaySelectionAllowed =
-            !displaySelection || getPredictionChoices(m).includes(displaySelection);
+            !displaySelection || getPredictionChoices().includes(displaySelection);
           const predictionFinalizedAndValid =
             !!userPred?.isFinal && displaySelectionAllowed;
           const canPredict =

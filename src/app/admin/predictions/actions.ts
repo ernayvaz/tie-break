@@ -99,8 +99,8 @@ export async function adminSetPredictionForUserAction(
 ): Promise<PredictionActionState> {
   const admin = await requireAdmin();
 
-  if (!isValidDisplay(pick)) {
-    return { ok: false, error: "Pick must be 1, X, or 2." };
+  if (!isValidDisplay(pick) || pick === "X") {
+    return { ok: false, error: "Pick must be 1, 2, BTTS Yes, or BTTS No." };
   }
 
   let effectiveEnteredAt = new Date();

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { PredictionPickDisplay } from "@/components/prediction-pick-display";
+import type { PredictionDisplay } from "@/lib/prediction-values";
 import { Button, Card, CardContent } from "@/components/ui";
 import { COMPETITIONS, UCL_COMPETITION_ID, POWER_PICK_COMPETITION_ID } from "@/lib/config";
 import { formatStageLabel } from "@/lib/stages";
@@ -175,7 +176,7 @@ export function PredictionManagementClient({
 
   const [impUserId, setImpUserId] = useState("");
   const [impMatchId, setImpMatchId] = useState("");
-  const [impPick, setImpPick] = useState<"1" | "X" | "2">("1");
+  const [impPick, setImpPick] = useState<PredictionDisplay>("1");
   const [impPowerPickMultiplier, setImpPowerPickMultiplier] = useState<number>(-1);
   const [impFinalize, setImpFinalize] = useState(true);
   const [impEnteredAtLocal, setImpEnteredAtLocal] = useState(() => formatDatetimeLocalValue(new Date()));
@@ -437,7 +438,7 @@ export function PredictionManagementClient({
           <div className="flex flex-col gap-2">
             <span className="text-xs font-medium text-nord-polar">Pick</span>
             <div className="flex flex-wrap gap-3">
-              {(["1", "X", "2"] as const).map((v) => (
+              {(["1", "2", "BTTS Yes", "BTTS No"] as const).map((v) => (
                 <label key={v} className="flex cursor-pointer items-center gap-2 text-sm text-nord-polar">
                   <input
                     type="radio"

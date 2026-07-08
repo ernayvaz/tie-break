@@ -1,4 +1,6 @@
 import { COMPETITION_IDS, UCL_COMPETITION_ID } from "@/lib/config";
+import { isPredictionCorrect } from "@/lib/prediction-values";
+import type { PredictionValue } from "@prisma/client";
 
 export type AdminPredictionHistoryRow = {
   id: string;
@@ -161,7 +163,11 @@ export function getAdminPredictionOutcome(
   row: AdminPredictionHistoryRow
 ): AdminPredictionOutcome {
   if (!row.isFinal || row.match.officialResultType === null) return "pending";
-  return row.selectedPrediction === row.match.officialResultType
+  return isPredictionCorrect(row.selectedPrediction as PredictionValue, {
+    officialResultType: row.match.officialResultType as PredictionValue | null,
+    homeScore: row.match.homeScore,
+    awayScore: row.match.awayScore,
+  })
     ? "correct"
     : "incorrect";
 }
