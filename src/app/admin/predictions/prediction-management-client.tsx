@@ -22,6 +22,7 @@ import {
   setPredictionPointsAction,
   adminResetUserPredictionAction,
   adminResetUserUpcomingPredictionsAction,
+  adminResetUpcomingPredictionsBulkAction,
   adminSetPredictionForUserAction,
   adminSetMatchPowerPickAction,
   adminReclaimUnusedPowerPickAction,
@@ -64,7 +65,13 @@ const OUTCOME_FILTERS = [
 ] as const;
 
 function displayPick(v: string): string {
-  const map: Record<string, string> = { ONE: "1", X: "X", TWO: "2" };
+  const map: Record<string, string> = {
+    ONE: "1",
+    X: "X",
+    TWO: "2",
+    BTTS_YES: "BTTS Yes",
+    BTTS_NO: "BTTS No",
+  };
   return map[v] ?? v;
 }
 
@@ -173,6 +180,12 @@ export function PredictionManagementClient({
   const [ppBusyKey, setPpBusyKey] = useState<string | null>(null);
   const [reclaimBusy, setReclaimBusy] = useState(false);
   const [reclaimAmount, setReclaimAmount] = useState(1);
+
+  const [bulkResetMode, setBulkResetMode] = useState<"all" | "selected">("all");
+  const [bulkResetUserIds, setBulkResetUserIds] = useState<string[]>([]);
+  const [bulkResetSearch, setBulkResetSearch] = useState("");
+  const [bulkResetConfirm, setBulkResetConfirm] = useState(false);
+  const [bulkResetBusy, setBulkResetBusy] = useState(false);
 
   const [impUserId, setImpUserId] = useState("");
   const [impMatchId, setImpMatchId] = useState("");
@@ -366,6 +379,38 @@ export function PredictionManagementClient({
     } else setError(result.error);
   };
 
+  const bulkResetSelectedCount = bulkResetUserIds.length;
+  const bulkResetDisabled =
+    bulkResetBusy || (bulkResetMode === "selected" && bulkResetSelectedCount === 0);
+  const bulkResetUserOptions = useMemo(() => {
+    const q = bulkResetSearch.trim().toLowerCase();
+    if (!q) return userOptions;
+    return userOptions.filter(
+      (u) =>
+        u.label.toLowerCase().includes(q) || u.username.toLowerCase().includes(q)
+    );
+  }, [userOptions, bulkResetSearch]);
+
+  const toggleBulkResetUser = (userId: string) => {
+    setBulkResetUserIds((prev) =>
+      prev.includes(userId) ? prev.filter((id) => id !== userId) : [...prev, userId]
+    );
+  };
+
+  const runBulkResetUpcoming = async () => {
+    setBulkResetBusy(true);
+    setError(null);
+    setSuccess(null);
+    const targets = bulkResetMode === "selected" ? bulkResetUserIds : null;
+    const result = await adminResetUpcomingPredictionsBulkAction(targets);
+    setBulkResetBusy(false);
+    setBulkResetConfirm(false);
+    if (result.ok) {
+      setSuccess(result.message ?? "Upcoming predictions reset.");
+      router.refresh();
+    } else setError(result.error);
+  };
+
   const clearFilters = () => {
     setLeagueFilter(DEFAULT_ADMIN_PREDICTION_HISTORY_FILTERS.leagueFilter);
     setMatchFilter(DEFAULT_ADMIN_PREDICTION_HISTORY_FILTERS.matchFilter);
@@ -399,7 +444,8 @@ export function PredictionManagementClient({
         <h2 className="text-sm font-semibold text-nord-polar">Set prediction (any user, any match)</h2>
         <p className="mt-1 text-xs leading-relaxed text-nord-polarLight">
           Match lock time does not apply. Pick a user and match, choose <strong className="text-nord-polar">1</strong>,{" "}
-          <strong className="text-nord-polar">X</strong>, or <strong className="text-nord-polar">2</strong>, then save as
+          <strong className="text-nord-polar">2</strong>, <strong className="text-nord-polar">BTTS Yes</strong>, or{" "}
+          <strong className="text-nord-polar">BTTS No</strong>, then save as
           draft or finalize. Optionally attach Power Pick x3/x4/x5/x6/x10, even for started or completed matches. Set <strong className="text-nord-polar">Entered at</strong> to control the timestamp shown on
           the site (finalized time if locked, or “Saved …” for drafts). If the match already has an official result and you
           finalize, points are recalculated for that fixture and the leaderboard is refreshed.
@@ -490,6 +536,147 @@ export function PredictionManagementClient({
           <Button type="button" variant="primary" disabled={impBusy} onClick={() => void runImpersonatePrediction()}>
             {impBusy ? "Saving…" : "Apply prediction"}
           </Button>
+        </div>
+      </section>
+
+      <section className="rounded-2xl border border-amber-300/40 bg-[linear-gradient(180deg,rgba(255,251,240,0.95),rgba(254,243,220,0.75))] p-4 shadow-[0_16px_40px_rgba(46,52,64,0.06)] sm:p-5">
+        <h2 className="text-sm font-semibold text-nord-polar">Reset upcoming predictions (bulk)</h2>
+        <p className="mt-1 text-xs leading-relaxed text-nord-polarLight">
+          Reset finalized predictions on{" "}
+          <strong className="text-nord-polar">matches that have not started yet</strong> back to
+          editable drafts. Completed / locked fixtures and any points already earned are never
+          touched. Choose all users or a specific set of users.
+        </p>
+
+        <div className="mt-4 flex flex-wrap items-center gap-4">
+          <label className="flex cursor-pointer items-center gap-2 text-sm text-nord-polar">
+            <input
+              type="radio"
+              name="bulk-reset-mode"
+              checked={bulkResetMode === "all"}
+              onChange={() => {
+                setBulkResetMode("all");
+                setBulkResetConfirm(false);
+              }}
+              className="h-4 w-4 accent-nord-frostDark"
+            />
+            <span className="font-medium">All users</span>
+          </label>
+          <label className="flex cursor-pointer items-center gap-2 text-sm text-nord-polar">
+            <input
+              type="radio"
+              name="bulk-reset-mode"
+              checked={bulkResetMode === "selected"}
+              onChange={() => {
+                setBulkResetMode("selected");
+                setBulkResetConfirm(false);
+              }}
+              className="h-4 w-4 accent-nord-frostDark"
+            />
+            <span className="font-medium">Selected users</span>
+          </label>
+          {bulkResetMode === "selected" ? (
+            <span className="text-xs font-medium text-nord-frostDark">
+              {bulkResetSelectedCount} selected
+            </span>
+          ) : null}
+        </div>
+
+        {bulkResetMode === "selected" ? (
+          <div className="mt-3 rounded-xl border border-nord-polarLighter/50 bg-white/70 p-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <input
+                type="text"
+                value={bulkResetSearch}
+                onChange={(e) => setBulkResetSearch(e.target.value)}
+                placeholder="Search users…"
+                className="min-w-[180px] flex-1 rounded-lg border border-nord-polarLighter bg-white px-3 py-1.5 text-sm text-nord-polar"
+              />
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => setBulkResetUserIds(bulkResetUserOptions.map((u) => u.id))}
+              >
+                Select shown
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                disabled={bulkResetSelectedCount === 0}
+                onClick={() => setBulkResetUserIds([])}
+              >
+                Clear
+              </Button>
+            </div>
+            <div className="mt-2 max-h-52 overflow-y-auto rounded-lg border border-nord-polarLighter/40 bg-white/80">
+              {bulkResetUserOptions.length === 0 ? (
+                <p className="px-3 py-4 text-center text-xs text-nord-polarLight">
+                  No users match your search.
+                </p>
+              ) : (
+                <ul className="divide-y divide-nord-polarLighter/30">
+                  {bulkResetUserOptions.map((u) => (
+                    <li key={u.id}>
+                      <label className="flex cursor-pointer items-center gap-2 px-3 py-2 text-sm text-nord-polar hover:bg-nord-snow/60">
+                        <input
+                          type="checkbox"
+                          checked={bulkResetUserIds.includes(u.id)}
+                          onChange={() => toggleBulkResetUser(u.id)}
+                          className="h-4 w-4 rounded border-nord-polarLighter accent-nord-frostDark"
+                        />
+                        <span className="truncate">
+                          {u.label}{" "}
+                          <span className="text-nord-polarLight">@{u.username}</span>
+                        </span>
+                      </label>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
+        ) : null}
+
+        <div className="mt-4 flex flex-wrap items-center gap-3">
+          {!bulkResetConfirm ? (
+            <Button
+              type="button"
+              variant="secondary"
+              disabled={bulkResetDisabled}
+              onClick={() => setBulkResetConfirm(true)}
+            >
+              {bulkResetMode === "all"
+                ? "Reset upcoming for all users"
+                : `Reset upcoming for ${bulkResetSelectedCount} selected user(s)`}
+            </Button>
+          ) : (
+            <>
+              <span className="text-sm font-medium text-nord-polar">
+                {bulkResetMode === "all"
+                  ? "Reset upcoming predictions for ALL users?"
+                  : `Reset upcoming predictions for ${bulkResetSelectedCount} selected user(s)?`}
+              </span>
+              <Button
+                type="button"
+                variant="primary"
+                disabled={bulkResetBusy}
+                onClick={() => void runBulkResetUpcoming()}
+              >
+                {bulkResetBusy ? "Resetting…" : "Confirm reset"}
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                disabled={bulkResetBusy}
+                onClick={() => setBulkResetConfirm(false)}
+              >
+                Cancel
+              </Button>
+            </>
+          )}
         </div>
       </section>
 

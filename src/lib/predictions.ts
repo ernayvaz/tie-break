@@ -237,6 +237,56 @@ export async function resetAllPredictionsUpcoming(
 }
 
 /**
+ * Admin bulk reset: unfinalize every finalized prediction on upcoming matches
+ * (matchDatetime >= now) for the given users, or for all users when `userIds`
+ * is null/empty. Locked/past/scored predictions are never touched, so results
+ * and points already earned stay intact. Predictions revert to editable drafts.
+ */
+export async function resetUpcomingPredictionsForUsers(
+  userIds: string[] | null
+): Promise<{
+  ok: true;
+  count: number;
+  userCount: number;
+  matchIds: string[];
+  competitionIds: string[];
+} | { ok: false; error: string }> {
+  const now = new Date();
+  const targetsProvided = Array.isArray(userIds) && userIds.length > 0;
+
+  const predictions = await prisma.prediction.findMany({
+    where: {
+      isFinal: true,
+      ...(targetsProvided ? { userId: { in: userIds! } } : {}),
+      match: { matchDatetime: { gte: now } },
+    },
+    select: {
+      id: true,
+      userId: true,
+      matchId: true,
+      match: { select: { competitionId: true } },
+    },
+  });
+
+  if (predictions.length > 0) {
+    await prisma.prediction.updateMany({
+      where: { id: { in: predictions.map((p) => p.id) } },
+      data: { isFinal: false, finalizedAt: null, awardedPoints: 0 },
+    });
+  }
+
+  return {
+    ok: true,
+    count: predictions.length,
+    userCount: new Set(predictions.map((p) => p.userId)).size,
+    matchIds: [...new Set(predictions.map((p) => p.matchId))],
+    competitionIds: [
+      ...new Set(predictions.map((p) => p.match.competitionId ?? UCL_COMPETITION_ID)),
+    ],
+  };
+}
+
+/**
  * Unfinalize all of the user's predictions for past matches (matchDatetime < now).
  * Used by admin on Schedule for "Reset all (past)".
  */

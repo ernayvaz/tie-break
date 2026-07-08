@@ -10,6 +10,7 @@ import {
   finalizePrediction,
   unfinalizePrediction,
   resetAllPredictionsUpcoming,
+  resetUpcomingPredictionsForUsers,
 } from "@/lib/predictions";
 import { setUserPowerPick } from "@/lib/power-pick";
 import { reclaimUnusedPowerPick } from "@/lib/power-pick-admin";
@@ -82,6 +83,57 @@ export async function adminResetUserUpcomingPredictionsAction(
   await rebuildLeaderboard();
   revalidatePath("/admin/predictions");
   return { ok: true, message: `Reset ${result.count} upcoming prediction(s). Leaderboard refreshed.` };
+}
+
+/**
+ * Admin: bulk reset upcoming-match predictions to draft for all users, or for a
+ * selected set of users. Only finalized predictions on matches that have not yet
+ * started are affected; completed/locked fixtures and their points are preserved.
+ * The leaderboard is rebuilt because unfinalizing changes each user's finalized
+ * prediction count (the accuracy denominator).
+ */
+export async function adminResetUpcomingPredictionsBulkAction(
+  userIds: string[] | null
+): Promise<PredictionActionState> {
+  const admin = await requireAdmin();
+
+  const targets =
+    Array.isArray(userIds) && userIds.length > 0
+      ? [...new Set(userIds.filter((id) => typeof id === "string" && id.trim() !== ""))]
+      : null;
+  if (Array.isArray(userIds) && userIds.length > 0 && (!targets || targets.length === 0)) {
+    return { ok: false, error: "No valid users selected." };
+  }
+
+  const result = await resetUpcomingPredictionsForUsers(targets);
+  if (!result.ok) return { ok: false, error: result.error };
+
+  if (result.count > 0) {
+    await rebuildLeaderboard();
+  }
+
+  await createAdminLog(
+    admin.id,
+    "admin_reset_upcoming_predictions_bulk",
+    "prediction",
+    targets ? targets.join(",") : "all",
+    null,
+    `reset ${result.count} prediction(s) for ${result.userCount} user(s)`
+  );
+
+  revalidatePath("/admin/predictions");
+  revalidatePath("/schedule");
+  revalidatePath("/predictions");
+  revalidatePath("/leaderboard");
+
+  const scope = targets ? `${result.userCount} selected user(s)` : "all users";
+  return {
+    ok: true,
+    message:
+      result.count > 0
+        ? `Reset ${result.count} upcoming prediction(s) for ${scope}. Leaderboard refreshed.`
+        : `No upcoming finalized predictions found for ${scope}.`,
+  };
 }
 
 /**
