@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/db";
 import { UCL_COMPETITION_ID } from "@/lib/config";
-import { isPredictionCorrect } from "@/lib/prediction-values";
+import { basePointsForPrediction, isPredictionCorrect } from "@/lib/prediction-values";
 import {
   pointsForPrediction,
   getPowerPickMultipliersByMatch,
@@ -20,7 +20,8 @@ function matchCompetitionFilter(competitionId: string) {
 
 /**
  * Score all finalized predictions for a finished match.
- * Normal correct = 1 point, Power Pick xN correct = exactly N points, incorrect = 0.
+ * Non-boosted correct = base points (1 for 1/2, 2 for BTTS),
+ * Power Pick xN correct = exactly N points, incorrect = 0.
  */
 export async function scoreMatch(matchId: string): Promise<{ ok: true } | { ok: false; error: string }> {
   const match = await prisma.match.findUnique({
@@ -44,44 +45,28 @@ export async function scoreMatch(matchId: string): Promise<{ ok: true } | { ok: 
     select: { id: true, userId: true, selectedPrediction: true },
   });
 
-  const incorrectIds: string[] = [];
-  const normalCorrectIds: string[] = [];
-  const correctIdsByMultiplier = new Map<number, string[]>();
-
+  // Resolve the exact awarded points per prediction, then group by value so each
+  // distinct point total is written in a single updateMany. Points differ because:
+  //   - incorrect → 0
+  //   - boosted correct → the multiplier value (e.g. x5 → 5), base ignored
+  //   - non-boosted correct → base points (1 for a 1/2 winner, 2 for BTTS)
+  const idsByPoints = new Map<number, string[]>();
   for (const p of predictions) {
-    if (!isPredictionCorrect(p.selectedPrediction, match)) {
-      incorrectIds.push(p.id);
-      continue;
-    }
-    const multiplier = boostedUsers.get(p.userId);
-    if (multiplier) {
-      const bucket = correctIdsByMultiplier.get(multiplier) ?? [];
-      bucket.push(p.id);
-      correctIdsByMultiplier.set(multiplier, bucket);
-    } else {
-      normalCorrectIds.push(p.id);
-    }
+    const correct = isPredictionCorrect(p.selectedPrediction, match);
+    const points = pointsForPrediction(
+      correct,
+      boostedUsers.get(p.userId) ?? false,
+      basePointsForPrediction(p.selectedPrediction)
+    );
+    const bucket = idsByPoints.get(points) ?? [];
+    bucket.push(p.id);
+    idsByPoints.set(points, bucket);
   }
 
-  // Incorrect predictions always score 0 (normal and boosted alike).
-  if (incorrectIds.length > 0) {
-    await prisma.prediction.updateMany({
-      where: { id: { in: incorrectIds } },
-      data: { awardedPoints: 0 },
-    });
-  }
-  // Correct boosted picks → the assigned multiplier value.
-  for (const [multiplier, ids] of correctIdsByMultiplier) {
+  for (const [points, ids] of idsByPoints) {
     await prisma.prediction.updateMany({
       where: { id: { in: ids } },
-      data: { awardedPoints: pointsForPrediction(true, multiplier) },
-    });
-  }
-  // Everyone else correct → normal 1 point.
-  if (normalCorrectIds.length > 0) {
-    await prisma.prediction.updateMany({
-      where: { id: { in: normalCorrectIds } },
-      data: { awardedPoints: pointsForPrediction(true, false) },
+      data: { awardedPoints: points },
     });
   }
   return { ok: true };
@@ -125,7 +110,11 @@ export async function getLeaderboardStatsForUser(
     if (p.match.officialResultType !== null) {
       completedMatchCount++;
       const isCorrect = isPredictionCorrect(p.selectedPrediction, p.match);
-      const points = pointsForPrediction(isCorrect, boostedByMatchId.get(p.matchId) ?? false);
+      const points = pointsForPrediction(
+        isCorrect,
+        boostedByMatchId.get(p.matchId) ?? false,
+        basePointsForPrediction(p.selectedPrediction)
+      );
       totalPoints += points;
       if (isCorrect) correctCount++;
     }

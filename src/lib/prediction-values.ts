@@ -1,4 +1,5 @@
 import { PredictionValue } from "@prisma/client";
+import { BTTS_CORRECT_POINTS, WINNER_CORRECT_POINTS } from "@/lib/config";
 
 /** Display/API pick tokens (also used verbatim as button labels). */
 export type PredictionDisplay = "1" | "X" | "2" | "BTTS Yes" | "BTTS No";
@@ -36,6 +37,14 @@ export function isValidDisplay(s: string): s is PredictionDisplay {
 /** True for the Both-Teams-To-Score pick values (scored from the goal line, not 1/X/2). */
 export function isBttsPredictionValue(value: PredictionValue): boolean {
   return value === "BTTS_YES" || value === "BTTS_NO";
+}
+
+/**
+ * Base points a correct, non-boosted pick earns: BTTS Yes/No are worth more than
+ * a plain 1/2 winner call. Power Pick overrides this with its own multiplier value.
+ */
+export function basePointsForPrediction(value: PredictionValue): number {
+  return isBttsPredictionValue(value) ? BTTS_CORRECT_POINTS : WINNER_CORRECT_POINTS;
 }
 
 /** Both-teams-to-score outcome from the goal scoreline (penalty shootout excluded). */

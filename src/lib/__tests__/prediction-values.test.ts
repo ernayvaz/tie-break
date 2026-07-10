@@ -5,6 +5,7 @@ import {
   fromDisplay,
   isValidDisplay,
   isBttsPredictionValue,
+  basePointsForPrediction,
   bttsYesFromScore,
   isPredictionCorrect,
   type PredictionDisplay,
@@ -77,6 +78,16 @@ describe("prediction-values", () => {
       expect(isBttsPredictionValue("BTTS_NO" as PredictionValue)).toBe(true);
       expect(isBttsPredictionValue("ONE" as PredictionValue)).toBe(false);
       expect(isBttsPredictionValue("X" as PredictionValue)).toBe(false);
+    });
+  });
+
+  describe("basePointsForPrediction", () => {
+    it("awards 1 base point for winner picks and 2 for BTTS picks", () => {
+      expect(basePointsForPrediction("ONE" as PredictionValue)).toBe(1);
+      expect(basePointsForPrediction("TWO" as PredictionValue)).toBe(1);
+      expect(basePointsForPrediction("X" as PredictionValue)).toBe(1);
+      expect(basePointsForPrediction("BTTS_YES" as PredictionValue)).toBe(2);
+      expect(basePointsForPrediction("BTTS_NO" as PredictionValue)).toBe(2);
     });
   });
 

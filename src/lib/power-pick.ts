@@ -47,18 +47,24 @@ export type PowerPickUserState = {
 const POINTS_NORMAL_CORRECT = 1;
 
 /**
- * Points a finalized prediction earns. Power Pick correct = exactly 3 (never 1 + 3).
+ * Points a finalized prediction earns.
+ *
+ * - Incorrect → 0.
+ * - Boosted correct → exactly the Power Pick multiplier value (e.g. x5 → 5),
+ *   regardless of `basePoints`. The multiplier replaces the base; it never stacks.
+ * - Non-boosted correct → `basePoints` (1 for a 1/2 winner pick, 2 for BTTS).
  */
 export function pointsForPrediction(
   isCorrect: boolean,
-  powerPickMultiplier: number | boolean | null | undefined
+  powerPickMultiplier: number | boolean | null | undefined,
+  basePoints: number = POINTS_NORMAL_CORRECT
 ): number {
   if (!isCorrect) return 0;
   if (powerPickMultiplier === true) return POWER_PICK_POINTS;
   if (typeof powerPickMultiplier === "number") {
     return normalizePowerPickMultiplier(powerPickMultiplier);
   }
-  return POINTS_NORMAL_CORRECT;
+  return basePoints;
 }
 
 /** A match is locked for Power Pick purposes once its lock time has passed. */

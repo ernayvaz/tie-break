@@ -14,7 +14,11 @@ vi.mock("@/lib/db", async () => {
 });
 
 import { prisma } from "@/lib/db";
-import { scoreMatch, rebuildLeaderboardForCompetition } from "@/lib/scoring";
+import {
+  scoreMatch,
+  rebuildLeaderboardForCompetition,
+  getLeaderboardStatsForUser,
+} from "@/lib/scoring";
 
 const db = prisma as unknown as SqlitePrismaClient;
 
@@ -152,7 +156,7 @@ describe("BTTS + winner scoring (SQLite integration)", () => {
 
     expect(await pointsFor(uTwo.id, match.id)).toBe(1); // winner correct
     expect(await pointsFor(uOne.id, match.id)).toBe(0); // winner wrong
-    expect(await pointsFor(uBttsYes.id, match.id)).toBe(1); // both scored
+    expect(await pointsFor(uBttsYes.id, match.id)).toBe(2); // both scored, BTTS base = 2
     expect(await pointsFor(uBttsNo.id, match.id)).toBe(0); // both scored → No wrong
   });
 
@@ -181,9 +185,9 @@ describe("BTTS + winner scoring (SQLite integration)", () => {
     expect((await scoreMatch(goalless.id)).ok).toBe(true);
     expect((await scoreMatch(oneSided.id)).ok).toBe(true);
 
-    expect(await pointsFor(uNoA.id, goalless.id)).toBe(1);
+    expect(await pointsFor(uNoA.id, goalless.id)).toBe(2);
     expect(await pointsFor(uYesA.id, goalless.id)).toBe(0);
-    expect(await pointsFor(uNoB.id, oneSided.id)).toBe(1);
+    expect(await pointsFor(uNoB.id, oneSided.id)).toBe(2);
     expect(await pointsFor(uYesB.id, oneSided.id)).toBe(0);
   });
 
@@ -207,8 +211,8 @@ describe("BTTS + winner scoring (SQLite integration)", () => {
 
     expect((await scoreMatch(match.id)).ok).toBe(true);
 
-    expect(await pointsFor(boostedCorrect.id, match.id)).toBe(5); // x5 correct
-    expect(await pointsFor(normalCorrect.id, match.id)).toBe(1); // plain correct
+    expect(await pointsFor(boostedCorrect.id, match.id)).toBe(5); // x5 correct, not 2 x 5
+    expect(await pointsFor(normalCorrect.id, match.id)).toBe(2); // plain BTTS correct
     expect(await pointsFor(boostedWrong.id, match.id)).toBe(0); // wrong, no points
 
     // The consumed booster is locked, not left active.
@@ -279,10 +283,15 @@ describe("BTTS + winner scoring (SQLite integration)", () => {
       where: { userId_competitionId: { userId: loser.id, competitionId: WC } },
     });
 
-    expect(winnerEntry?.totalPoints).toBe(1);
+    expect(winnerEntry?.totalPoints).toBe(2);
     expect(winnerEntry?.completedMatchCount).toBe(1);
     expect(winnerEntry?.accuracyRate).toBe(1);
     expect(winnerEntry?.currentRank).toBe(1);
+
+    const liveStats = await getLeaderboardStatsForUser(winner.id, WC);
+    expect(liveStats?.totalPoints).toBe(2);
+    expect(liveStats?.completedMatchCount).toBe(1);
+    expect(liveStats?.accuracyRate).toBe(1);
 
     expect(loserEntry?.totalPoints).toBe(0);
     expect(loserEntry?.completedMatchCount).toBe(1);

@@ -7,6 +7,10 @@ describe("Power Pick multiplier scoring (pointsForPrediction)", () => {
     expect(pointsForPrediction(true, false)).toBe(1);
   });
 
+  it("uses the supplied base points for a non-boosted correct prediction", () => {
+    expect(pointsForPrediction(true, false, 2)).toBe(2);
+  });
+
   it("awards 0 points for a normal incorrect prediction", () => {
     expect(pointsForPrediction(false, false)).toBe(0);
   });
@@ -23,6 +27,10 @@ describe("Power Pick multiplier scoring (pointsForPrediction)", () => {
     expect(pointsForPrediction(true, 5)).toBe(5);
     expect(pointsForPrediction(true, 6)).toBe(6);
     expect(pointsForPrediction(true, 10)).toBe(10);
+  });
+
+  it("does not stack base points with the Power Pick multiplier", () => {
+    expect(pointsForPrediction(true, 5, 2)).toBe(5);
   });
 
   it("awards 0 points for an incorrect Power Pick prediction", () => {

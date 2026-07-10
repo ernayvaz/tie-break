@@ -50,6 +50,14 @@ export const POWER_PICK_PACKAGE_SIZE = 3;
 export const POWER_PICK_MAX_PER_USER = 10;
 /** Power Pick x3: total points awarded for a correct boosted prediction (replaces the normal 1). */
 export const POWER_PICK_POINTS = 3;
+/** Base points for a correct non-boosted 1/2 (winner) prediction. */
+export const WINNER_CORRECT_POINTS = 1;
+/**
+ * Base points for a correct non-boosted BTTS Yes/No prediction. Higher than a
+ * winner pick to reward the harder call. Power Pick still overrides with its own
+ * multiplier value (e.g. x5 → 5), it does not stack on top of this base.
+ */
+export const BTTS_CORRECT_POINTS = 2;
 export const POWER_PICK_MULTIPLIERS = [3, 4, 5, 6, 10] as const;
 export type PowerPickMultiplier = (typeof POWER_PICK_MULTIPLIERS)[number];
 /** Power Pick x3 is only offered on the World Cup competition. */

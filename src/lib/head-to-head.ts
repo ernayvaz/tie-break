@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/db";
 import { UCL_COMPETITION_ID } from "@/lib/config";
-import { toDisplay } from "@/lib/prediction-values";
+import { basePointsForPrediction, toDisplay } from "@/lib/prediction-values";
 import { formatStageLabel } from "@/lib/stages";
 
 /** Matches this competition for leaderboard (UCL = "CL" or null for legacy). */
@@ -164,11 +164,15 @@ export async function getHeadToHeadData(
     population.add(p.userId);
     // "No Power Pick" scenario: strip EVERY user's boosters league-wide so the two
     // compared users are ranked against a field where nobody used Power Picks. Any
-    // player's boosted correct pick (points > 0) collapses to a normal 1-point pick;
-    // non-boosted picks keep their real awarded points.
+    // player's boosted correct pick collapses to that pick's normal base value
+    // (1 for a 1/2 winner, 2 for BTTS); non-boosted picks keep their real points.
     const isBoosted = allBoostedKeys.has(`${p.userId}:${p.matchId}`);
     const awardedPoints = p.awardedPoints ?? 0;
-    const awardedPointsNoPp = isBoosted ? (awardedPoints > 0 ? 1 : 0) : awardedPoints;
+    const awardedPointsNoPp = isBoosted
+      ? awardedPoints > 0
+        ? basePointsForPrediction(p.selectedPrediction)
+        : 0
+      : awardedPoints;
     const list = contributionsByMatch.get(p.matchId) ?? [];
     list.push({ userId: p.userId, awardedPoints, awardedPointsNoPp });
     contributionsByMatch.set(p.matchId, list);

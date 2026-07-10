@@ -25,7 +25,7 @@ export default async function RulesPage() {
         highlights={[
           {
             label: "Scoring",
-            value: "Every correct pick (1, 2, BTTS Yes or BTTS No) gives 1 point.",
+            value: "A correct 1/2 pick gives 1 point; a correct BTTS pick gives 2.",
           },
           {
             label: "Prizes",
@@ -56,6 +56,14 @@ export default async function RulesPage() {
               team scores (including a goalless match).
             </li>
           </ul>
+          <p className="text-nord-polarLight">
+            A correct <strong className="font-semibold text-nord-polar">1</strong> or{" "}
+            <strong className="font-semibold text-nord-polar">2</strong> is worth{" "}
+            <strong className="font-semibold text-nord-polar">1 point</strong>, while a correct{" "}
+            <strong className="font-semibold text-nord-polar">BTTS Yes</strong> or{" "}
+            <strong className="font-semibold text-nord-polar">BTTS No</strong> is worth{" "}
+            <strong className="font-semibold text-nord-polar">2 points</strong>.
+          </p>
           <p className="text-nord-polarLight">
             <strong className="font-semibold text-nord-polar">1 and 2</strong> are decided by the
             match winner: 90 minutes, then extra time if played, and finally the penalty shootout
@@ -98,9 +106,20 @@ export default async function RulesPage() {
         <section className="space-y-3 pt-1">
           <h2 className={sectionTitle}>Scoring</h2>
           <p className="text-nord-polarLight">
-            A correct prediction gives 1 point: a 1 or 2 pick that matches the official winner, or
-            a BTTS Yes / BTTS No pick that matches whether both teams scored. Wrong or missing
-            predictions give 0 points. A Power Pick multiplies a correct pick&rsquo;s points.
+            A correct <strong className="font-semibold text-nord-polar">1</strong> or{" "}
+            <strong className="font-semibold text-nord-polar">2</strong> pick (matching the official
+            winner) gives <strong className="font-semibold text-nord-polar">1 point</strong>. A
+            correct <strong className="font-semibold text-nord-polar">BTTS Yes / BTTS No</strong>{" "}
+            pick (matching whether both teams scored) gives{" "}
+            <strong className="font-semibold text-nord-polar">2 points</strong>. Wrong or missing
+            predictions give 0 points.
+          </p>
+          <p className="text-nord-polarLight">
+            If you arm a <strong className="font-semibold text-nord-polar">Power Pick</strong> on a
+            match, a correct pick scores exactly the Power Pick value instead (for example{" "}
+            <strong className="font-semibold text-nord-polar">x5 = 5 points</strong>) — this applies
+            the same way to 1, 2 and BTTS picks, and replaces the base points rather than stacking
+            on top of them.
           </p>
         </section>
 
@@ -117,8 +136,8 @@ export default async function RulesPage() {
               <strong className="font-semibold text-nord-polar">single match</strong>. If that
               boosted prediction is correct, it scores the assigned multiplier value
               (for example x6 ={" "}
-              <strong className="font-semibold text-nord-polar">6 points</strong>) instead of 1.
-              A wrong boosted prediction still scores 0.
+              <strong className="font-semibold text-nord-polar">6 points</strong>) instead of the
+              base points (1 for a 1/2 pick, 2 for BTTS). A wrong boosted prediction still scores 0.
             </li>
             <li>
               Power Pick rights are limited. You can hold at most{" "}
