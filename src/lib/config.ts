@@ -44,23 +44,23 @@ export const COMPETITIONS = [
   },
 ] as const;
 export const COMPETITION_IDS = COMPETITIONS.map((competition) => competition.id);
-/** Power Pick x3: number of rights granted per admin "package". */
+/** Power Pick: number of rights granted per admin "package". */
 export const POWER_PICK_PACKAGE_SIZE = 3;
-/** Power Pick x3: hard ceiling on how many rights a single user can hold. */
+/** Power Pick: hard ceiling on how many rights a single user can hold. */
 export const POWER_PICK_MAX_PER_USER = 10;
-/** Power Pick x3: total points awarded for a correct boosted prediction (replaces the normal 1). */
+/** Default points awarded for a correct boosted prediction (replaces base points). */
 export const POWER_PICK_POINTS = 3;
 /** Base points for a correct non-boosted 1/2 (winner) prediction. */
 export const WINNER_CORRECT_POINTS = 1;
 /**
  * Base points for a correct non-boosted BTTS Yes/No prediction. Higher than a
  * winner pick to reward the harder call. Power Pick still overrides with its own
- * multiplier value (e.g. x5 → 5), it does not stack on top of this base.
+ * point value (e.g. 5 Power Pick points → 5), it does not stack on top of this base.
  */
 export const BTTS_CORRECT_POINTS = 2;
-export const POWER_PICK_MULTIPLIERS = [3, 4, 5, 6, 10] as const;
+export const POWER_PICK_MULTIPLIERS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] as const;
 export type PowerPickMultiplier = (typeof POWER_PICK_MULTIPLIERS)[number];
-/** Power Pick x3 is only offered on the World Cup competition. */
+/** Power Pick is only offered on the World Cup competition. */
 export const POWER_PICK_COMPETITION_ID = WORLD_CUP_2026_COMPETITION_ID;
 
 export function normalizePowerPickMultiplier(value: unknown): PowerPickMultiplier {

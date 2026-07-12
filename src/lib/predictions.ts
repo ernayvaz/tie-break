@@ -338,7 +338,7 @@ export type OthersPredictionEntry = {
   surname: string;
   selectedPrediction: string;
   finalizedAt: Date;
-  /** Whether this user armed Power Pick x3 on this match (active or locked). */
+  /** Whether this user armed Power Pick on this match (active or locked). */
   isPowerPick: boolean;
   powerPickMultiplier: number | null;
 };
@@ -392,7 +392,7 @@ export async function getOthersPredictionsBatch(
     },
   });
 
-  // Power Pick x3 armed on these matches (active = still on, locked = consumed).
+  // Power Pick armed on these matches (active = still on, locked = consumed).
   const boosted = await prisma.powerPickSelection.findMany({
     where: {
       matchId: { in: [...finalizedMatchIds] },

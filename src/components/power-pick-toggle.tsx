@@ -16,7 +16,7 @@ type PowerPickToggleProps = {
 };
 
 /**
- * Premium Power Pick x3 booster toggle. The label lives INSIDE the pill.
+ * Premium Power Pick booster toggle. The label lives INSIDE the pill.
  * OFF → muted neutral. ON → warm gold/amber with a subtle glow. Locked → dimmed + lock glyph.
  */
 export function PowerPickToggle({
@@ -49,7 +49,7 @@ export function PowerPickToggle({
       type="button"
       role="switch"
       aria-checked={on}
-      aria-label={`Power Pick x${multiplier} booster`}
+      aria-label={`Power Pick ${multiplier} points`}
       title={title}
       disabled={!isInteractive}
       onClick={() => {
@@ -79,7 +79,7 @@ export function PowerPickToggle({
             "★"
           )}
         </span>
-        <span className="truncate">Power Pick x{multiplier}</span>
+        <span className="truncate">Power Pick {multiplier} pts</span>
       </span>
       <span
         aria-hidden

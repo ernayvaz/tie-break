@@ -34,7 +34,20 @@ const ACTION_LABELS: Record<string, string> = {
   remove_active: "Remove in-use",
 };
 
-const POWER_PICK_MULTIPLIER_OPTIONS = [3, 4, 5, 6, 10] as const;
+const POWER_PICK_POINT_OPTIONS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] as const;
+const WORLD_CUP_ROUND_OPTIONS = [
+  { value: "GROUP_STAGE", label: "Group stage" },
+  { value: "LAST_32", label: "Round of 32" },
+  { value: "ROUND_16", label: "Round of 16" },
+  { value: "QUARTER_FINAL", label: "Quarter-final" },
+  { value: "SEMI_FINAL", label: "Semi-final" },
+  { value: "THIRD_PLACE", label: "Third-place match" },
+  { value: "FINAL", label: "Final" },
+] as const;
+
+function formatPowerPickPoints(points: number): string {
+  return `${points} point${points === 1 ? "" : "s"}`;
+}
 
 function formatDateTime(iso: string | null): string {
   if (!iso) return "–";
@@ -61,6 +74,10 @@ export function PowerPickAdminClient({ users, logs, packageSize, maxPerUser }: P
     Math.min(maxPerUser, Math.max(1, packageSize))
   );
   const [grantMultiplier, setGrantMultiplier] = useState<number>(3);
+  const [roundStage, setRoundStage] = useState<(typeof WORLD_CUP_ROUND_OPTIONS)[number]["value"]>(
+    "ROUND_16"
+  );
+  const [roundClearUnused, setRoundClearUnused] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -225,12 +242,13 @@ export function PowerPickAdminClient({ users, logs, packageSize, maxPerUser }: P
         ))}
       </div>
 
-      {/* Amount + multiplier selector */}
+      {/* Amount + point-value selector */}
       <div className="rounded-xl border border-amber-300/50 bg-amber-50/60 p-4">
         <h2 className="text-sm font-semibold text-nord-polar">Allowance setup</h2>
         <p className="mt-0.5 text-xs text-nord-polarLight">
-          Choose how many Power Pick rights to grant and how strong each correct boosted pick
-          will be. Existing active/locked picks keep the multiplier they were armed with.
+          Choose how many Power Pick rights to grant and how many direct points each correct
+          boosted pick will be worth. Existing active/locked picks keep the point value they were
+          armed with.
         </p>
         <div className="mt-3 flex flex-wrap items-center gap-3">
           <label className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.12em] text-nord-polarLight">
@@ -250,46 +268,80 @@ export function PowerPickAdminClient({ users, logs, packageSize, maxPerUser }: P
             </select>
           </label>
           <label className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.12em] text-nord-polarLight">
-            Multiplier
+            Points
             <select
               value={grantMultiplier}
               onChange={(e) => setGrantMultiplier(Number(e.target.value))}
               disabled={busy}
               className="rounded-lg border border-nord-polarLighter bg-white px-3 py-2 text-sm font-semibold text-nord-polar tabular-nums focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-300/40"
             >
-              {POWER_PICK_MULTIPLIER_OPTIONS.map((n) => (
+              {POWER_PICK_POINT_OPTIONS.map((n) => (
                 <option key={n} value={n}>
-                  x{n}
+                  {formatPowerPickPoints(n)}
                 </option>
               ))}
             </select>
           </label>
           <span className="text-xs text-nord-polarLight">
-            {grantAmount} right{grantAmount === 1 ? "" : "s"} at x{grantMultiplier} per granted user
+            {grantAmount} right{grantAmount === 1 ? "" : "s"} worth{" "}
+            {formatPowerPickPoints(grantMultiplier)} each per granted user
           </span>
         </div>
       </div>
 
-      {/* Next-round reset (primary round-transition workflow) */}
+      {/* World Cup round automation (primary round-transition workflow) */}
       <div className="rounded-xl border border-emerald-300/60 bg-emerald-50/60 p-4">
         <div className="flex items-start gap-2">
           <span aria-hidden className="mt-0.5 text-base">♻️</span>
           <div>
-            <h2 className="text-sm font-semibold text-nord-polar">Start a new round</h2>
+            <h2 className="text-sm font-semibold text-nord-polar">World Cup round setup</h2>
             <p className="mt-0.5 text-xs text-nord-polarLight">
-              Clears each user&apos;s leftover <strong>unused</strong> rights from the previous round
-              and gives them exactly <strong>{grantAmount}</strong> fresh Power Pick x{grantMultiplier} right
-              {grantAmount === 1 ? "" : "s"} for the next round. Used (locked) picks and rights
-              already armed on upcoming matches are kept untouched.
+              Pick the World Cup round you are preparing, then automatically assign{" "}
+              <strong>{grantAmount}</strong> fresh Power Pick right
+              {grantAmount === 1 ? "" : "s"} worth{" "}
+              <strong>{formatPowerPickPoints(grantMultiplier)}</strong> each. If enabled, leftover
+              unused rights from the previous round are cleared first. Used (locked) picks and
+              rights already armed on upcoming matches stay untouched.
             </p>
           </div>
+        </div>
+        <div className="mt-3 flex flex-wrap items-center gap-3">
+          <label className="flex min-w-[180px] flex-col gap-1 text-xs font-semibold uppercase tracking-[0.12em] text-nord-polarLight">
+            Round
+            <select
+              value={roundStage}
+              onChange={(e) =>
+                setRoundStage(e.target.value as (typeof WORLD_CUP_ROUND_OPTIONS)[number]["value"])
+              }
+              disabled={busy}
+              className="rounded-lg border border-nord-polarLighter bg-white px-3 py-2 text-sm font-semibold normal-case tracking-normal text-nord-polar focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-300/40"
+            >
+              {WORLD_CUP_ROUND_OPTIONS.map((round) => (
+                <option key={round.value} value={round.value}>
+                  {round.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-emerald-200/70 bg-white/70 px-3 py-2 text-sm font-medium text-nord-polar">
+            <input
+              type="checkbox"
+              checked={roundClearUnused}
+              onChange={(e) => setRoundClearUnused(e.target.checked)}
+              disabled={busy}
+              className="h-4 w-4 rounded border-nord-polarLighter accent-emerald-600"
+            />
+            Clear leftover unused rights before assigning
+          </label>
         </div>
         <div className="mt-3 flex flex-wrap gap-2">
           <Button
             disabled={busy}
             onClick={() => setResetModal({ scope: "all_users" })}
           >
-            Reset &amp; grant {grantAmount} x{grantMultiplier} to all users
+            {roundClearUnused ? "Clear & assign" : "Assign"} {grantAmount} for{" "}
+            {WORLD_CUP_ROUND_OPTIONS.find((round) => round.value === roundStage)?.label} to all
+            users
           </Button>
           <Button
             variant="secondary"
@@ -299,7 +351,7 @@ export function PowerPickAdminClient({ users, logs, packageSize, maxPerUser }: P
               setResetModal({ scope: "selected_users" });
             }}
           >
-            Reset &amp; grant {grantAmount} x{grantMultiplier} to selected
+            {roundClearUnused ? "Clear & assign" : "Assign"} {grantAmount} for selected users
           </Button>
         </div>
       </div>
@@ -312,7 +364,7 @@ export function PowerPickAdminClient({ users, logs, packageSize, maxPerUser }: P
             disabled={busy}
             onClick={() => run(() => grantPowerPickAction("all_users", [], grantAmount, grantMultiplier))}
           >
-            Grant {grantAmount} x{grantMultiplier} to all users
+            Grant {grantAmount} ({formatPowerPickPoints(grantMultiplier)}) to all users
           </Button>
           <Button
             variant="secondary"
@@ -362,7 +414,7 @@ export function PowerPickAdminClient({ users, logs, packageSize, maxPerUser }: P
               run(() => grantPowerPickAction("selected_users", selectedIds, grantAmount, grantMultiplier));
             }}
           >
-            Grant {grantAmount} x{grantMultiplier} to selected
+            Grant {grantAmount} ({formatPowerPickPoints(grantMultiplier)}) to selected
           </Button>
           <Button
             variant="secondary"
@@ -429,7 +481,7 @@ export function PowerPickAdminClient({ users, logs, packageSize, maxPerUser }: P
                   <th className="px-3 py-3 text-center font-semibold">Used / locked</th>
                   <th className="px-3 py-3 text-center font-semibold">Active (unlocked)</th>
                   <th className="px-3 py-3 text-center font-semibold">Remaining</th>
-                  <th className="px-3 py-3 text-center font-semibold">Current x</th>
+                  <th className="px-3 py-3 text-center font-semibold">Current points</th>
                   <th className="px-3 py-3 font-semibold">Last updated</th>
                 </tr>
               </thead>
@@ -500,7 +552,7 @@ export function PowerPickAdminClient({ users, logs, packageSize, maxPerUser }: P
                         </td>
                         <td className="px-3 py-2.5 text-center">
                           <span className="inline-flex rounded-full border border-amber-300/60 bg-amber-50 px-2 py-0.5 text-xs font-bold text-amber-800">
-                            x{u.multiplier}
+                            {u.multiplier}
                           </span>
                         </td>
                         <td className="px-3 py-2.5 text-xs text-nord-polarLight">
@@ -562,7 +614,7 @@ export function PowerPickAdminClient({ users, logs, packageSize, maxPerUser }: P
                                           </div>
                                           <div className="mt-2 flex flex-wrap items-center gap-1.5">
                                             <span className="inline-flex rounded-full border border-amber-300/70 bg-amber-50 px-2 py-0.5 text-[11px] font-bold text-amber-800">
-                                              ★ x{match.multiplier}
+                                              ★ {match.multiplier} pts
                                             </span>
                                             <span
                                               className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold ${
@@ -625,7 +677,7 @@ export function PowerPickAdminClient({ users, logs, packageSize, maxPerUser }: P
                   <th className="px-3 py-3 font-semibold">Action</th>
                   <th className="px-3 py-3 font-semibold">Scope</th>
                   <th className="px-3 py-3 text-center font-semibold">Amount</th>
-                  <th className="px-3 py-3 text-center font-semibold">x</th>
+                  <th className="px-3 py-3 text-center font-semibold">Points</th>
                   <th className="px-3 py-3 text-center font-semibold">Users</th>
                 </tr>
               </thead>
@@ -649,7 +701,7 @@ export function PowerPickAdminClient({ users, logs, packageSize, maxPerUser }: P
                       {l.amountGranted > 0 ? `+${l.amountGranted}` : l.amountGranted}
                     </td>
                     <td className="px-3 py-2.5 text-center tabular-nums text-nord-polarLight">
-                      {l.amountGranted > 0 ? `x${l.multiplier}` : "–"}
+                      {l.amountGranted > 0 ? l.multiplier : "–"}
                     </td>
                     <td className="px-3 py-2.5 text-center tabular-nums text-nord-polarLight">
                       {l.affectedUsers}
@@ -666,33 +718,41 @@ export function PowerPickAdminClient({ users, logs, packageSize, maxPerUser }: P
       <Modal
         open={!!resetModal}
         onClose={() => !busy && setResetModal(null)}
-        title="Start a new round?"
-        confirmLabel={`Yes, reset & grant ${grantAmount} x${grantMultiplier}`}
+        title="Apply World Cup round setup?"
+        confirmLabel={
+          roundClearUnused
+            ? `Yes, clear & assign ${grantAmount}`
+            : `Yes, assign ${grantAmount}`
+        }
         cancelLabel="Cancel"
         loading={busy}
         onConfirm={() => {
           if (!resetModal) return;
           const scope = resetModal.scope;
           setResetModal(null);
+          const targetIds = scope === "selected_users" ? selectedIds : [];
           run(() =>
-            resetForNextRoundPowerPickAction(
-              scope,
-              scope === "selected_users" ? selectedIds : [],
-              grantAmount,
-              grantMultiplier
-            )
+            roundClearUnused
+              ? resetForNextRoundPowerPickAction(scope, targetIds, grantAmount, grantMultiplier)
+              : grantPowerPickAction(scope, targetIds, grantAmount, grantMultiplier)
           );
         }}
       >
         <p>
-          This will remove all <strong>unused</strong> Power Pick rights and set exactly{" "}
-          <strong>{grantAmount}</strong> fresh x{grantMultiplier} right{grantAmount === 1 ? "" : "s"} for{" "}
+          This will prepare{" "}
+          <strong>
+            {WORLD_CUP_ROUND_OPTIONS.find((round) => round.value === roundStage)?.label}
+          </strong>{" "}
+          for{" "}
           <strong>
             {resetModal?.scope === "all_users"
               ? "all users"
               : `${selectedIds.length} selected user(s)`}
           </strong>
-          . Used (locked) picks and rights already armed on upcoming matches are preserved.
+          . It will {roundClearUnused ? "remove leftover unused rights first and then set" : "grant"}{" "}
+          <strong>{grantAmount}</strong> Power Pick right{grantAmount === 1 ? "" : "s"} worth{" "}
+          <strong>{formatPowerPickPoints(grantMultiplier)}</strong> each. Used (locked) picks and
+          rights already armed on upcoming matches are preserved.
         </p>
       </Modal>
 

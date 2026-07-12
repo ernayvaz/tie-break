@@ -211,7 +211,7 @@ describe("BTTS + winner scoring (SQLite integration)", () => {
 
     expect((await scoreMatch(match.id)).ok).toBe(true);
 
-    expect(await pointsFor(boostedCorrect.id, match.id)).toBe(5); // x5 correct, not 2 x 5
+    expect(await pointsFor(boostedCorrect.id, match.id)).toBe(5); // 5-point right, not 2 * 5
     expect(await pointsFor(normalCorrect.id, match.id)).toBe(2); // plain BTTS correct
     expect(await pointsFor(boostedWrong.id, match.id)).toBe(0); // wrong, no points
 

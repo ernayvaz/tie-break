@@ -398,7 +398,7 @@ function RecentColumn({
                 </span>
                 {p.isPowerPick ? (
                   <span className="rounded bg-[linear-gradient(135deg,#f7c948,#e08a1e)] px-1.5 py-0.5 font-bold text-white">
-                    ★ x{p.powerPickMultiplier ?? 3}
+                    ★ {p.powerPickMultiplier ?? 3} pts
                   </span>
                 ) : null}
                 {p.scoreLabel ? (

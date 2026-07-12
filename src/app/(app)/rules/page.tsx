@@ -117,25 +117,26 @@ export default async function RulesPage() {
           <p className="text-nord-polarLight">
             If you arm a <strong className="font-semibold text-nord-polar">Power Pick</strong> on a
             match, a correct pick scores exactly the Power Pick value instead (for example{" "}
-            <strong className="font-semibold text-nord-polar">x5 = 5 points</strong>) — this applies
-            the same way to 1, 2 and BTTS picks, and replaces the base points rather than stacking
-            on top of them.
+            <strong className="font-semibold text-nord-polar">5-point Power Pick = 5 points</strong>)
+            — this applies the same way to 1, 2 and BTTS picks, and replaces the base points
+            rather than stacking on top of them.
           </p>
         </section>
 
         <section className="space-y-3 pt-1">
-          <h2 className={sectionTitle}>Power Pick multipliers</h2>
+          <h2 className={sectionTitle}>Power Pick points</h2>
           <p className="text-nord-polarLight">
             Power Pick is a special booster available only in the{" "}
             <strong className="font-semibold text-nord-polar">World Cup</strong>{" "}
-            competition. Admins can assign x3, x4, x5, x6 or x10 rights.
+            competition. Admins can assign direct 1-10 point rights.
           </p>
           <ul className="list-disc space-y-1.5 pl-5 text-nord-polarLight">
             <li>
               Each Power Pick applies to a{" "}
               <strong className="font-semibold text-nord-polar">single match</strong>. If that
-              boosted prediction is correct, it scores the assigned multiplier value
-              (for example x6 ={" "}
+              boosted prediction is correct, it scores the assigned Power Pick point value
+              (for example a{" "}
+              <strong className="font-semibold text-nord-polar">6-point</strong> right scores{" "}
               <strong className="font-semibold text-nord-polar">6 points</strong>) instead of the
               base points (1 for a 1/2 pick, 2 for BTTS). A wrong boosted prediction still scores 0.
             </li>

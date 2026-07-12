@@ -195,7 +195,7 @@ export async function adminSetPredictionForUserAction(
     powerPickMultiplier == null || powerPickMultiplier < 0
       ? "unchanged"
       : powerPickMultiplier > 0
-        ? `x${normalizePowerPickMultiplier(powerPickMultiplier)}`
+        ? `${normalizePowerPickMultiplier(powerPickMultiplier)} points`
         : "none";
 
   const upsert = await createOrUpdatePrediction(targetUserId, matchId, pick, {
@@ -335,7 +335,7 @@ export async function adminSetMatchPowerPickAction(
     "prediction",
     `${targetUserId}:${matchId}`,
     "power_pick",
-    enable ? `x${normalizePowerPickMultiplier(multiplier)}` : "none"
+    enable ? `${normalizePowerPickMultiplier(multiplier)} points` : "none"
   );
 
   revalidatePath("/admin/predictions");
@@ -345,7 +345,7 @@ export async function adminSetMatchPowerPickAction(
   return {
     ok: true,
     message: enable
-      ? `Power Pick x${normalizePowerPickMultiplier(multiplier)} assigned. Leaderboard refreshed.`
+      ? `Power Pick ${normalizePowerPickMultiplier(multiplier)} points assigned. Leaderboard refreshed.`
       : "Power Pick removed. Right returned to the user's pool.",
   };
 }

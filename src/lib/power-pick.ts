@@ -50,7 +50,7 @@ const POINTS_NORMAL_CORRECT = 1;
  * Points a finalized prediction earns.
  *
  * - Incorrect → 0.
- * - Boosted correct → exactly the Power Pick multiplier value (e.g. x5 → 5),
+ * - Boosted correct → exactly the Power Pick point value (e.g. 5-point right → 5),
  *   regardless of `basePoints`. The multiplier replaces the base; it never stacks.
  * - Non-boosted correct → `basePoints` (1 for a 1/2 winner pick, 2 for BTTS).
  */

@@ -58,7 +58,7 @@ export async function grantPowerPickAction(
   const safeMultiplier = normalizePowerPickMultiplier(multiplier);
   return {
     ok: true,
-    message: `Granted up to ${result.amount} Power Pick x${safeMultiplier} right(s) to ${result.affected} user(s) (max ${POWER_PICK_MAX_PER_USER} per user).${skippedNote}`,
+    message: `Granted up to ${result.amount} Power Pick ${safeMultiplier}-point right(s) to ${result.affected} user(s) (max ${POWER_PICK_MAX_PER_USER} per user).${skippedNote}`,
   };
 }
 
@@ -103,7 +103,7 @@ export async function resetForNextRoundPowerPickAction(
   const safeMultiplier = normalizePowerPickMultiplier(multiplier);
   return {
     ok: true,
-    message: `Cleared unused rights and set ${result.amount} fresh Power Pick x${safeMultiplier} right(s) for the next round on ${result.affected} user(s).`,
+    message: `Cleared unused rights and set ${result.amount} fresh Power Pick ${safeMultiplier}-point right(s) for the next round on ${result.affected} user(s).`,
   };
 }
 

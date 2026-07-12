@@ -21,7 +21,7 @@ function matchCompetitionFilter(competitionId: string) {
 /**
  * Score all finalized predictions for a finished match.
  * Non-boosted correct = base points (1 for 1/2, 2 for BTTS),
- * Power Pick xN correct = exactly N points, incorrect = 0.
+ * Power Pick N-point correct = exactly N points, incorrect = 0.
  */
 export async function scoreMatch(matchId: string): Promise<{ ok: true } | { ok: false; error: string }> {
   const match = await prisma.match.findUnique({
@@ -48,7 +48,7 @@ export async function scoreMatch(matchId: string): Promise<{ ok: true } | { ok: 
   // Resolve the exact awarded points per prediction, then group by value so each
   // distinct point total is written in a single updateMany. Points differ because:
   //   - incorrect → 0
-  //   - boosted correct → the multiplier value (e.g. x5 → 5), base ignored
+  //   - boosted correct → the Power Pick point value (e.g. 5-point right → 5), base ignored
   //   - non-boosted correct → base points (1 for a 1/2 winner, 2 for BTTS)
   const idsByPoints = new Map<number, string[]>();
   for (const p of predictions) {
@@ -189,7 +189,7 @@ export async function rebuildLeaderboardForCompetition(
     existing.finalizedCount += 1;
     existing.totalPoints += p.awardedPoints ?? 0;
     if (p.match.officialResultType !== null) existing.completedMatchCount += 1;
-    // awardedPoints > 0 covers both normal (1) and Power Pick x3 (3) correct calls.
+    // awardedPoints > 0 covers both normal/base points and Power Pick point values.
     if ((p.awardedPoints ?? 0) > 0) {
       existing.correctCount += 1;
       if (KNOCKOUT_STAGES.includes(p.match.stage)) existing.knockoutPoints += 1;

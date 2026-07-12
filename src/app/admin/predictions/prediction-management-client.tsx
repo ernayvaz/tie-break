@@ -28,9 +28,13 @@ import {
   adminReclaimUnusedPowerPickAction,
 } from "./actions";
 
-const POWER_PICK_ADMIN_OPTIONS = [-1, 0, 3, 4, 5, 6, 10] as const;
-/** Per-row inline Power Pick selector: 0 = none/remove, then the valid multipliers. */
-const POWER_PICK_ROW_OPTIONS = [0, 3, 4, 5, 6, 10] as const;
+const POWER_PICK_ADMIN_OPTIONS = [-1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10] as const;
+/** Per-row inline Power Pick selector: 0 = none/remove, then valid point values. */
+const POWER_PICK_ROW_OPTIONS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10] as const;
+
+function formatPowerPickPoints(points: number): string {
+  return `${points} point${points === 1 ? "" : "s"}`;
+}
 
 export type PredictionRow = AdminPredictionHistoryRow;
 
@@ -446,7 +450,7 @@ export function PredictionManagementClient({
           Match lock time does not apply. Pick a user and match, choose <strong className="text-nord-polar">1</strong>,{" "}
           <strong className="text-nord-polar">2</strong>, <strong className="text-nord-polar">BTTS Yes</strong>, or{" "}
           <strong className="text-nord-polar">BTTS No</strong>, then save as
-          draft or finalize. Optionally attach Power Pick x3/x4/x5/x6/x10, even for started or completed matches. Set <strong className="text-nord-polar">Entered at</strong> to control the timestamp shown on
+          draft or finalize. Optionally attach a Power Pick worth 1-10 points, even for started or completed matches. Set <strong className="text-nord-polar">Entered at</strong> to control the timestamp shown on
           the site (finalized time if locked, or “Saved …” for drafts). If the match already has an official result and you
           finalize, points are recalculated for that fixture and the leaderboard is refreshed.
         </p>
@@ -507,7 +511,11 @@ export function PredictionManagementClient({
             >
               {POWER_PICK_ADMIN_OPTIONS.map((value) => (
                 <option key={value} value={value}>
-                  {value === -1 ? "Leave unchanged" : value === 0 ? "None / remove" : `x${value}`}
+                  {value === -1
+                    ? "Leave unchanged"
+                    : value === 0
+                      ? "None / remove"
+                      : formatPowerPickPoints(value)}
                 </option>
               ))}
             </select>
@@ -1157,7 +1165,7 @@ function PowerPickCell({
     <div className="flex flex-col gap-1.5">
       {selection ? (
         <span className="inline-flex w-fit items-center gap-1 rounded-full border border-amber-300/70 bg-[linear-gradient(135deg,#fde9b8,#f6c560)] px-2 py-0.5 text-[11px] font-bold text-[#7a4a00] shadow-[0_1px_3px_rgba(224,138,30,0.25)]">
-          ★ x{selection.multiplier}
+          ★ {selection.multiplier} pts
           <span className="font-semibold uppercase tracking-[0.06em] opacity-80">
             · {powerPickStatusLabel(selection.status)}
           </span>
@@ -1172,11 +1180,11 @@ function PowerPickCell({
         disabled={busy}
         onChange={(e) => onChange(Number(e.target.value))}
         className="w-[7.5rem] rounded-lg border border-nord-polarLighter bg-white px-2 py-1 text-xs font-semibold text-nord-polar disabled:opacity-50"
-        aria-label="Set Power Pick multiplier"
+        aria-label="Set Power Pick points"
       >
         {POWER_PICK_ROW_OPTIONS.map((value) => (
           <option key={value} value={value}>
-            {value === 0 ? "None / remove" : `x${value}`}
+            {value === 0 ? "None / remove" : `${value} pts`}
           </option>
         ))}
       </select>

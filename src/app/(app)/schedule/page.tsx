@@ -134,7 +134,7 @@ export default async function SchedulePage() {
           },
           {
             label: "Power Pick",
-            value: "Feeling confident? Arm your assigned Power Pick multiplier on a match and a correct call is worth that many points. Choose your moments — your picks are limited.",
+            value: "Feeling confident? Arm your assigned Power Pick points on a match and a correct call is worth that exact point value. Choose your moments — your picks are limited.",
           },
         ]}
       />

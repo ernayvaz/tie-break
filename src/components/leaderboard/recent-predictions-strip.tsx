@@ -67,7 +67,7 @@ function markerVisuals(
       return {
         className:
           "bg-[linear-gradient(135deg,#f7c948,#e08a1e)] text-[10px] font-bold text-white ring-amber-300/60",
-        content: <>×{powerPickMultiplier ?? 3}</>,
+        content: <>{powerPickMultiplier ?? 3}</>,
       };
     }
     return {
@@ -165,7 +165,7 @@ function PredictionTooltip({
           ) : null}
           {item.isPowerPick ? (
             <span className="inline-flex items-center gap-1 rounded-lg bg-[linear-gradient(135deg,#f7c948,#e08a1e)] px-2 py-1 text-xs font-bold text-white shadow-sm">
-              ★ x{item.powerPickMultiplier ?? 3}
+              ★ {item.powerPickMultiplier ?? 3} pts
             </span>
           ) : null}
           {item.scoreLabel ? (

@@ -1004,7 +1004,7 @@ export function ScheduleTabs({
       !!displaySelection && predictionChoices.includes(displaySelection);
     const showOthers = userPred?.isFinal && displaySelectionIsAllowed && others.length > 0;
 
-    // Power Pick x3 — World Cup only, and only once an admin has granted rights.
+    // Power Pick — World Cup only, and only once an admin has granted rights.
     const isWorldCupMatch = m.competitionId === WORLD_CUP_2026_COMPETITION_ID;
     const powerPickFeatureOn = powerPickBalanceState.totalGranted > 0;
     const ppMatch = localPowerPickByMatch[m.id];
@@ -1025,22 +1025,22 @@ export function ScheduleTabs({
       ppLockedVisual ||
       (!ppOn && remainingPicks <= 0) ||
       (!ppOn && !hasPrediction);
-    let ppTitle = `Correct Power Pick x${ppMultiplier} predictions are worth ${ppMultiplier} points.`;
-    if (ppLockedVisual) ppTitle = `Power Pick x${ppMultiplier} is locked for this match.`;
+    let ppTitle = `Correct Power Pick predictions are worth ${ppMultiplier} points.`;
+    if (ppLockedVisual) ppTitle = `Power Pick ${ppMultiplier} points is locked for this match.`;
     else if (!ppOn && !hasPrediction) ppTitle = "Please select a prediction first.";
-    else if (!ppOn && remainingPicks <= 0) ppTitle = "No Power Pick x3 picks remaining.";
+    else if (!ppOn && remainingPicks <= 0) ppTitle = "No Power Pick rights remaining.";
 
     const powerPickBadge =
       isWorldCupMatch && ppOn ? (
         <span
           title={
             ppLockedVisual
-              ? "Power Pick x3 is locked for this match."
-              : `Correct Power Pick x${ppMultiplier} predictions are worth ${ppMultiplier} points.`
+              ? "Power Pick is locked for this match."
+              : `Correct Power Pick predictions are worth ${ppMultiplier} points.`
           }
           className="inline-flex shrink-0 items-center gap-1 rounded-full border border-amber-300/70 bg-[linear-gradient(135deg,#fde9b8,#f6c560)] px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.08em] text-[#7a4a00] shadow-[0_1px_3px_rgba(224,138,30,0.25)]"
         >
-          ★ x{ppMultiplier}
+          ★ {ppMultiplier} pts
         </span>
       ) : null;
 
@@ -1480,10 +1480,10 @@ export function ScheduleTabs({
                         </span>
                         {o.isPowerPick ? (
                           <span
-                            title={`Armed Power Pick x${o.powerPickMultiplier ?? 3} on this match`}
+                            title={`Armed Power Pick worth ${o.powerPickMultiplier ?? 3} points on this match`}
                             className="inline-flex shrink-0 items-center rounded-full border border-amber-300/70 bg-[linear-gradient(135deg,#fde9b8,#f6c560)] px-1 py-0.5 text-[8px] font-bold uppercase tracking-[0.06em] text-[#7a4a00] shadow-[0_1px_3px_rgba(224,138,30,0.25)] sm:px-1.5 sm:text-[9px] sm:tracking-[0.08em]"
                           >
-                            ★ x{o.powerPickMultiplier ?? 3}
+                            ★ {o.powerPickMultiplier ?? 3}
                           </span>
                         ) : null}
                       </div>
@@ -1753,14 +1753,14 @@ export function ScheduleTabs({
           )}
           {isWorldCupTab && powerPickBalanceState.totalGranted > 0 && (
             <div
-              title={`Correct Power Pick x${powerPickBalanceState.multiplier} predictions are worth ${powerPickBalanceState.multiplier} points.`}
+              title={`Correct Power Pick predictions are worth ${powerPickBalanceState.multiplier} points.`}
               className="flex w-full items-center justify-between gap-2 rounded-full border border-amber-300/60 bg-[linear-gradient(135deg,rgba(253,233,184,0.55),rgba(255,255,255,0.92))] px-3 py-1.5 shadow-[0_2px_8px_rgba(224,138,30,0.12)] sm:ml-auto sm:w-auto sm:justify-start"
             >
               <span className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.1em] text-[#7a4a00]">
                 <span className="flex h-4 w-4 items-center justify-center rounded-full bg-[linear-gradient(135deg,#f7c948,#e08a1e)] text-[9px] text-white shadow-sm">
                   ★
                 </span>
-                Power Pick x{powerPickBalanceState.multiplier} left
+                Power Pick {powerPickBalanceState.multiplier} pts left
               </span>
               <span className="text-sm font-bold tabular-nums text-[#7a4a00]">
                 {powerPickBalanceState.remainingAvailable}/{powerPickBalanceState.totalGranted}

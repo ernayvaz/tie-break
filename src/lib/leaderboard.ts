@@ -244,7 +244,7 @@ export async function getLeaderboardBoardData(
         prediction.match.homeScore != null && prediction.match.awayScore != null
           ? `${prediction.match.homeScore} – ${prediction.match.awayScore}`
           : null;
-      const powerPickTag = isPowerPick ? ` · x${powerPickMultiplier}` : "";
+      const powerPickTag = isPowerPick ? ` · ${powerPickMultiplier} pts` : "";
       return {
         item: {
           id: prediction.id,
